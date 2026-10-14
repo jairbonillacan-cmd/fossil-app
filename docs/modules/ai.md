@@ -57,4 +57,6 @@ Claves en el Administrador de credenciales de Windows (`com.fossil.ai`, `keyring
 - Detección: solo `where.exe`; `agy` se instala en `%LOCALAPPDATA%\agy\bin` (agregar a PATH de detección).
 - En esta máquina (2026-10-13) NINGUNO de los 3 está en PATH; `~/.codex` sí tiene sesión activa (probada E2E vía CLI npm local).
 
+**Implementación puente (#33):** `BridgeProvider` (`crates/fossil-bridge/src/lib.rs`) detecta `agy` (`%LOCALAPPDATA%\agy\bin`), `claude` y `codex` con `where.exe`, ejecuta subprocesos headless en un `cwd` temporal cerrando `stdin`, parsea NDJSON a `ChatEvent` (validado contra `crates/fossil-bridge/tests/fixtures/*.jsonl`) y cancela el árbol de procesos con `taskkill /F /T` en < 500 ms.
+
 **ADRs relacionados:** [0011](../adr/0011-ai-router-bridge.md), [0013](../adr/0013-bridge-headless-jsonl.md)
