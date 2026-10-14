@@ -24,6 +24,9 @@ Tipos wire en `crates/fossil-ai/src/contract.rs` (`specta::Type`; sin `i64/u64`:
 ## Proveedores por API y keyring (#32)
 Claves en el Administrador de credenciales de Windows (`com.fossil.ai`, `keyring.rs`), streaming SSE/NDJSON (`http.rs`) y proveedores con `health()` perezoso: Anthropic (`anthropic.rs`), OpenAI (`openai.rs`), Gemini API (`gemini.rs`, header `x-goog-api-key`) y Ollama local (`ollama.rs`, `127.0.0.1:11434`, `GET /api/version` y `POST /api/chat`).
 
+## Router y registro de uso (#34)
+`AiRouter` (`router.rs`) recorre la cadena `RouteRule` (`default_routes()`), salta proveedores no listos (`HealthStatus != Ready` o `ProviderError::Unavailable`), valida capacidades al editar rutas (`ai_routes_get`/`ai_routes_set`), expone `ai_providers` con probe perezoso y persiste rutas y uso de tokens/costo en una conexión SQLite propia de `fossil-ai` (`ai_routes`, `ai_usage`, sin modificar las migraciones ni el esquema de `fossil-core` y sin guardar prompts).
+
 ## Tabla de CLIs (verificado 2026-10-13, spike #14)
 
 | | `claude` (Claude Code 2.1.299, verificado en máquina) | `codex` (0.162.1, verificado en máquina) | `agy` (Antigravity CLI, solo docs oficiales: no instalado) |

@@ -1248,6 +1248,7 @@ dependencies = [
  "async-trait",
  "keyring",
  "reqwest",
+ "rusqlite",
  "serde",
  "serde_json",
  "specta",
