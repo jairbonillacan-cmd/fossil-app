@@ -232,3 +232,61 @@
   font-size: 14px;
   color: var(--fg-muted);
 }
+
+/* Outliner (#25): 4 px-aligned indent guides, 24 px Lucide fold chevrons, and folded state */
+.fossil-editor > [data-block-id] {
+  position: relative;
+}
+.fossil-editor > [data-indent] {
+  margin-left: calc(var(--indent, 1) * 24px);
+}
+.fossil-editor > [data-indent]::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto -4px calc(var(--indent, 1) * -24px);
+  width: calc(var(--indent, 1) * 24px);
+  background:
+    linear-gradient(90deg, transparent 11px, var(--border) 11px 12px, transparent 12px) 0 0 / 24px
+    100%;
+  pointer-events: none;
+}
+.fossil-fold-btn {
+  position: absolute;
+  z-index: 1;
+  inset: 0 auto auto -26px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--fg-muted);
+  display: inline-grid;
+  place-content: center;
+  cursor: pointer;
+}
+.fossil-fold-btn:hover,
+.fossil-fold-btn:focus-visible {
+  color: var(--fg);
+  background: var(--bg-elevated);
+  outline: none;
+}
+.fossil-fold-btn:focus-visible {
+  border-color: var(--accent);
+}
+.fossil-fold-btn svg {
+  transform: rotate(90deg);
+  transition: transform 160ms ease-out;
+}
+.fossil-fold-btn[data-collapsed="true"] svg {
+  transform: rotate(0deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .fossil-fold-btn svg {
+    transition: none;
+  }
+}
+.fossil-editor > .fossil-block-hidden,
+.fossil-editor > ul.fossil-block-hidden[data-type="taskList"] {
+  display: none;
+}

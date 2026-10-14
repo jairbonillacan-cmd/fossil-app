@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import * as Y from "yjs";
 import { BlockId } from "./block-id";
 import { defaultEditorTranslator, type EditorTranslator } from "./i18n";
+import { Outliner } from "./outliner";
 import { SlashMenu } from "./slash-menu";
 import { createUpdateBatcher, type DocTransport } from "./transport";
 import { YSync } from "./y-sync";
@@ -59,6 +60,7 @@ function BoundEditor({ doc, t, onReady, className }: BoundEditorProps) {
         TaskItem.configure({ nested: true }),
         BlockId,
         Placeholder.configure({ placeholder: () => tRef.current("editor.placeholder") }),
+        Outliner.configure({ t }),
         YSync(getBodyFragment(doc)),
       ],
       immediatelyRender: true,
