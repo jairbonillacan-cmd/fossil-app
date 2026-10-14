@@ -6,13 +6,17 @@
 
 pub mod anthropic;
 pub mod contract;
+pub mod gemini;
 pub mod http;
 pub mod keyring;
+pub mod openai;
 pub mod provider;
 
 pub use anthropic::AnthropicProvider;
 pub use contract::*;
+pub use gemini::GeminiProvider;
 pub use keyring::{KeyStore, MemoryKeyring, OsKeyring, SecretKey};
+pub use openai::OpenAiProvider;
 pub use provider::{Provider, ProviderError};
 
 /// Canonical crate name, sanity-checked against the package name in tests.

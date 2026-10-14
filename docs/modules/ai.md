@@ -22,7 +22,7 @@ Tipos wire en `crates/fossil-ai/src/contract.rs` (`specta::Type`; sin `i64/u64`:
 `ChatEvent = Started{provider,model} | Delta{text} | ToolCall{name,arguments} | Usage | Done{summary} | Error{message}`; `ProviderError` (trait, Rust) ≠ `AiError` (IPC).
 
 ## Proveedores por API y keyring (#32)
-Claves en el Administrador de credenciales de Windows (`com.fossil.ai`, `keyring.rs`), streaming SSE (`http.rs`) y proveedor Anthropic (`anthropic.rs`, `POST /v1/messages`, `health()` perezoso).
+Claves en el Administrador de credenciales de Windows (`com.fossil.ai`, `keyring.rs`), streaming SSE (`http.rs`) y proveedores por API con `health()` perezoso: Anthropic (`anthropic.rs`), OpenAI (`openai.rs`, `POST /v1/chat/completions`) y Gemini API (`gemini.rs`, `POST /v1beta/models/{model}:streamGenerateContent?alt=sse`, header `x-goog-api-key`).
 
 ## Tabla de CLIs (verificado 2026-10-13, spike #14)
 
