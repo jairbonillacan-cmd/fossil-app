@@ -10,6 +10,9 @@ use std::sync::{Arc, Mutex, OnceLock};
 use fossil_ai::{ProviderError, ProviderId, RequestId, Usage};
 use serde_json::Value;
 
+pub mod runner;
+pub use runner::BridgeProvider;
+
 pub const CRATE_NAME: &str = "fossil-bridge";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

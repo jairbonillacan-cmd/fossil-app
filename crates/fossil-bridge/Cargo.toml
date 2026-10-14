@@ -10,10 +10,12 @@ repository.workspace = true
 
 [dependencies]
 fossil-ai = { path = "../fossil-ai" }
+async-trait = "0.1"
 serde_json = "1.0.149"
+tokio = { version = "1.51.1", features = ["process", "io-util", "sync", "time"] }
 
 [dev-dependencies]
-tokio = { version = "1.51.1", features = ["macros", "rt", "process", "sync", "time"] }
+tokio = { version = "1.51.1", features = ["macros", "rt", "process", "io-util", "sync", "time"] }
 
 [lints]
 workspace = true

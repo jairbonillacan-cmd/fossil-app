@@ -27,9 +27,9 @@ Claves en el Administrador de credenciales de Windows (`com.fossil.ai`, `keyring
 ## Router y registro de uso (#34)
 `AiRouter` (`router.rs`) recorre la cadena `RouteRule` (`default_routes()`), salta proveedores no listos (`HealthStatus != Ready` o `ProviderError::Unavailable`), valida capacidades al editar rutas (`ai_routes_get`/`ai_routes_set`), expone `ai_providers` con probe perezoso y persiste rutas y uso de tokens/costo en una conexión SQLite propia de `fossil-ai` (`ai_routes`, `ai_usage`, sin modificar las migraciones ni el esquema de `fossil-core` y sin guardar prompts).
 
-## Tabla de CLIs (verificado 2026-10-13, spike #14)
+## Tabla de CLIs (spike #14)
 
-| | `claude` (Claude Code 2.1.299, verificado en máquina) | `codex` (0.162.1, verificado en máquina) | `agy` (Antigravity CLI, solo docs oficiales: no instalado) |
+| | `claude` (Claude Code 2.1.299) | `codex` (0.162.1) | `agy` (Antigravity CLI) |
 |---|---|---|---|
 | **Headless** | `claude -p` (prompt: arg o stdin) | `codex exec [PROMPT]` (arg, `-` fuerza stdin) | `agy -p` / `--print` / `--prompt` |
 | **Salida** | `--output-format text\|json\|stream-json` (solo con `-p`) | `--json` (JSONL); `-o <file>` escribe el último mensaje | `--output-format text\|json\|stream-json` |
@@ -37,11 +37,11 @@ Claves en el Administrador de credenciales de Windows (`com.fossil.ai`, `keyring
 | **Entrada** | `--input-format stream-json` (bidireccional) | stdin (cerrar stdin al final; con prompt en arg lo concatena como `<stdin>`) | `--input-format stream-json` (requiere `--output-format stream-json`) |
 | **Modelo** | `--model <alias|nombre>`; `--effort low..max`; `--fallback-model a,b` | `-m, --model`; inválido → evento `type:"error"` + exit 1 | `--model <slug>` (`agy models`); `--effort low\|medium\|high` |
 | **MCP propio** | `claude mcp add[-json] <n> ...`; o `--mcp-config <file>` + `--strict-mcp-config` por invocación | `codex mcp add <n> -- <cmd>` / `--url`; o `-c mcp_servers...` | sin `mcp add`: editar `~/.gemini/config/mcp_config.json` (o `.agents/mcp_config.json`), clave `mcpServers` |
-| **Sesión/health** | sin sesión: exit 1 con `result:"Not logged in…"`; init trae `apiKeySource` | funcionó E2E con la sesión ChatGPT del PO (auth del propio CLI) | usa credenciales cacheadas; sin auth falla rápido, no se cuelga |
+| **Sesión/health** | sin sesión: exit 1 con `result:"Not logged in…"`; init trae `apiKeySource` | usa la sesión activa del propio CLI | usa credenciales cacheadas; sin auth falla rápido, no se cuelga |
 | **Timeout** | nuestro (tokio) | nuestro; `--ephemeral` para no persistir sesión | `--print-timeout` (default **5 min**) |
 | **ACP** | **No** nativo (adaptador externo `claude-code-acp`) | **No** nativo (adaptador externo `codex-acp` sobre `app-server` experimental) | **No** (issue abierta google-antigravity/antigravity-cli#31) |
 
-## Latencias medidas (máquina del PO, prompt trivial)
+## Latencias de referencia (prompt trivial)
 
 | Operación | Latencia |
 |---|---|
@@ -58,8 +58,7 @@ Claves en el Administrador de credenciales de Windows (`com.fossil.ai`, `keyring
 - El PID de MSYS/Git-Bash ≠ PID de Windows: para matar el árbol usar Job Objects o el winpid.
 - `codex` fuera de un repo git exige `--skip-git-repo-check`.
 - Detección: solo `where.exe`; `agy` se instala en `%LOCALAPPDATA%\agy\bin` (agregar a PATH de detección).
-- En esta máquina (2026-10-13) NINGUNO de los 3 está en PATH; `~/.codex` sí tiene sesión activa (probada E2E vía CLI npm local).
 
-**Implementación puente (#33):** `BridgeProvider` (`crates/fossil-bridge/src/lib.rs`) detecta `agy` (`%LOCALAPPDATA%\agy\bin`), `claude` y `codex` con `where.exe`, ejecuta subprocesos headless en un `cwd` temporal cerrando `stdin`, parsea NDJSON a `ChatEvent` (validado contra `crates/fossil-bridge/tests/fixtures/*.jsonl`) y cancela el árbol de procesos con `taskkill /F /T` en < 500 ms.
+**Implementación puente (#33):** `crates/fossil-bridge/src/lib.rs` detecta `agy` (`%LOCALAPPDATA%\agy\bin`), `claude` y `codex` con `where.exe`, parsea NDJSON a `ChatEvent` (validado contra `crates/fossil-bridge/tests/fixtures/*.jsonl`) y cancela el árbol de procesos con `taskkill /F /T` en < 500 ms; `BridgeProvider` (`crates/fossil-bridge/src/runner.rs`) implementa `Provider` (`health()` perezoso con `--version` y `chat()` ejecutando subprocesos headless en un `cwd` temporal y cerrando `stdin`).
 
 **ADRs relacionados:** [0011](../adr/0011-ai-router-bridge.md), [0013](../adr/0013-bridge-headless-jsonl.md)
