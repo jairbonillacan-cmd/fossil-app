@@ -1,6 +1,6 @@
 # search
-**Propósito:** contrato de búsqueda de texto completo (FTS5), indexación en background y parser de operadores (`docs/specs/r1-search.md`, contrato #92).
-**Rutas:** `crates/fossil-core/src/search.rs`, `crates/fossil-core/migrations/0002_fts_search.sql`, `apps/desktop/src-tauri/src/commands/search.rs`.
+**Propósito:** contrato de búsqueda de texto completo (FTS5), indexación en background y motor con parser de operadores (`docs/specs/r1-search.md`, #92, #20).
+**Rutas:** `crates/fossil-core/src/search.rs`, `crates/fossil-core/benches/search_10k.rs`, `crates/fossil-core/migrations/0002_fts_search.sql`, `apps/desktop/src-tauri/src/commands/search.rs`.
 **Contratos públicos:** `commands.searchQuery(query: SearchQuery) -> Result<SearchHit[], SearchError>` en `apps/desktop/src/bindings.ts`.
 
 ## Indexador en background (#19, `crates/fossil-core/src/indexer.rs`)
@@ -22,7 +22,7 @@
 ## Esquema FTS5 (`0002_fts_search.sql`)
 Recreación de `fts_objects(object_id UNINDEXED, title, body)` con `tokenize = 'unicode61 remove_diacritics 2'` (para que `"campaña"` coincida con `"campana"`) y `rank = 'bm25(10.0, 1.0)'` (título con 10× más peso que el cuerpo).
 
-## Gramática del parser de operadores (#92, implementación en #20)
+## Gramática del parser de operadores (`parse_search_text`, `search_query`, #92, #20)
 ```ebnf
 query       = ws , [ clause , { ws1 , clause } ] , ws ;
 clause      = tag_filter | type_filter | negated | phrase | word ;
@@ -42,7 +42,7 @@ token       = ( char - ws_char - '"' ) , { char - ws_char - '"' } ;
 
 ## Reglas y gotchas
 - `updated_from` y `updated_to` viajan como strings ISO-8601 UTC (specta-typescript prohíbe `i64`) y se convierten a milisegundos UTC en la capa SQLite.
-- `SearchHit.snippet` devuelve `Vec<SnippetPart>` nunca HTML crudo, evitando XSS en la WebView.
-- El presupuesto de rendimiento con 10 000 objetos es **< 50 ms (p95)** en búsqueda y **< 1 s** al abrir la bóveda (`docs/DOD.md`).
+- `SearchHit.snippet` devuelve `Vec<SnippetPart>` (`parse_snippet` sobre `snippet(fts_objects, -1, char(1), char(2), '…', 16)`), nunca HTML crudo, evitando XSS en la WebView.
+- El presupuesto de rendimiento con 10 000 objetos (`crates/fossil-core/benches/search_10k.rs`) es **< 50 ms (p95)** en búsqueda y **< 1 s** al abrir la bóveda (`docs/DOD.md`).
 
 **ADRs relacionados:** 0004 (SQLite + FTS5), 0005 (modelo de objetos)

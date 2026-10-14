@@ -1,8 +1,10 @@
 //! Full-text search contract (issue #92, spec `docs/specs/r1-search.md`).
 //!
-//! Wire types shared by storage, IPC (`search_query`) and the frontend.
-//! Operator parsing and FTS5 execution arrive in #20.
+//! Wire types shared by storage, IPC (`search_query`) and the frontend, plus
+//! the FTS5 query engine and operator parser (#20).
 
+use chrono::DateTime;
+use rusqlite::{Connection, params};
 use serde::{Deserialize, Serialize};
 
 use crate::ids::ObjectId;
@@ -80,14 +82,228 @@ impl From<CoreError> for SearchError {
     }
 }
 
+impl From<rusqlite::Error> for SearchError {
+    fn from(e: rusqlite::Error) -> Self {
+        Self::Storage(e.to_string())
+    }
+}
+
+/// Parsed representation of inline search operators (`docs/modules/search.md`).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ParsedQuery {
+    pub positive: Vec<String>,
+    pub negative: Vec<String>,
+    pub tags: Vec<String>,
+    pub types: Vec<TypeKey>,
+}
+
+fn clean_tag(raw: &str) -> Option<String> {
+    let t = raw.trim().trim_start_matches('#').trim_end_matches('/');
+    (!t.is_empty() && t.split('/').all(|s| !s.is_empty())).then(|| t.to_lowercase())
+}
+
+fn part(text: impl Into<String>, matched: bool) -> SnippetPart {
+    SnippetPart {
+        text: text.into(),
+        matched,
+    }
+}
+
+/// Splits an FTS5 `snippet(..., char(1), char(2), ...)` string into structured [`SnippetPart`]s.
+pub fn parse_snippet(raw: &str) -> Vec<SnippetPart> {
+    let (mut parts, mut segs) = (Vec::new(), raw.split('\u{0001}'));
+    if let Some(first) = segs.next().filter(|s| !s.is_empty()) {
+        parts.push(part(first, false));
+    }
+    for seg in segs {
+        let (hit, tail) = seg.split_once('\u{0002}').unwrap_or((seg, ""));
+        if !hit.is_empty() {
+            parts.push(part(hit, true));
+        }
+        if !tail.is_empty() {
+            parts.push(part(tail, false));
+        }
+    }
+    parts
+}
+
+/// Parses inline operators (`"phrase"`, `-exclude`, `-"phrase"`, `tag:x`, `type:journal`).
+pub fn parse_search_text(input: &str) -> ParsedQuery {
+    let (mut out, mut rest) = (ParsedQuery::default(), input.trim_start());
+    while !rest.is_empty() {
+        let q = rest
+            .strip_prefix("-\"")
+            .map(|s| (true, s))
+            .or_else(|| rest.strip_prefix('"').map(|s| (false, s)));
+        if let Some((neg, s)) = q {
+            let (p, tail) = s.split_once('"').unwrap_or((s, ""));
+            if !p.trim().is_empty() {
+                [&mut out.positive, &mut out.negative][usize::from(neg)].push(p.trim().to_owned());
+            }
+            rest = tail.trim_start();
+            continue;
+        }
+        let end = rest
+            .find(|c: char| c.is_whitespace() || c == '"')
+            .unwrap_or(rest.len());
+        let (tok, low) = (&rest[..end], rest[..end].to_ascii_lowercase());
+        rest = rest[end..].trim_start();
+        if low.starts_with("tag:") {
+            out.tags.extend(clean_tag(&tok[4..]));
+        } else if let Some(v) = low.strip_prefix("type:") {
+            match v.trim() {
+                "" => {}
+                "page" => out.types.push(TypeKey::Page),
+                "journal" => out.types.push(TypeKey::Journal),
+                other => out.types.push(TypeKey::Builtin(other.to_owned())),
+            }
+        } else if let Some(neg) = tok.strip_prefix('-') {
+            if !neg.trim().is_empty() {
+                out.negative.push(neg.trim().to_owned());
+            }
+        } else if !tok.is_empty() {
+            out.positive.push(tok.to_owned());
+        }
+    }
+    out
+}
+
+fn fts_phrase(term: impl AsRef<str>) -> Option<String> {
+    let s = term.as_ref();
+    s.chars()
+        .any(char::is_alphanumeric)
+        .then(|| format!("\"{}\"", s.replace('"', "\"\"")))
+}
+
+fn parse_iso_ms(raw: &Option<String>) -> Result<Option<i64>, SearchError> {
+    let Some(s) = raw.as_deref().map(str::trim).filter(|s| !s.is_empty()) else {
+        return Ok(None);
+    };
+    DateTime::parse_from_rfc3339(s)
+        .map(|dt| Some(dt.timestamp_millis()))
+        .map_err(|e| SearchError::InvalidQuery(format!("invalid timestamp '{s}': {e}")))
+}
+
+macro_rules! filter_clauses {
+    () => {
+        " AND o.archived = 0
+          AND (?2 IS NULL OR NOT EXISTS (
+            SELECT 1 FROM json_each(?2) r WHERE instr(o.types, r.value) = 0))
+          AND (?3 IS NULL OR NOT EXISTS (SELECT 1 FROM json_each(?3) r WHERE NOT EXISTS (
+            SELECT 1 FROM tags t WHERE t.object_id = o.id
+              AND (t.tag = r.value OR (t.tag >= r.value || '/' AND t.tag < r.value || '0')))))
+          AND (?4 IS NULL OR o.updated_at >= ?4) AND (?5 IS NULL OR o.updated_at <= ?5) "
+    };
+}
+
+/// Executes a [`SearchQuery`] against the vault SQLite connection (#20).
+pub fn search_query(conn: &Connection, query: &SearchQuery) -> Result<Vec<SearchHit>, SearchError> {
+    let limit = match query.limit {
+        Some(0) => return Ok(Vec::new()),
+        Some(n) => i64::from(n.min(MAX_SEARCH_LIMIT)),
+        None => i64::from(DEFAULT_SEARCH_LIMIT),
+    };
+    let (from_ms, to_ms) = (
+        parse_iso_ms(&query.updated_from)?,
+        parse_iso_ms(&query.updated_to)?,
+    );
+    let mut p = parse_search_text(&query.text);
+    if let Some(tk) = &query.type_key
+        && !p.types.contains(tk)
+    {
+        p.types.push(tk.clone());
+    }
+    let types_json = (!p.types.is_empty())
+        .then(|| {
+            let v: Vec<_> = p
+                .types
+                .iter()
+                .filter_map(|t| serde_json::to_string(t).ok())
+                .collect();
+            serde_json::to_string(&v).ok()
+        })
+        .flatten();
+    if let Some(t) = query.tag.as_deref().and_then(clean_tag)
+        && !p.tags.contains(&t)
+    {
+        p.tags.push(t);
+    }
+    let tags_json = (!p.tags.is_empty())
+        .then(|| serde_json::to_string(&p.tags).ok())
+        .flatten();
+
+    let pos: Vec<_> = p.positive.iter().filter_map(fts_phrase).collect();
+    let neg: Vec<_> = p.negative.iter().filter_map(fts_phrase).collect();
+    let (fts_arg, sql) = if !pos.is_empty() {
+        let mut fts = pos.join(" AND ");
+        for n in &neg {
+            fts.push_str(&format!(" NOT {n}"));
+        }
+        let s = concat!(
+            "SELECT o.id, o.title, snippet(fts_objects, -1, char(1), char(2), '…', 16), -bm25(fts_objects, 0.0, 10.0, 1.0)
+             FROM fts_objects JOIN objects o ON o.id = fts_objects.object_id WHERE fts_objects MATCH ?1",
+            filter_clauses!(),
+            "ORDER BY bm25(fts_objects, 0.0, 10.0, 1.0) ASC, o.updated_at DESC, o.id ASC LIMIT ?6"
+        );
+        (Some(fts), s)
+    } else {
+        let s = concat!(
+            "SELECT o.id, o.title, COALESCE((SELECT b.text FROM blocks b WHERE b.object_id = o.id ORDER BY b.sort_order ASC LIMIT 1), ''), 0.0
+             FROM objects o WHERE (?1 IS NULL OR o.id NOT IN (SELECT object_id FROM fts_objects WHERE fts_objects MATCH ?1))",
+            filter_clauses!(),
+            "ORDER BY o.updated_at DESC, o.id ASC LIMIT ?6"
+        );
+        ((!neg.is_empty()).then(|| neg.join(" OR ")), s)
+    };
+
+    let args = params![fts_arg, types_json, tags_json, from_ms, to_ms, limit];
+    conn.prepare_cached(sql)?
+        .query_map(args, |r| {
+            Ok(SearchHit {
+                object_id: ObjectId(r.get(0)?),
+                title: r.get(1)?,
+                snippet: parse_snippet(&r.get::<_, String>(2)?),
+                score: r.get(3)?,
+            })
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()
+        .map_err(Into::into)
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         DEFAULT_SEARCH_LIMIT, MAX_SEARCH_LIMIT, SearchError, SearchHit, SearchQuery, SnippetPart,
+        parse_search_text, search_query,
     };
     use crate::ids::ObjectId;
-    use crate::objects::{CoreError, TypeKey};
+    use crate::objects::{CoreError, NewObject, TypeKey};
     use crate::storage::open_vault;
+    use crate::{doc_store, indexer, object_store};
+    use rusqlite::Connection;
+    use yrs::{Doc, ReadTxn, StateVector, Transact, XmlElementPrelim, XmlFragment, XmlTextPrelim};
+
+    fn add_doc(c: &mut Connection, ty: TypeKey, title: &str, text: &str) -> ObjectId {
+        let (types, title) = (vec![ty], title.into());
+        let m = NewObject {
+            types,
+            title,
+            icon: None,
+            parent: None,
+        };
+        let (id, doc) = (object_store::create(c, m).unwrap().id, Doc::new());
+        let body = doc.get_or_insert_xml_fragment("body");
+        let mut txn = doc.transact_mut();
+        let el = body.push_back(&mut txn, XmlElementPrelim::empty("paragraph"));
+        el.push_back(&mut txn, XmlTextPrelim::new(text));
+        drop(txn);
+        let u = doc
+            .transact()
+            .encode_state_as_update_v1(&StateVector::default());
+        doc_store::apply_update(c, &id, &u).unwrap();
+        indexer::index_object(c, &id).unwrap();
+        id
+    }
 
     #[test]
     fn search_query_and_hit_round_trip_through_serde() {
@@ -159,5 +375,54 @@ mod tests {
             )
             .unwrap();
         assert_eq!(matched, 1);
+    }
+
+    #[test]
+    fn parser_and_search_weight_titles_fold_diacritics_and_apply_operators() {
+        let p = parse_search_text(
+            "\"campaña anual\" -borrador -\"fase 0\" tag:#Estrategia/Q4 type:journal - tag: type: \"abierta",
+        );
+        assert_eq!(p.positive, ["campaña anual", "abierta"]);
+        assert_eq!(p.negative, ["borrador", "fase 0"]);
+        assert_eq!(p.tags, ["estrategia/q4"]);
+        assert_eq!(p.types, [TypeKey::Journal]);
+
+        let mut c = open_vault(":memory:").unwrap();
+        let b_id = add_doc(
+            &mut c,
+            TypeKey::Page,
+            "Notas",
+            "Campaña de otoño #estrategia/q4",
+        );
+        let t_id = add_doc(
+            &mut c,
+            TypeKey::Page,
+            "Campaña de otoño",
+            "Nota #estrategia/q4",
+        );
+        let j_id = add_doc(
+            &mut c,
+            TypeKey::Journal,
+            "Campaña borrador",
+            "#estrategia/q4",
+        );
+        let q = |s: &str| SearchQuery {
+            text: s.into(),
+            ..Default::default()
+        };
+
+        let hits = search_query(&c, &q("\"campana de otono\" -borrador tag:estrategia")).unwrap();
+        assert_eq!(
+            hits.iter().map(|h| &h.object_id).collect::<Vec<_>>(),
+            vec![&t_id, &b_id]
+        );
+        assert!(hits[0].score > hits[1].score && hits[0].snippet.iter().any(|s| s.matched));
+        let mut j_q = q("campana type:journal");
+        assert_eq!(search_query(&c, &j_q).unwrap()[0].object_id, j_id);
+        j_q.updated_from = Some("bad".into());
+        assert!(matches!(
+            search_query(&c, &j_q),
+            Err(SearchError::InvalidQuery(_))
+        ));
     }
 }

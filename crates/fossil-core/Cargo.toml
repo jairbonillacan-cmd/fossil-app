@@ -28,6 +28,11 @@ rusqlite_migration = "2.6"
 [dev-dependencies]
 tempfile = "3"
 proptest = "1"
+criterion = { version = "0.5", default-features = false }
+
+[[bench]]
+name = "search_10k"
+harness = false
 
 [lints]
 workspace = true
