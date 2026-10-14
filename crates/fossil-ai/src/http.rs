@@ -83,10 +83,8 @@ pub async fn post_sse(
         while let Some(idx) = buf.find('\n') {
             let line = buf[..idx].trim_end_matches('\r').to_owned();
             buf.drain(..=idx);
-            let Some(data) = line.strip_prefix("data:").map(str::trim) else {
-                continue;
-            };
-            if data.is_empty() || data == "[DONE]" {
+            let data = line.strip_prefix("data:").unwrap_or(&line).trim();
+            if !data.starts_with('{') {
                 continue;
             }
             let v: Value =
