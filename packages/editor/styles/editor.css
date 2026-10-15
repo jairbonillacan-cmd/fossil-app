@@ -376,3 +376,21 @@
   font-size: 12px;
   line-height: 1.5;
 }
+
+/* Wikilinks [[ ]] & tags # (#24): monochrome tokens */
+.fossil-wikilink,
+.fossil-tag {
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--bg-elevated);
+}
+.fossil-wikilink {
+  color: var(--fg);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.fossil-tag {
+  border: 1px solid var(--border);
+  color: var(--fg-muted);
+  font: 12px var(--font-mono);
+}

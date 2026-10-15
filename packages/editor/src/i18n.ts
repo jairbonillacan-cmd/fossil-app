@@ -19,7 +19,10 @@ export type EditorTranslationKey =
   | "editor.slash.table"
   | "editor.drag.handle"
   | "editor.stats.words"
-  | "editor.stats.characters";
+  | "editor.stats.characters"
+  | "editor.wikilink.label"
+  | "editor.wikilink.create"
+  | "editor.tag.label";
 
 /** Translator function passed to `<FossilEditor t={t} />` by the host application. */
 export type EditorTranslator = (key: EditorTranslationKey) => string;
@@ -48,6 +51,9 @@ Object.setPrototypeOf(EDITOR_MESSAGES_ES_MX, {
   "editor.drag.handle": "Arrastrar para reordenar bloque",
   "editor.stats.words": "palabras",
   "editor.stats.characters": "caracteres",
+  "editor.wikilink.label": "Enlazar objeto",
+  "editor.wikilink.create": "Crear",
+  "editor.tag.label": "Etiquetas",
 });
 
 /** English (en) strings for the `editor.*` namespace. */
@@ -74,6 +80,9 @@ Object.setPrototypeOf(EDITOR_MESSAGES_EN, {
   "editor.drag.handle": "Drag to reorder block",
   "editor.stats.words": "words",
   "editor.stats.characters": "characters",
+  "editor.wikilink.label": "Link object",
+  "editor.wikilink.create": "Create",
+  "editor.tag.label": "Tags",
 });
 
 /** Fallback translator (es-MX) when the host does not pass `t`. */

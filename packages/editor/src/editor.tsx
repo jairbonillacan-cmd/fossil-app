@@ -9,6 +9,7 @@ import { BlockId } from "./block-id";
 import { Callout, TABLE_EXTENSIONS } from "./blocks";
 import { DragHandle, EditorWordCount } from "./controls";
 import { defaultEditorTranslator, type EditorTranslator } from "./i18n";
+import { LinkAutocompleteMenu, type LinkAutocompleteProps, LinksExtension } from "./links";
 import { Outliner } from "./outliner";
 import { SlashMenu } from "./slash-menu";
 import { createUpdateBatcher, type DocTransport } from "./transport";
@@ -22,7 +23,7 @@ export function getBodyFragment(doc: Y.Doc): Y.XmlFragment {
   return doc.getXmlFragment(BODY_FRAGMENT_KEY);
 }
 
-export interface FossilEditorProps {
+export interface FossilEditorProps extends Omit<LinkAutocompleteProps, "editor" | "t"> {
   /** Object body document (ADR-0003). */
   doc: Y.Doc;
   /** Persistence bridge. Must be referentially stable per object (memoized) so it does not reload. */
@@ -39,17 +40,18 @@ export interface FossilEditorProps {
 /** Origin marker for updates coming from `transport.load()`, so they are not echoed back. */
 const REMOTE = Symbol("fossil.remote");
 
-interface BoundEditorProps {
+interface BoundEditorProps extends Omit<LinkAutocompleteProps, "editor"> {
   doc: Y.Doc;
-  t: EditorTranslator;
   onReady?: ((editor: Editor) => void) | undefined;
   className?: string | undefined;
 }
 
-function BoundEditor({ doc, t, onReady, className }: BoundEditorProps) {
+function BoundEditor({ doc, t, onReady, className, ...linkProps }: BoundEditorProps) {
   // The placeholder reads `t` through a ref so a language change does not rebuild the editor.
   const tRef = useRef(t);
   tRef.current = t;
+  const onOpenRef = useRef(linkProps.onOpenObject);
+  onOpenRef.current = linkProps.onOpenObject;
   const editor = useEditor(
     {
       extensions: [
@@ -66,6 +68,7 @@ function BoundEditor({ doc, t, onReady, className }: BoundEditorProps) {
         Placeholder.configure({ placeholder: () => tRef.current("editor.placeholder") }),
         Outliner.configure({ t }),
         DragHandle.configure({ t }),
+        LinksExtension.configure({ onOpenRef }),
         YSync(getBodyFragment(doc)),
       ],
       immediatelyRender: true,
@@ -83,6 +86,7 @@ function BoundEditor({ doc, t, onReady, className }: BoundEditorProps) {
       <EditorContent editor={editor} className={className} />
       <EditorWordCount editor={editor} t={t} />
       <SlashMenu editor={editor} t={t} />
+      <LinkAutocompleteMenu editor={editor} t={t} {...linkProps} />
     </div>
   );
 }
@@ -95,6 +99,7 @@ export function FossilEditor({
   onReady,
   onError,
   className,
+  ...linkProps
 }: FossilEditorProps) {
   const [loadedPair, setLoadedPair] = useState<{ doc: Y.Doc; transport: DocTransport } | null>(
     null,
@@ -129,5 +134,5 @@ export function FossilEditor({
   }, [doc, transport]);
 
   if (loadedPair?.doc !== doc || loadedPair?.transport !== transport) return null;
-  return <BoundEditor doc={doc} t={t} onReady={onReady} className={className} />;
+  return <BoundEditor doc={doc} t={t} onReady={onReady} className={className} {...linkProps} />;
 }
