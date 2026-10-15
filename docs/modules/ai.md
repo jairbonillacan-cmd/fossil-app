@@ -2,7 +2,7 @@
 
 **Propósito:** router de modelos de IA y puente que ejecuta los CLIs oficiales (`agy`, `claude`, `codex`) como procesos hijos, sin tocar credenciales (ADR-0011).
 
-**Rutas:** `crates/fossil-ai` (router), `crates/fossil-bridge` (puente), `apps/desktop/src/modules/ai/` (UI, R1).
+**Rutas:** `crates/fossil-ai` (router), `crates/fossil-bridge` (puente), `apps/desktop/src/ai-panel.tsx` (panel de chat con contexto, vista previa y acciones sobre selección, #14).
 
 **Contratos públicos:** trait `Provider` + eventos IPC `ai:event` (spec `docs/specs/r1-ai-router-bridge.md`; contrato en #16).
 

@@ -94,6 +94,23 @@
     "to": "To",
     "findLabel": "Find in page"
   },
+  "ai": {
+    "panelLabel": "AI panel",
+    "toggle": "AI",
+    "routeLabel": "Route",
+    "routeAuto": "Auto",
+    "contextTitle": "Context",
+    "addMention": "@page",
+    "previewToggle": "Context preview",
+    "selectionActions": "Selection actions",
+    "actionRewrite": "Rewrite",
+    "actionSummarize": "Summarize",
+    "actionTranslate": "Translate",
+    "actionTone": "Change tone",
+    "promptLabel": "Message for AI",
+    "send": "Send",
+    "cancel": "Cancel"
+  },
   "error": {
     "notImplemented": "This feature is not available yet.",
     "generic": "Something went wrong: {{error}}"

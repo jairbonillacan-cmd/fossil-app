@@ -94,6 +94,23 @@
     "to": "Hasta",
     "findLabel": "Buscar en la página"
   },
+  "ai": {
+    "panelLabel": "Panel de IA",
+    "toggle": "IA",
+    "routeLabel": "Ruta",
+    "routeAuto": "Automática",
+    "contextTitle": "Contexto",
+    "addMention": "@página",
+    "previewToggle": "Vista previa del contexto",
+    "selectionActions": "Acciones sobre la selección",
+    "actionRewrite": "Reescribir",
+    "actionSummarize": "Resumir",
+    "actionTranslate": "Traducir",
+    "actionTone": "Cambiar tono",
+    "promptLabel": "Mensaje para la IA",
+    "send": "Enviar",
+    "cancel": "Cancelar"
+  },
   "error": {
     "notImplemented": "Esta función todavía no está disponible.",
     "generic": "Algo salió mal: {{error}}"
