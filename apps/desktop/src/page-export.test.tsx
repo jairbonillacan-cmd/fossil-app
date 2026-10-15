@@ -75,6 +75,20 @@ describe("Export Markdown", () => {
     expect(clicked).toHaveLength(0);
   });
 
+  it("prints the page in the light theme and restores the shell theme", () => {
+    document.documentElement.dataset.theme = "dark";
+    let themeWhilePrinting: string | undefined;
+    const print = vi.spyOn(window, "print").mockImplementation(() => {
+      themeWhilePrinting = document.documentElement.dataset.theme;
+    });
+    render(<PageEditor object={page} />);
+    fireEvent.click(screen.getByRole("button", { name: "Exportar PDF" }));
+    expect(print).toHaveBeenCalledOnce();
+    expect(themeWhilePrinting).toBe("light");
+    expect(document.documentElement.dataset.theme).toBe("dark");
+    delete document.documentElement.dataset.theme;
+  });
+
   it("names files like the mirror: Windows-safe, reserved names and empty titles", () => {
     expect(markdownFileName('a<b>c:"d"/e\\f|g?h*', "x")).toBe("a-b-c--d--e-f-g-h-.md");
     expect(markdownFileName("Notas. ", "x")).toBe("Notas.md");

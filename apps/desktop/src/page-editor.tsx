@@ -5,7 +5,7 @@ import type { ObjectMeta } from "./bindings";
 import { commands } from "./bindings";
 import { PageBody } from "./page-body";
 import { PageBacklinksPanel } from "./page-editor-backlinks";
-import { exportObjectMarkdown } from "./page-export";
+import { exportObjectMarkdown, printObjectPdf } from "./page-export";
 import { registerCommand } from "./shell-commands";
 import { PageFindBar } from "./shell-search";
 import { formatObjectTitle } from "./sidebar";
@@ -25,6 +25,7 @@ export function PageEditor({ object, onSelect }: PageEditorProps) {
   const [exportFailed, setExportFailed] = useState(false);
   const [backlinksOpen, setBacklinksOpen] = useState(true);
   const exportRef = useRef<() => void>(() => {});
+  const printRef = useRef<() => void>(() => {});
   const bodyRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -51,6 +52,7 @@ export function PageEditor({ object, onSelect }: PageEditorProps) {
     const offs = (
       [
         ["editor.exportMarkdown", t("editor.exportMarkdown"), () => exportRef.current()],
+        ["editor.exportPdf", t("editor.exportPdf"), () => printRef.current()],
         ["editor.toggleBacklinks", t("palette.toggleBacklinks"), () => setBacklinksOpen((o) => !o)],
       ] as const
     ).map(([id, lbl, run]) => registerCommand({ id, title: lbl, run }));
@@ -92,10 +94,14 @@ export function PageEditor({ object, onSelect }: PageEditorProps) {
     setExportFailed(!(await exportObjectMarkdown(object.id, name, object.id)));
   };
   exportRef.current = () => void exportMarkdown();
+  printRef.current = () => {
+    flushTitle();
+    printObjectPdf();
+  };
 
   return (
-    <div className="flex h-full min-w-0">
-      <div className="mx-auto flex h-full w-full max-w-2xl flex-1 flex-col gap-4 overflow-y-auto px-6 py-8 in-data-[density=compact]:gap-2.5 in-data-[density=compact]:py-5">
+    <div className="flex h-full min-w-0 print:block print:h-auto">
+      <div className="mx-auto flex h-full w-full max-w-2xl flex-1 flex-col gap-4 overflow-y-auto px-6 print:h-auto print:overflow-visible py-8 in-data-[density=compact]:gap-2.5 in-data-[density=compact]:py-5">
         <div className="flex items-start gap-2">
           <input
             type="text"
@@ -108,14 +114,21 @@ export function PageEditor({ object, onSelect }: PageEditorProps) {
           />
           <Button
             variant="secondary"
-            className="mt-1.5 shrink-0"
+            className="mt-1.5 shrink-0 print:hidden"
             onClick={() => void exportMarkdown()}
           >
             {t("editor.exportMarkdown")}
           </Button>
           <Button
             variant="secondary"
-            className="mt-1.5 shrink-0"
+            className="mt-1.5 shrink-0 print:hidden"
+            onClick={() => printRef.current()}
+          >
+            {t("editor.exportPdf")}
+          </Button>
+          <Button
+            variant="secondary"
+            className="mt-1.5 shrink-0 print:hidden"
             aria-expanded={backlinksOpen}
             onClick={() => setBacklinksOpen((open) => !open)}
           >
@@ -123,17 +136,23 @@ export function PageEditor({ object, onSelect }: PageEditorProps) {
           </Button>
         </div>
         {exportFailed && (
-          <p role="alert" className="text-sm text-[color:var(--fg-muted)]">
+          <p role="alert" className="text-sm text-[color:var(--fg-muted)] print:hidden">
             {t("editor.exportFailed")}
           </p>
         )}
-        <PageFindBar containerRef={bodyRef} />
+        <div className="contents print:hidden">
+          <PageFindBar containerRef={bodyRef} />
+        </div>
         <div ref={bodyRef} className="flex flex-1 flex-col">
           {/* key: a new object remounts the body, so its Y.Doc and error state never leak across pages. */}
           <PageBody key={object.id} objectId={object.id} />
         </div>
       </div>
-      {backlinksOpen && <PageBacklinksPanel object={object} onSelect={onSelect} />}
+      {backlinksOpen && (
+        <div className="contents print:hidden">
+          <PageBacklinksPanel object={object} onSelect={onSelect} />
+        </div>
+      )}
     </div>
   );
 }

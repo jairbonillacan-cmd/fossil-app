@@ -37,3 +37,21 @@ export async function exportObjectMarkdown(
   URL.revokeObjectURL(url);
   return true;
 }
+
+/**
+ * Exports the page to PDF through the WebView2 print dialog (#10), where the
+ * user picks "Save as PDF". The page always prints in the light theme; the
+ * shell theme comes back as soon as the (blocking) dialog closes. The sidebar
+ * and page controls hide themselves with Tailwind's `print:` variant.
+ */
+export function printObjectPdf(): void {
+  const root = document.documentElement;
+  const previous = root.dataset.theme;
+  root.dataset.theme = "light";
+  try {
+    window.print();
+  } finally {
+    if (previous === undefined) delete root.dataset.theme;
+    else root.dataset.theme = previous;
+  }
+}
