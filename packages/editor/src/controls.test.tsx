@@ -87,4 +87,54 @@ describe("DragHandle & EditorWordCount (#105b)", () => {
     });
     expect(screen.getByText("2 words · 7 characters")).toBeDefined();
   });
+
+  it("maps DragHandle decorations and keeps keystroke latency low on a 5 000-block document (#50)", async () => {
+    const doc = new Y.Doc();
+    const fragment = getBodyFragment(doc);
+    doc.transact(() => {
+      for (let i = 0; i < 5000; i++) {
+        const p = new Y.XmlElement("paragraph");
+        p.setAttribute("blockId", `blk_${i}`);
+        const txt = new Y.XmlText();
+        txt.insert(0, `Bloque número ${i} con texto de prueba`);
+        p.insert(0, [txt]);
+        fragment.insert(fragment.length, [p]);
+      }
+    });
+
+    const { editor, view } = await mountEditor(undefined, doc);
+    expect(editor.state.doc.childCount).toBe(5000);
+
+    const firstHandleBefore = editor.view.dom.querySelector(".fossil-drag-handle");
+    expect(firstHandleBefore).not.toBeNull();
+
+    // Measure countDocumentStats directly on 5,000 blocks
+    const statsStart = performance.now();
+    const stats = countDocumentStats(editor.state.doc);
+    const statsMs = performance.now() - statsStart;
+    expect(stats.words).toBe(35000);
+
+    // Measure 5 keystrokes (insertText("a")) on full <FossilEditor> with 5,000 blocks
+    const keys = 5;
+    const keyStart = performance.now();
+    act(() => {
+      for (let k = 0; k < keys; k++) {
+        editor.view.dispatch(editor.state.tr.insertText("a", 2 + k));
+      }
+    });
+    const perKeyMs = (performance.now() - keyStart) / keys;
+
+    // Measure cursor-only transaction (EditorWordCount must not recompute on selection change)
+    const selStart = performance.now();
+    act(() => {
+      editor.commands.setTextSelection(4);
+    });
+    const selMs = performance.now() - selStart;
+
+    expect(editor.view.dom.querySelector(".fossil-drag-handle")).toBe(firstHandleBefore);
+    expect(perKeyMs).toBeLessThan(200);
+    expect(statsMs).toBeLessThan(35);
+    expect(selMs).toBeLessThan(35);
+    view.unmount();
+  }, 30000);
 });

@@ -109,6 +109,24 @@ function buildDragDecorations(doc: ProseMirrorNode, t: EditorTranslator): Decora
   return DecorationSet.create(doc, decorations);
 }
 
+function canMapDragDecorations(
+  tr: Transaction,
+  oldDoc: ProseMirrorNode,
+  newDoc: ProseMirrorNode,
+): boolean {
+  if (tr.getMeta(dragPluginKey) || oldDoc.childCount !== newDoc.childCount) return false;
+  let changed = 0;
+  for (let i = 0; i < newDoc.childCount; i++) {
+    const a = oldDoc.child(i);
+    const b = newDoc.child(i);
+    if (a !== b) {
+      changed += 1;
+      if (changed > 1 || a.type !== b.type || a.isLeaf !== b.isLeaf) return false;
+    }
+  }
+  return !tr.steps.some((step) => (step as { from?: number }).from === 0);
+}
+
 /** Accessible per-block drag handle and `Alt+ArrowUp`/`Alt+ArrowDown` reordering (#105). */
 export const DragHandle = Extension.create<{ t: EditorTranslator }>({
   name: "dragHandle",
@@ -126,10 +144,12 @@ export const DragHandle = Extension.create<{ t: EditorTranslator }>({
         key: dragPluginKey,
         state: {
           init: (_, state) => buildDragDecorations(state.doc, t),
-          apply: (tr, prev, _oldState, newState) =>
+          apply: (tr, prev, oldState, newState) =>
             !tr.docChanged && !tr.getMeta(dragPluginKey)
               ? prev
-              : buildDragDecorations(newState.doc, t),
+              : canMapDragDecorations(tr, oldState.doc, newState.doc)
+                ? prev.map(tr.mapping, newState.doc)
+                : buildDragDecorations(newState.doc, t),
         },
         props: {
           decorations: (state) => dragPluginKey.getState(state),
@@ -166,13 +186,32 @@ export interface EditorDocumentStats {
   characters: number;
 }
 
-/** Computes word and character counts across all textblocks in `doc`. */
+/** Computes word and character counts across all textblocks in `doc` in a single pass. */
 export function countDocumentStats(doc: ProseMirrorNode): EditorDocumentStats {
-  const text = doc.textBetween(0, doc.content.size, " ", " ").trim();
-  const words = text.length === 0 ? 0 : text.split(/\s+/).length;
+  let words = 0;
   let characters = 0;
+  let inWord = false;
   doc.descendants((node) => {
-    if (node.isText && node.text) characters += node.text.length;
+    if (node.isTextblock) {
+      inWord = false;
+      return true;
+    }
+    if (node.isText && node.text) {
+      const text = node.text;
+      characters += text.length;
+      for (let i = 0; i < text.length; i++) {
+        const c = text.charCodeAt(i);
+        if (c === 32 || (c >= 9 && c <= 13) || c === 160) {
+          inWord = false;
+        } else if (!inWord) {
+          inWord = true;
+          words += 1;
+        }
+      }
+      return false;
+    }
+    if (node.isLeaf) inWord = false;
+    return true;
   });
   return { words, characters };
 }
@@ -185,9 +224,9 @@ export function EditorWordCount({ editor, t }: { editor: Editor | null; t: Edito
     if (editor === null) return;
     const sync = () => setStats(countDocumentStats(editor.state.doc));
     sync();
-    editor.on("transaction", sync);
+    editor.on("update", sync);
     return () => {
-      editor.off("transaction", sync);
+      editor.off("update", sync);
     };
   }, [editor]);
 
