@@ -10,3 +10,16 @@ CREATE VIRTUAL TABLE fts_objects USING fts5(
 );
 
 INSERT INTO fts_objects(fts_objects, rank) VALUES ('rank', 'bm25(10.0, 1.0)');
+
+INSERT INTO fts_objects (object_id, title, body)
+SELECT
+  o.id,
+  o.title,
+  COALESCE(
+    (SELECT group_concat(b.text, char(10))
+     FROM (SELECT text FROM blocks WHERE object_id = o.id ORDER BY sort_order) b),
+    ''
+  )
+FROM objects o
+WHERE o.archived = 0;
+

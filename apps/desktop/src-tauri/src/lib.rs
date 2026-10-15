@@ -77,7 +77,14 @@ fn build_app() -> tauri::Builder<tauri::Wry> {
         }
     }
 
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    // The single-instance plugin must be registered first (upstream requirement).
+    #[cfg(desktop)]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+        focus_main_window(app)
+    }));
+
+    builder
         .invoke_handler(specta.invoke_handler())
         .setup(move |app| {
             specta.mount_events(app);
@@ -86,14 +93,6 @@ fn build_app() -> tauri::Builder<tauri::Wry> {
             )));
             app.manage(commands::objects::IdleCompaction::default());
             app.manage(commands::objects::MirrorDebounce::default());
-            // The single-instance plugin must be registered first (upstream requirement).
-            #[cfg(desktop)]
-            {
-                app.handle()
-                    .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-                        focus_main_window(app)
-                    }))?;
-            }
             Ok(())
         })
         .plugin(tauri_plugin_window_state::Builder::default().build())

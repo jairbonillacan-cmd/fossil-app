@@ -1,16 +1,16 @@
 # storage
 **Propósito:** esquema SQLite de la bóveda (objetos, CRDT, índice, FTS) y sus migraciones versionadas.
 **Rutas:** `crates/fossil-core/src/storage.rs`, `crates/fossil-core/migrations/`
-**Contratos públicos:** `open_vault(path) -> Connection` (aplica migraciones con WAL + foreign_keys), `migrations()`.
+**Contratos públicos:** `open_vault(path) -> Connection` (aplica migraciones con `busy_timeout(5000)`, WAL + foreign_keys), `migrations()`.
 
-## Esquema (0001_init.sql)
-`objects` (meta, `types` como JSON array) · `object_updates` (log Yjs: `payload` BLOB + `seq`) · `object_snapshots` (compactación) · `blocks` · `links` (con CHECK de kind) · `tags` · `fts_objects` (FTS5, unicode61).
+## Esquema (0001_init.sql + 0002_fts_search.sql)
+`objects` (meta, `types` como JSON array) · `object_updates` (log Yjs: `payload` BLOB + `seq`) · `object_snapshots` (compactación) · `blocks` · `links` (con CHECK de kind) · `tags` · `fts_objects` (FTS5, unicode61 remove_diacritics 2, poblando objetos activos al migrar).
 
 ## Reglas
 - **Migraciones append-only:** nunca edites un archivo ya publicado; agrega `000N_*.sql` y súbelo a `migrations()`.
 - `update` es palabra reservada de SQLite: la columna del log se llama **`payload`**.
 - Los ids y timestamps van como TEXT (Ulid string) e INTEGER (ms UTC) respectivamente.
-- Apertura SIEMPRE por `open_vault` (WAL, foreign keys ON, migraciones).
+- Apertura SIEMPRE por `open_vault` (`busy_timeout(5000)`, WAL, foreign keys ON, migraciones).
 
 ## Gotchas
 - rusqlite `bundled` trae FTS5 habilitado (lo verifica el test de migración).
@@ -29,18 +29,18 @@ chrono. Las actualizaciones de metadatos son transaccionales. Los IDs se validan
 como Ulid en el límite; SQLite rechaza padres inexistentes mediante foreign keys.
 
 ## Ciclo de bóveda (#17)
-`vault::VaultSession` conserva la conexión activa; IPC la protege con Mutex.
+`vault::VaultSession` conserva la conexión activa; IPC la protege con Mutex (recuperable de `PoisonError`).
 Crear usa la carpeta elegida y reserva `.fossil/fossil.db` sin sobrescribirla.
 El nombre vive en `.fossil/vault.json`; abrir solo acepta una base existente.
 Recientes: `%APPDATA%/Fossil/config.json`, más reciente primero, sin duplicados,
 escritura por archivo temporal y rename. Config corrupto se reporta sin reemplazarlo.
 Una apertura fallida conserva la conexión anterior. Mutaciones emiten `object:changed`.
 
-## Documentos Yjs (#18)
-`doc_store::{load, apply_update, compact}`: cada update (lib0 v1) se valida y se guarda en `object_updates` en su propia transacción, y sube `updated_at`. `load` fusiona el snapshot y los updates pendientes con `yrs::merge_updates_v1` (fusión binaria: no pierde updates cuyas dependencias aún no llegaron). Al llegar a `COMPACT_AFTER_UPDATES` (200) se compacta en la misma transacción; la app compacta además tras 30 s sin updates (`IdleCompaction` en `commands/objects.rs`: un temporizador por objeto con generación, sin polling). Proptest de convergencia en `doc_store::tests`.
+## Documentos Yjs (#18, #56)
+`doc_store::{load, apply_update, compact}`: cada update (lib0 v1, máx. 16 MiB) se valida y se guarda en `object_updates` en transacción `Immediate`, y sube `updated_at`. `load` envuelve las lecturas en un `SAVEPOINT` para evitar lecturas partidas frente a `compact` y fusiona con `yrs::merge_updates_v1`. Al llegar a `COMPACT_AFTER_UPDATES` (200) o tras 30 s sin updates (`IdleCompaction`, contador global `AtomicU64` inmune a ABA) se compacta.
 
-## Espejo Markdown: render (#21, parte A)
-`markdown::render(meta, state)`: frontmatter YAML (`id`, `types`, `tags`, `created`, `updated`) y el `body` Yjs con nombres de nodo de TipTap → Markdown (encabezados, listas, tareas, citas, código y marcas `bold`/`italic`/`strike`/`code`/`link`). `relative_path` usa los títulos de los padres como carpetas y `safe_name` produce nombres seguros en Windows: sin `<>:"/\|?*`, sin CON/PRN/AUX/NUL/COM1-9/LPT1-9, sin punto o espacio final y con un máximo de 120 caracteres. Si dos hermanos chocan, se añade un sufijo corto del id. La escritura con debounce va en la parte B.
+## Espejo Markdown: render (#21, #56)
+`markdown::render(meta, state)`: devuelve `""` si `state` está vacío; de lo contrario emite frontmatter YAML (`id`, `types`, `tags`, `created`, `updated`) y el `body` Yjs (profundidad acotada a 32) → Markdown. `relative_path` usa los títulos de los padres como carpetas y `safe_name` produce nombres seguros en Windows. Si dos hermanos chocan, se añade un sufijo corto del id.
 
 ## Espejo Markdown: escritura (#21, parte B)
 `mirror::export` / `export_tree` escribe con un archivo temporal y `rename`, y guarda en `.fossil/mirror.json` la ruta de cada objeto. Al renombrar o archivar borra el `.md` anterior **antes** de escribir: en Windows `plan.md` y `Plan.md` son el mismo archivo. Rechaza rutas que salgan de la bóveda. La app exporta 2 s después del último cambio de cada objeto (`MirrorDebounce`, sin polling); renombrar un padre mueve a sus hijos.

@@ -44,7 +44,7 @@ pub fn for_date(conn: &mut Connection, date: NaiveDate) -> Result<(ObjectMeta, b
                 tx.execute("UPDATE objects SET archived=0 WHERE id=?1", params![id])
                     .map_err(storage_error)?;
             }
-            (ObjectId(id), false)
+            (ObjectId(id), archived)
         }
         None => {
             let meta = object_store::create(
@@ -141,7 +141,10 @@ mod tests {
         let (journal, _) = for_date(&mut conn, date(14)).unwrap();
         object_store::archive(&mut conn, &journal.id).unwrap();
         let (restored, created) = for_date(&mut conn, date(14)).unwrap();
-        assert!(!created);
+        assert!(
+            created,
+            "restoring an archived journal marks it changed for FTS/mirror"
+        );
         assert_eq!(restored.id, journal.id);
         assert!(!restored.archived);
     }
