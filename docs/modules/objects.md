@@ -25,3 +25,6 @@ El estado Tauri y AppHandle se inyectan solo en Rust; el contrato IPC/TS permane
 
 ## Journal del día (#22)
 `journal::today` / `for_date`: un objeto `Journal` por día local, con título ISO `YYYY-MM-DD` (la UI lo formatea). Es idempotente, restaura el del día si estaba archivado e ignora páginas con el mismo título. Al crearlo aplica la plantilla Yjs (`<paragraph></paragraph>` en `body`) en la misma transacción. El comando `journal_today` emite `object:changed` solo cuando crea.
+
+## Captura rápida (#28)
+`capture::append(conn, target, text)` agrega cada línea no vacía como `<paragraph blockId="…">` al final de `body` de la Bitácora de hoy (reemplazando el párrafo vacío de plantilla) o del objeto `target`; rechaza texto vacío o `> 20_000` caracteres. En `commands/os.rs`: `capture_append(QuickCaptureInput)` emite `object:changed` y programa espejo/índice; `capture_shortcut_get/set` y `capture_window_show/hide` son stubs (`OsError::NotImplemented` hasta `#9`); evento `CaptureRequested` (`capture:requested`).

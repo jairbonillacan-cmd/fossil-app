@@ -6,6 +6,10 @@
 /// Canonical crate name, sanity-checked against the package name in tests.
 pub const CRATE_NAME: &str = "fossil-os";
 
+/// Default global quick-capture shortcut (`Win+Shift+F`, #28), in the
+/// accelerator syntax of the global-shortcut plugin.
+pub const DEFAULT_CAPTURE_SHORTCUT: &str = "Super+Shift+F";
+
 #[cfg(test)]
 mod tests {
     use super::CRATE_NAME;
