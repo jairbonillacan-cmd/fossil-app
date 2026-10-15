@@ -41,6 +41,7 @@
 - `shell-settings.tsx` — diálogo modal de ajustes (#31): bóveda activa, tema, densidad e idioma (vía `shell-prefs.ts`), referencia de atajos y diagnóstico `<AppInfoPanel />`. Modal accesible: el foco entra al abrir, Tab queda dentro, Escape o clic fuera cierran y el foco vuelve al botón **Ajustes**. La exportación a Markdown vive en la cabecera de la página (`page-export.ts`).
 - `shell-commands.ts` — registro tipado de comandos `registerCommand({ id, title, shortcut, run })` y matcher difuso `fuzzyMatch(query, target)` con puntuación e índices de resaltado (#27).
 - `shell-palette.tsx` — paleta modal (#27): `Ctrl+K` busca comandos registrados y objetos (`search_query` con fallback a `object_list` si devuelve `NotImplemented`); `Ctrl+P` abre el quick switcher difuso por título, con navegación `ArrowUp`/`ArrowDown`/`Enter`/`Escape` y foco restaurado al cerrar.
+- `shell-search.tsx` — pantalla de búsqueda global (#29) con debounce de 80 ms, filtros por tipo (`Page`/`Journal`), tag y rango de fechas (UTC ISO-8601), resultados agrupados por tipo con snippets resaltados (`SnippetPart[]` → `<mark>`), y barra `Ctrl+F` (`PageFindBar`) de búsqueda en página con CSS Custom Highlight API.
 
 **Gotchas:**
 - **Arranque sin destello blanco (#130):** `tauri.conf.json` declara `"backgroundColor": [0, 0, 0, 0]` junto a `"transparent": true` en la ventana `main` para que WebView2 use alfa 0 (`DefaultBackgroundColor`) antes de la primera navegación, e `index.html` fija `background: transparent` y `data-theme` en `<head>` antes de cargar `/src/main.tsx`.

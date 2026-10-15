@@ -82,6 +82,17 @@
     "empty": "Sin resultados coincidentes.",
     "toggleBacklinks": "Alternar panel de enlaces"
   },
+  "search": {
+    "open": "Buscar",
+    "title": "Búsqueda global",
+    "placeholder": "Buscar en el espacio (ej. \"frase\", -excluir, tag:x)…",
+    "all": "Todos",
+    "Journal": "Bitácora",
+    "tag": "Etiqueta",
+    "from": "Desde",
+    "to": "Hasta",
+    "findLabel": "Buscar en la página"
+  },
   "error": {
     "notImplemented": "Esta función todavía no está disponible.",
     "generic": "Algo salió mal: {{error}}"
