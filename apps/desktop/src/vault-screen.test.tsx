@@ -88,4 +88,32 @@ describe("VaultScreen", () => {
     expect(commands.vaultOpen).not.toHaveBeenCalled();
     expect(screen.queryByRole("alert")).toBeNull();
   });
+
+  it("reports a localized error when a recent vault no longer exists on disk", async () => {
+    vi.mocked(commands.vaultRecent).mockResolvedValue({ status: "ok", data: [acme] });
+    vi.mocked(commands.vaultOpen).mockResolvedValue({
+      status: "error",
+      error: { Storage: "La carpeta ya no existe" },
+    });
+    const onVaultOpen = vi.fn();
+    render(<VaultScreen onVaultOpen={onVaultOpen} />);
+    fireEvent.click(await screen.findByRole("button", { name: /Acme/ }));
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toBe("Algo salió mal: La carpeta ya no existe");
+    // The screen stays usable: the recents list is still rendered.
+    expect(screen.getByRole("button", { name: "Crear bóveda" })).not.toBeNull();
+    expect(onVaultOpen).not.toHaveBeenCalled();
+  });
+
+  it("renders recent vaults with emoji and 200-character names", async () => {
+    const longName = `Bóveda ${"A".repeat(190)}cme`;
+    expect(longName.length).toBe(200);
+    const emoji: VaultInfo = { name: "🦖 Acme", path: "C:\\Data\\Acme" };
+    const long: VaultInfo = { name: longName, path: "C:\\Data\\Long" };
+    vi.mocked(commands.vaultRecent).mockResolvedValue({ status: "ok", data: [emoji, long] });
+    render(<VaultScreen onVaultOpen={vi.fn()} />);
+    expect(await screen.findByRole("button", { name: /🦖 Acme/ })).not.toBeNull();
+    const row = screen.getByRole("button", { name: new RegExp(longName) });
+    expect(row.textContent).toContain(longName);
+  });
 });
