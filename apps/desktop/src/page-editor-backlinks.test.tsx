@@ -4,7 +4,11 @@ import * as Y from "yjs";
 import type { Link, ObjectMeta } from "./bindings";
 import { commands, events } from "./bindings";
 import { PageEditor } from "./page-editor";
-import { replaceFirstUnlinkedMentionInDoc } from "./page-editor-backlinks";
+import {
+  findUnlinkedMentionRange,
+  linkUnlinkedMention,
+  replaceFirstUnlinkedMentionInDoc,
+} from "./page-editor-backlinks";
 import "./i18n";
 
 vi.mock("./page-body", () => ({
@@ -49,9 +53,11 @@ function makeBodyDoc(paragraphs: string[]): Y.Doc {
   return doc;
 }
 
-function readBodyText(update: number[]): string {
+function readBodyText(...updates: number[][]): string {
   const doc = new Y.Doc();
-  Y.applyUpdate(doc, Uint8Array.from(update));
+  for (const u of updates) {
+    Y.applyUpdate(doc, Uint8Array.from(u));
+  }
   const text = doc.getXmlFragment("body").toDOM().textContent ?? "";
   doc.destroy();
   return text;
@@ -122,7 +128,8 @@ describe("PageBacklinksPanel (#28)", () => {
     await vi.waitFor(() => expect(commands.objectApplyUpdate).toHaveBeenCalledTimes(1));
     const [updatedId, updateBytes] = vi.mocked(commands.objectApplyUpdate).mock.calls[0] ?? [];
     expect(updatedId).toBe("obj-note");
-    expect(readBodyText(updateBytes ?? [])).toBe(
+    expect((updateBytes ?? []).length).toBeLessThan(initial.length);
+    expect(readBodyText(initial, updateBytes ?? [])).toBe(
       "Ya enlazado [[Árbol Trimestral]] aquí. Revisar [[Árbol Trimestral]] y otro árbol trimestral mañana.",
     );
     await screen.findByText(/No hay menciones sin enlace/);
@@ -144,5 +151,32 @@ describe("PageBacklinksPanel (#28)", () => {
       "Revisar [[Plan Q4 1]] mañana",
     );
     doc.destroy();
+  });
+
+  it("sends only the incremental Yjs delta in linkUnlinkedMention and checks boundaries in O(1) (#52)", async () => {
+    const paragraphs = Array.from(
+      { length: 5000 },
+      (_, i) =>
+        `Párrafo de relleno número ${i} con texto descriptivo del proyecto trimestral de equipo.`,
+    );
+    paragraphs[2500] = "Revisar Árbol Trimestral con el equipo mañana.";
+    const bigDoc = makeBodyDoc(paragraphs);
+    const fullBytes = Array.from(Y.encodeStateAsUpdate(bigDoc));
+    bigDoc.destroy();
+
+    vi.mocked(commands.objectLoadDoc).mockResolvedValue({ status: "ok", data: fullBytes });
+    vi.mocked(commands.objectApplyUpdate).mockResolvedValue({ status: "ok", data: null });
+
+    expect(await linkUnlinkedMention("obj-note", "Árbol Trimestral")).toBe(true);
+    const [, deltaBytes] = vi.mocked(commands.objectApplyUpdate).mock.calls[0] ?? [];
+    expect((deltaBytes ?? []).length).toBeLessThan(200);
+    expect(fullBytes.length).toBeGreaterThan(200_000);
+
+    const largeText = `${"palabra ".repeat(62_500)}Árbol Trimestral fin`;
+    const t0 = performance.now();
+    const hit = findUnlinkedMentionRange(largeText, "Árbol Trimestral");
+    const rangeMs = performance.now() - t0;
+    expect(hit).toEqual({ index: 500_000, length: 16 });
+    expect(rangeMs).toBeLessThan(100);
   });
 });

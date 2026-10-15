@@ -85,10 +85,10 @@ describe("Sidebar & PageEditor", () => {
     await vi.waitFor(() => expect(commands.objectList).toHaveBeenCalledTimes(4));
   });
 
-  it("renders the page body for the object and commits title edits on blur", () => {
+  it("renders the page body for the object and commits title edits on blur", async () => {
     vi.mocked(commands.objectUpdateMeta).mockResolvedValue({ status: "ok", data: page });
     render(<PageEditor object={page} />);
-    expect(screen.getByTestId("page-body").textContent).toBe("obj-1");
+    expect((await screen.findByTestId("page-body")).textContent).toBe("obj-1");
     const input = screen.getByRole("textbox", { name: "Título de la página" });
     fireEvent.change(input, { target: { value: "Roadmap Q4" } });
     fireEvent.blur(input);
@@ -98,6 +98,28 @@ describe("Sidebar & PageEditor", () => {
       types: null,
       archived: null,
     });
+  });
+
+  it("does not subscribe to index:updated and reuses cached Intl.DateTimeFormat per locale (#52)", async () => {
+    render(<Sidebar vaultName="Acme" selectedId={null} onSelect={vi.fn()} />);
+    await screen.findByText("Todavía no hay páginas. Crea la primera con «Nueva página».");
+    expect(events.objectChanged.listen).toHaveBeenCalledTimes(1);
+    expect(events.indexUpdated.listen).not.toHaveBeenCalled();
+
+    const journals: ObjectMeta[] = Array.from({ length: 500 }, (_, i) => ({
+      ...page,
+      id: `j-${i}`,
+      types: ["Journal"],
+      title: `2026-${String((i % 12) + 1).padStart(2, "0")}-${String((i % 28) + 1).padStart(2, "0")}`,
+    }));
+    const t0 = performance.now();
+    for (let r = 0; r < 10; r++) {
+      for (const j of journals) {
+        formatObjectTitle(j, "es-MX", "Sin título");
+      }
+    }
+    const elapsedMs = performance.now() - t0;
+    expect(elapsedMs).toBeLessThan(500);
   });
 });
 

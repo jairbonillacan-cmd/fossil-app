@@ -1,15 +1,18 @@
 import { Button } from "@fossil/ui";
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AiChatPanel } from "./ai-panel";
 import type { ObjectMeta } from "./bindings";
 import { commands } from "./bindings";
-import { PageBody } from "./page-body";
-import { PageBacklinksPanel } from "./page-editor-backlinks";
 import { exportObjectMarkdown, printObjectPdf } from "./page-export";
 import { registerCommand } from "./shell-commands";
 import { PageFindBar } from "./shell-search";
 import { formatObjectTitle, selectWorkspaceObject } from "./sidebar";
+
+const PageBody = lazy(() => import("./page-body").then((m) => ({ default: m.PageBody })));
+const PageBacklinksPanel = lazy(() =>
+  import("./page-editor-backlinks").then((m) => ({ default: m.PageBacklinksPanel })),
+);
 
 const TITLE_COMMIT_MS = 400;
 
@@ -227,12 +230,16 @@ export function PageEditor({ object, onSelect, onObjectUpdated }: PageEditorProp
         </div>
         <div ref={bodyRef} className="flex flex-1 flex-col">
           {/* key: a new object remounts the body, so its Y.Doc and error state never leak across pages. */}
-          <PageBody key={object.id} objectId={object.id} />
+          <Suspense fallback={null}>
+            <PageBody key={object.id} objectId={object.id} />
+          </Suspense>
         </div>
       </div>
       {backlinksOpen && (
         <div className="contents print:hidden">
-          <PageBacklinksPanel object={currentObject} onSelect={onSelect} />
+          <Suspense fallback={null}>
+            <PageBacklinksPanel object={currentObject} onSelect={onSelect} />
+          </Suspense>
         </div>
       )}
       {aiOpen && <AiChatPanel key={object.id} object={currentObject} />}

@@ -12,13 +12,24 @@ import { errorLabel } from "./vault-screen";
 let workspaceOnSelect: ((object: ObjectMeta) => void) | null = null;
 export const selectWorkspaceObject = (object: ObjectMeta) => workspaceOnSelect?.(object);
 
+const dateFormatters = new Map<string, Intl.DateTimeFormat>();
+
+function getDateFormatter(language: string): Intl.DateTimeFormat {
+  let fmt = dateFormatters.get(language);
+  if (fmt === undefined) {
+    fmt = new Intl.DateTimeFormat(language, { dateStyle: "long", timeZone: "UTC" });
+    dateFormatters.set(language, fmt);
+  }
+  return fmt;
+}
+
 /** Formats ISO `YYYY-MM-DD` journal titles with the active locale. */
 export function formatObjectTitle(object: ObjectMeta, language: string, untitled: string): string {
   const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(object.title);
   if (object.types.includes("Journal") && iso !== null) {
     const date = new Date(Date.UTC(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3])));
     if (!Number.isNaN(date.getTime())) {
-      return new Intl.DateTimeFormat(language, { dateStyle: "long", timeZone: "UTC" }).format(date);
+      return getDateFormatter(language).format(date);
     }
   }
   return object.title !== "" ? object.title : untitled;
@@ -53,15 +64,10 @@ export function Sidebar({
     const onEvent = () => {
       if (alive) refresh();
     };
-    const offs = Promise.all([
-      events.objectChanged.listen(onEvent),
-      events.indexUpdated.listen(onEvent),
-    ]);
+    const off = events.objectChanged.listen(onEvent);
     return () => {
       alive = false;
-      void offs.then((fns) => {
-        for (const off of fns) off();
-      });
+      void off.then((fn) => fn());
     };
   }, [refresh]);
 

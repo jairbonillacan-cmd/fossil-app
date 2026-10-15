@@ -1,12 +1,13 @@
 import { Button } from "@fossil/ui";
-import { useCallback, useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as Y from "yjs";
 import type { Link, Mention, ObjectId, ObjectMeta } from "./bindings";
 import { commands, events } from "./bindings";
 import { formatObjectTitle, selectWorkspaceObject } from "./sidebar";
 
-const isWord = (ch: string | undefined) => ch !== undefined && /[\p{L}\p{N}]/u.test(ch);
+const isWord = (ch: string | undefined) =>
+  ch !== undefined && ch !== "" && /[\p{L}\p{N}]/u.test(ch);
 
 /** Finds the first whole-word occurrence of `targetTitle` outside `[[...]]` spans. */
 export function findUnlinkedMentionRange(text: string, targetTitle: string) {
@@ -17,8 +18,8 @@ export function findUnlinkedMentionRange(text: string, targetTitle: string) {
   for (const m of masked.matchAll(re)) {
     const start = m.index ?? 0;
     const end = start + m[0].length;
-    const before = start > 0 ? Array.from(masked.slice(0, start)).pop() : undefined;
-    const after = end < masked.length ? Array.from(masked.slice(end))[0] : undefined;
+    const before = start > 0 ? masked[start - 1] : "";
+    const after = masked[end] ?? "";
     if (!isWord(before) && !isWord(after)) return { index: start, length: m[0].length };
   }
   return null;
@@ -54,16 +55,24 @@ export function replaceFirstUnlinkedMentionInDoc(doc: Y.Doc, targetTitle: string
   return walk(doc.getXmlFragment("body"));
 }
 
-/** Loads `mentionObjectId`'s Yjs doc, links the first unlinked occurrence of `targetTitle` and saves the update. */
+/** Loads `mentionObjectId`'s Yjs doc, links the first unlinked occurrence of `targetTitle` and saves the incremental delta. */
 export async function linkUnlinkedMention(mentionObjectId: ObjectId, targetTitle: string) {
   const loaded = await commands.objectLoadDoc?.(mentionObjectId);
   if (loaded?.status !== "ok") return false;
   const doc = new Y.Doc();
   try {
     if (loaded.data.length > 0) Y.applyUpdate(doc, Uint8Array.from(loaded.data));
-    if (!replaceFirstUnlinkedMentionInDoc(doc, targetTitle)) return false;
-    const update = Array.from(Y.encodeStateAsUpdate(doc));
-    return (await commands.objectApplyUpdate?.(mentionObjectId, update))?.status === "ok";
+    let delta: Uint8Array | null = null;
+    const onUpdate = (u: Uint8Array) => {
+      delta = delta ? Y.mergeUpdates([delta, u]) : u;
+    };
+    doc.on("update", onUpdate);
+    const replaced = replaceFirstUnlinkedMentionInDoc(doc, targetTitle);
+    doc.off("update", onUpdate);
+    if (!replaced || delta === null) return false;
+    return (
+      (await commands.objectApplyUpdate?.(mentionObjectId, Array.from(delta)))?.status === "ok"
+    );
   } finally {
     doc.destroy();
   }
@@ -78,7 +87,10 @@ const HEADING_CLS = "text-xs font-semibold uppercase tracking-wide text-[color:v
 const CARD_CLS = "rounded border border-[color:var(--border)] bg-[color:var(--bg-elevated)]";
 
 /** Right-side panel (#28): Backlinks and Unlinked Mentions for the open object. */
-export function PageBacklinksPanel({ object, onSelect }: PageBacklinksProps) {
+export const PageBacklinksPanel = memo(function PageBacklinksPanel({
+  object,
+  onSelect,
+}: PageBacklinksProps) {
   const { t, i18n } = useTranslation();
   const [backlinks, setBacklinks] = useState<Link[]>([]);
   const [mentions, setMentions] = useState<Mention[]>([]);
@@ -190,4 +202,4 @@ export function PageBacklinksPanel({ object, onSelect }: PageBacklinksProps) {
       </section>
     </aside>
   );
-}
+});
