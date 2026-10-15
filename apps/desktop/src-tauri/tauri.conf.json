@@ -20,6 +20,7 @@
         "minHeight": 600,
         "center": true,
         "transparent": true,
+        "backgroundColor": [0, 0, 0, 0],
         "windowEffects": {
           "effects": ["mica"]
         }

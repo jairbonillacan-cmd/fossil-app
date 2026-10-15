@@ -1,4 +1,7 @@
+/// <reference types="vite/client" />
 import { afterEach, describe, expect, it, vi } from "vitest";
+import indexHtml from "../index.html?raw";
+import tauriConf from "../src-tauri/tauri.conf.json";
 
 const setTheme = vi.fn(() => Promise.resolve());
 vi.mock("@tauri-apps/api/core", () => ({ isTauri: () => true }));
@@ -66,5 +69,15 @@ describe("shell preferences (#31)", () => {
     });
     applyTheme("light");
     expect(document.documentElement.dataset.theme).toBe("light");
+  });
+
+  it("keeps a transparent initial background in tauri.conf.json and index.html (#130)", () => {
+    const mainWindow = tauriConf.app.windows.find((w) => w.label === "main");
+    expect(mainWindow).toBeDefined();
+    expect(mainWindow?.transparent).toBe(true);
+    expect(mainWindow?.backgroundColor).toEqual([0, 0, 0, 0]);
+    expect(indexHtml).toContain("background: transparent;");
+    expect(indexHtml).toContain("color-scheme: light dark;");
+    expect(indexHtml).toContain('localStorage.getItem("fossil.theme")');
   });
 });
