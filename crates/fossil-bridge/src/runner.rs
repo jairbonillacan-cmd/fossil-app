@@ -19,6 +19,14 @@ use crate::{
 };
 
 const DEFAULT_TIMEOUT_MS: u32 = 120_000;
+const MAX_LINE_BYTES: usize = 1024 * 1024;
+const SCRUBBED_ENV_VARS: &[&str] = &[
+    "ANTHROPIC_API_KEY",
+    "OPENAI_API_KEY",
+    "GEMINI_API_KEY",
+    "GOOGLE_API_KEY",
+    "CLAUDE_CODE_OAUTH_TOKEN",
+];
 
 fn format_prompt(req: &ChatRequest) -> String {
     let mut out = String::new();
@@ -35,6 +43,40 @@ fn format_prompt(req: &ChatRequest) -> String {
 
 async fn emit(tx: &Sender<ChatEvent>, ev: ChatEvent) -> Result<(), ProviderError> {
     tx.send(ev).await.map_err(|_| ProviderError::Cancelled)
+}
+
+async fn read_bounded_line<R: tokio::io::AsyncBufRead + Unpin>(
+    reader: &mut R,
+    buf: &mut Vec<u8>,
+) -> Result<bool, ProviderError> {
+    buf.clear();
+    loop {
+        let available = reader
+            .fill_buf()
+            .await
+            .map_err(|e| ProviderError::Failed(e.to_string()))?;
+        if available.is_empty() {
+            return Ok(!buf.is_empty());
+        }
+        if let Some(idx) = available.iter().position(|&b| b == b'\n') {
+            if buf.len().saturating_add(idx) > MAX_LINE_BYTES {
+                return Err(ProviderError::Failed(
+                    "CLI output line exceeded maximum length".into(),
+                ));
+            }
+            buf.extend_from_slice(&available[..idx]);
+            reader.consume(idx + 1);
+            return Ok(true);
+        }
+        if buf.len().saturating_add(available.len()) > MAX_LINE_BYTES {
+            return Err(ProviderError::Failed(
+                "CLI output line exceeded maximum length".into(),
+            ));
+        }
+        buf.extend_from_slice(available);
+        let len = available.len();
+        reader.consume(len);
+    }
 }
 
 pub struct BridgeProvider {
@@ -131,7 +173,11 @@ impl Provider for BridgeProvider {
 
         let cwd = std::env::temp_dir().join("fossil-bridge-cwd");
         let _ = std::fs::create_dir_all(&cwd);
-        let mut child = Command::new(bin)
+        let mut cmd = Command::new(bin);
+        for var in SCRUBBED_ENV_VARS {
+            cmd.env_remove(var);
+        }
+        let mut child = cmd
             .args(self.kind.cli_args(req.options.model.as_deref()))
             .current_dir(&cwd)
             .stdin(Stdio::piped())
@@ -155,18 +201,23 @@ impl Provider for BridgeProvider {
             .stdout
             .take()
             .ok_or_else(|| ProviderError::Failed("missing stdout".into()))?;
-        let mut lines = BufReader::new(stdout).lines();
+        let mut reader = BufReader::new(stdout);
+        let mut raw_line = Vec::new();
         let (mut usage, mut started) = (Usage::default(), false);
 
         let res: Result<(), ProviderError> = async {
-            while let Some(line) = timeout_at(d, lines.next_line())
-                .await
-                .map_err(|_| ProviderError::Timeout(ms))?
-                .map_err(|e| ProviderError::Failed(e.to_string()))?
-            {
-                if tx.is_closed() {
-                    return Err(ProviderError::Cancelled);
+            loop {
+                let has_line = tokio::select! {
+                    biased;
+                    () = tx.closed() => return Err(ProviderError::Cancelled),
+                    r = timeout_at(d, read_bounded_line(&mut reader, &mut raw_line)) => {
+                        r.map_err(|_| ProviderError::Timeout(ms))??
+                    }
+                };
+                if !has_line {
+                    break;
                 }
+                let line = String::from_utf8_lossy(&raw_line);
                 let delta = parse_ndjson_line(self.kind, &line, &mut model, &mut usage)?;
                 if !started {
                     started = true;
@@ -192,7 +243,15 @@ impl Provider for BridgeProvider {
             let _ = child.wait().await;
             return Err(err);
         }
-        let _ = child.wait().await;
+        let status = child
+            .wait()
+            .await
+            .map_err(|e| ProviderError::Failed(e.to_string()))?;
+        if !status.success() {
+            return Err(ProviderError::Unavailable(format!(
+                "{name} exited with status {status}"
+            )));
+        }
 
         emit(&tx, ChatEvent::Usage(usage)).await?;
         let duration_ms = t0.elapsed().as_millis().min(u128::from(u32::MAX)) as u32;
@@ -217,10 +276,17 @@ impl Provider for BridgeProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicU32, Ordering};
+
+    static NEXT_ID: AtomicU32 = AtomicU32::new(0);
 
     #[tokio::test]
     async fn bridge_provider_streams_ndjson_from_headless_process() {
-        let dir = std::env::temp_dir().join("fossil-bridge-test-mock");
+        let seq = NEXT_ID.fetch_add(1, Ordering::Relaxed);
+        let dir = std::env::temp_dir().join(format!(
+            "fossil-bridge-test-mock-{}-{seq}",
+            std::process::id()
+        ));
         let _ = std::fs::create_dir_all(&dir);
         let script = dir.join("mock-codex.cmd");
         let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -247,5 +313,15 @@ mod tests {
         }
         assert_eq!(text, "PONG");
         assert_eq!((s.usage.input_tokens, s.usage.output_tokens), (15963, 6));
+
+        let fail_script = dir.join("mock-fail.cmd");
+        std::fs::write(&fail_script, "@echo off\r\nexit /b 1\r\n").unwrap();
+        let fail_p = BridgeProvider::new(CliKind::Codex).with_binary(&fail_script);
+        let (tx2, _rx2) = tokio::sync::mpsc::channel(16);
+        assert!(matches!(
+            fail_p.chat(ChatRequest::default(), tx2).await,
+            Err(ProviderError::Unavailable(_))
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

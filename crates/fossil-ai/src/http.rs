@@ -12,6 +12,7 @@ use crate::contract::{
 use crate::provider::ProviderError;
 
 pub const DEFAULT_TIMEOUT_MS: u32 = 60_000;
+pub const MAX_SSE_LINE_BYTES: usize = 1024 * 1024;
 pub type SseParser = fn(&Value, &mut String, &mut Usage) -> Result<Option<String>, ProviderError>;
 
 pub fn chat_caps() -> Caps {
@@ -66,7 +67,11 @@ pub async fn post_sse(
         _ => ProviderError::Failed(e.without_url().to_string()),
     };
 
-    let mut resp = timeout_at(d, req.send()).await.map_err(to)?.map_err(me)?;
+    let mut resp = tokio::select! {
+        biased;
+        () = tx.closed() => return Err(ProviderError::Cancelled),
+        res = timeout_at(d, req.send()) => res.map_err(to)?.map_err(me)?,
+    };
     let code = resp.status().as_u16();
     if matches!(code, 401 | 403) {
         return Err(ProviderError::Unavailable(format!("{id:?} auth ({code})")));
@@ -74,14 +79,29 @@ pub async fn post_sse(
         return Err(ProviderError::Failed(format!("{id:?} HTTP {code}")));
     }
 
-    let (mut buf, mut usage, mut started) = (String::new(), Usage::default(), false);
-    while let Some(b) = timeout_at(d, resp.chunk()).await.map_err(to)?.map_err(me)? {
-        if tx.is_closed() {
-            return Err(ProviderError::Cancelled);
+    let (mut buf, mut usage, mut started) = (Vec::<u8>::new(), Usage::default(), false);
+    loop {
+        let maybe_chunk = tokio::select! {
+            biased;
+            () = tx.closed() => return Err(ProviderError::Cancelled),
+            res = timeout_at(d, resp.chunk()) => res.map_err(to)?.map_err(me)?,
+        };
+        let Some(b) = maybe_chunk else { break };
+        if buf.len().saturating_add(b.len()) > MAX_SSE_LINE_BYTES && !b.contains(&b'\n') {
+            return Err(ProviderError::Failed(
+                "SSE line exceeded maximum length".into(),
+            ));
         }
-        buf.push_str(&String::from_utf8_lossy(&b));
-        while let Some(idx) = buf.find('\n') {
-            let line = buf[..idx].trim_end_matches('\r').to_owned();
+        buf.extend_from_slice(&b);
+        while let Some(idx) = buf.iter().position(|&c| c == b'\n') {
+            if idx > MAX_SSE_LINE_BYTES {
+                return Err(ProviderError::Failed(
+                    "SSE line exceeded maximum length".into(),
+                ));
+            }
+            let line = String::from_utf8_lossy(&buf[..idx])
+                .trim_end_matches('\r')
+                .to_owned();
             buf.drain(..=idx);
             let data = line.strip_prefix("data:").unwrap_or(&line).trim();
             if !data.starts_with('{') {
@@ -101,6 +121,11 @@ pub async fn post_sse(
             if let Some(text) = delta.filter(|s| !s.is_empty()) {
                 emit(tx, ChatEvent::Delta { text }).await?;
             }
+        }
+        if buf.len() > MAX_SSE_LINE_BYTES {
+            return Err(ProviderError::Failed(
+                "SSE line exceeded maximum length".into(),
+            ));
         }
     }
 
@@ -151,4 +176,55 @@ pub(crate) async fn collect_chat(
         }
     }
     Ok((summary, text))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    #[tokio::test]
+    async fn sse_split_multibyte_utf8_across_chunks_is_preserved() {
+        let frame = b"data: {\"text\":\"\xC2\xA1Hola ni\xC3\xB1o \xF0\x9F\x9A\x80!\"}\n\n";
+        let split_at = frame.windows(2).position(|w| w == [0xC3, 0xB1]).unwrap() + 1;
+        let (part1, part2) = (frame[..split_at].to_vec(), frame[split_at..].to_vec());
+
+        let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = l.local_addr().unwrap();
+        tokio::spawn(async move {
+            if let Ok((mut s, _)) = l.accept().await {
+                let _ = s.read(&mut [0u8; 1024]).await;
+                let _ = s
+                    .write_all(b"HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n")
+                    .await;
+                let _ = s.write_all(&part1).await;
+                let _ = s.flush().await;
+                tokio::time::sleep(Duration::from_millis(15)).await;
+                let _ = s.write_all(&part2).await;
+            }
+        });
+
+        let req = reqwest::Client::new().post(format!("http://{addr}"));
+        let (tx, mut rx) = tokio::sync::mpsc::channel(16);
+        let parser: SseParser = |v, _, _| Ok(json_str(v, "/text").map(str::to_owned));
+        post_sse(
+            req,
+            &ChatRequest::default(),
+            ProviderId::OpenAi,
+            "m".into(),
+            &tx,
+            parser,
+        )
+        .await
+        .unwrap();
+
+        let mut out = String::new();
+        while let Ok(ev) = rx.try_recv() {
+            if let ChatEvent::Delta { text } = ev {
+                out.push_str(&text);
+            }
+        }
+        assert!(!out.contains('\u{FFFD}'));
+        assert_eq!(out, "¡Hola niño 🚀!");
+    }
 }
