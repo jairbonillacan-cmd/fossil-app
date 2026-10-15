@@ -10,6 +10,14 @@ export {
   TableHeader,
   TableRow,
 } from "./blocks";
+export type { EditorDocumentStats } from "./controls";
+export {
+  countDocumentStats,
+  DragHandle,
+  EditorWordCount,
+  moveCurrentTopBlock,
+  moveTopBlock,
+} from "./controls";
 export type { FossilEditorProps } from "./editor";
 export { BODY_FRAGMENT_KEY, FossilEditor, getBodyFragment } from "./editor";
 export type { EditorTranslationKey, EditorTranslator } from "./i18n";

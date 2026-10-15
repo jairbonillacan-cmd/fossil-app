@@ -4,10 +4,12 @@
 con bloques referenciables por ID (ADR-0005) y escritura rápida en documentos grandes
 (ADR-0015).
 
-**Rutas:** `packages/editor` (`@fossil/editor`, issue #23):
-- `src/editor.tsx`: `<FossilEditor />`, `getBodyFragment` y extensiones MIT (`StarterKit`, `TaskList`, `TaskItem`, `BlockId`, `Outliner`, `SlashMenu`).
+**Rutas:** `packages/editor` (`@fossil/editor`, issues #23, #25, #105):
+- `src/editor.tsx`: `<FossilEditor />`, `getBodyFragment` y extensiones MIT (`StarterKit`, `TaskList`, `TaskItem`, `Callout`, `TABLE_EXTENSIONS`, `BlockId`, `Outliner`, `DragHandle`, `EditorWordCount`, `SlashMenu`).
 - `src/transport.ts`: `DocTransport` y `createUpdateBatcher` (agrupa `Y.mergeUpdates` cada 250 ms y encadena promesas).
 - `src/block-id.ts`: extensión `BlockId` (`data-block-id` con `crypto.randomUUID()` en bloques de primer nivel nuevos o divididos).
+- `src/blocks.ts`: bloques `Callout` (`aside[data-type="callout"]`, atajos `>! `, `> ! `, `:::callout `) y tabla simple (`Table`, `TableRow`, `TableHeader`, `TableCell`, atajo `| col | ` y navegación `Tab`/`Shift-Tab`).
+- `src/controls.tsx`: `DragHandle`, `moveTopBlock`/`moveCurrentTopBlock` (reordena bloques conservando `blockId`) y `<EditorWordCount />` (`countDocumentStats`, claves `editor.stats.words` y `editor.stats.characters`).
 - `src/outliner.ts`: extensión `Outliner` (#25: sangría `Tab`/`Shift+Tab` `indent` `0..6`, plegado de bloques/secciones `collapsed` y pegado limpio `cleanPastedHTML`/`cleanPastedText`).
 - `src/slash-menu.tsx` y `src/i18n.ts`: menú `/` filtrable con teclado y claves `editor.*` (`EditorTranslationKey`, `EditorTranslator`, `EDITOR_MESSAGES_ES_MX`, `EDITOR_MESSAGES_EN`) inyectables vía `t`.
 - `styles/editor.css` (`@fossil/editor/styles.css`) y `src/playground.tsx` (`pnpm.cmd --filter @fossil/editor dev`, puerto 1430).
@@ -22,7 +24,8 @@ con bloques referenciables por ID (ADR-0005) y escritura rápida en documentos g
 
 **Estructura del doc Yjs (obligatoria):** el árbol debe reproducir el content model del
 schema de TipTap — `paragraph`/`heading` → texto; `listItem` → `paragraph` → texto;
-`blockquote` → `paragraph` → texto. Si un elemento no calza, y-prosemirror lo **borra
+`blockquote`/`callout` → `paragraph` → texto; `horizontalRule` (hoja);
+`table` → `tableRow` → `tableHeader`/`tableCell` → `paragraph` → texto. Si un elemento no calza, y-prosemirror lo **borra
 del doc Yjs** sin error visible (spike #13: 758 de 5 000 bloques).
 
 **Gotchas (verificados en el spike #13 y en #23):**
