@@ -50,4 +50,6 @@
 - **Cuerpo de página:** `PageBody` va con `key={object.id}` (cambiar de página remonta y limpia la alerta) y crea su `Y.Doc` en un efecto que lo destruye al limpiar (seguro con StrictMode). El transporte debe estar memoizado por objeto: si cambia, el editor recarga el cuerpo.
 - Una bóveda nueva toma su nombre del basename de la carpeta elegida (`vaultNameFromPath`).
 - El título de un journal se guarda en SQLite como `YYYY-MM-DD`; `page-editor.tsx` lo muestra formateado sin sobrescribir `title` salvo que el usuario lo edite.
+- **Tests del editor de página (#41):** `page-editor.test.tsx` monta el editor real con los comandos de `bindings.ts` mockeados; para el debounce de 400 ms activa `vi.useFakeTimers()` solo DESPUÉS de que monte el editor (con fake timers desde el arranque, las esperas del editor cuelgan). El guardado del título al cambiar de página ocurre porque el clic en la barra lateral quita el foco del input (`onBlur` hace flush antes de `onSelect`); ese es el contrato que fija el test.
+- **Texto literal en JSX:** `i18n/hardcoded-strings.test.ts` escanea los `.tsx` (tests excluidos) buscando texto visible literal en JSX o en `aria-label`/`title`/`placeholder` que no pase por `t()`; las excepciones viven en su allowlist con un comentario cada una (hoy «Fossil» en `sidebar.tsx`, #43) y el test falla también si una entrada queda huérfana.
 

@@ -80,4 +80,34 @@ describe("shell preferences (#31)", () => {
     expect(indexHtml).toContain("color-scheme: light dark;");
     expect(indexHtml).toContain('localStorage.getItem("fossil.theme")');
   });
+
+  it("falls back to defaults when stored values are corrupt JSON or wrong types", () => {
+    localStorage.setItem("fossil.theme", '{"theme":"dark"}');
+    localStorage.setItem("fossil.density", "[1,2]");
+    localStorage.setItem("fossil.language", '{"lang":"en"}');
+    expect(readShellPreferences()).toEqual({
+      theme: "system",
+      density: "comfortable",
+      language: "es-MX",
+    });
+    localStorage.setItem("fossil.theme", "undefined");
+    localStorage.setItem("fossil.density", "true");
+    localStorage.setItem("fossil.language", "42");
+    expect(readShellPreferences()).toEqual({
+      theme: "system",
+      density: "comfortable",
+      language: "es-MX",
+    });
+  });
+
+  it("falls back to defaults when only legacy keys or an old locale exist", () => {
+    // Preferences from an older version: different key names and "es-ES".
+    localStorage.setItem("fossil.appearance", "dark");
+    localStorage.setItem("fossil.uiDensity", "compact");
+    localStorage.setItem("fossil.language", "es-ES");
+    const prefs = applyStoredShellPreferences();
+    expect(prefs).toEqual({ theme: "system", density: "comfortable", language: "es-MX" });
+    expect(document.documentElement.dataset.theme).toBeUndefined();
+    expect(document.documentElement.dataset.density).toBe("comfortable");
+  });
 });

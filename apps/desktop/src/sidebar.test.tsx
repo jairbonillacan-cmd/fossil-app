@@ -100,3 +100,37 @@ describe("Sidebar & PageEditor", () => {
     });
   });
 });
+
+describe("Sidebar edge cases", () => {
+  it("shows the untitled label for pages with an empty title", async () => {
+    vi.mocked(commands.objectList).mockResolvedValue({
+      status: "ok",
+      data: [{ ...page, id: "obj-blank", title: "" }],
+    });
+    render(<Sidebar vaultName="Acme" selectedId={null} onSelect={vi.fn()} />);
+    expect(await screen.findByRole("button", { name: "Sin título" })).not.toBeNull();
+  });
+
+  it("renders titles with emoji as-is", async () => {
+    vi.mocked(commands.objectList).mockResolvedValue({
+      status: "ok",
+      data: [{ ...page, id: "obj-emoji", title: "🦖 Plan Q4 Acme", icon: "🦖" }],
+    });
+    render(<Sidebar vaultName="Mi equipo" selectedId={null} onSelect={vi.fn()} />);
+    // The icon span is aria-hidden: the accessible name comes from the title only.
+    const row = await screen.findByRole("button", { name: "🦖 Plan Q4 Acme" });
+    expect(row.querySelector('[aria-hidden="true"]')?.textContent).toBe("🦖");
+  });
+
+  it("renders a 200-character title without truncating the model", async () => {
+    const longTitle = `Plan ${"Q".repeat(191)} fin`;
+    expect(longTitle.length).toBe(200);
+    vi.mocked(commands.objectList).mockResolvedValue({
+      status: "ok",
+      data: [{ ...page, id: "obj-long", title: longTitle }],
+    });
+    render(<Sidebar vaultName="Acme" selectedId={null} onSelect={vi.fn()} />);
+    const row = await screen.findByRole("button", { name: longTitle });
+    expect(row.textContent).toBe(longTitle);
+  });
+});
