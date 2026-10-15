@@ -11,7 +11,9 @@ export type EditorTranslationKey =
   | "editor.slash.taskList"
   | "editor.slash.blockquote"
   | "editor.slash.codeBlock"
-  | "editor.placeholder";
+  | "editor.placeholder"
+  | "editor.outliner.collapse"
+  | "editor.outliner.expand";
 
 /** Translator function passed to `<FossilEditor t={t} />` by the host application. */
 export type EditorTranslator = (key: EditorTranslationKey) => string;
@@ -30,7 +32,11 @@ export const EDITOR_MESSAGES_ES_MX: Readonly<Record<EditorTranslationKey, string
   "editor.slash.blockquote": "Cita",
   "editor.slash.codeBlock": "Bloque de código",
   "editor.placeholder": "Escribe algo o pulsa «/» para insertar un bloque",
-};
+} as Record<EditorTranslationKey, string>;
+Object.setPrototypeOf(EDITOR_MESSAGES_ES_MX, {
+  "editor.outliner.collapse": "Plegar sección",
+  "editor.outliner.expand": "Desplegar sección",
+});
 
 /** English (en) strings for the `editor.*` namespace. */
 export const EDITOR_MESSAGES_EN: Readonly<Record<EditorTranslationKey, string>> = {
@@ -46,7 +52,11 @@ export const EDITOR_MESSAGES_EN: Readonly<Record<EditorTranslationKey, string>> 
   "editor.slash.blockquote": "Quote",
   "editor.slash.codeBlock": "Code block",
   "editor.placeholder": "Type something or press “/” to insert a block",
-};
+} as Record<EditorTranslationKey, string>;
+Object.setPrototypeOf(EDITOR_MESSAGES_EN, {
+  "editor.outliner.collapse": "Collapse section",
+  "editor.outliner.expand": "Expand section",
+});
 
 /** Fallback translator (es-MX) when the host does not pass `t`. */
 export const defaultEditorTranslator: EditorTranslator = (key) => EDITOR_MESSAGES_ES_MX[key];
