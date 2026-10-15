@@ -52,7 +52,7 @@ describe("createUpdateBatcher", () => {
     expect(applied).toHaveLength(1);
   });
 
-  it("reports apply failures through onError and keeps sending subsequent batches", async () => {
+  it("reports apply failures through onError, retains failed updates, and merges them on next flush", async () => {
     vi.useFakeTimers();
     const onError = vi.fn();
     const applied: Uint8Array[] = [];
@@ -72,10 +72,10 @@ describe("createUpdateBatcher", () => {
     expect(applied).toHaveLength(0);
 
     batcher.push(makeUpdate("second"));
-    batcher.flush();
-    await vi.runAllTimersAsync();
+    await batcher.flush();
     expect(applied).toHaveLength(1);
-    expect(keysOf(applied[0] as Uint8Array)).toEqual(["second"]);
+    expect(keysOf(applied[0] as Uint8Array).sort()).toEqual(["first", "second"]);
+    batcher.dispose();
     vi.useRealTimers();
   });
 
@@ -235,5 +235,22 @@ describe("createUpdateBatcher", () => {
     await Promise.resolve();
     expect(applied).toHaveLength(1);
     expect((applied[0] as Uint8Array).length).toBe(0);
+  });
+
+  it("skips Y.mergeUpdates when flushing a single update and flushes on pagehide until disposed", async () => {
+    const applied: Uint8Array[] = [];
+    const batcher = createUpdateBatcher(transportRecording(applied), { delayMs: 5000 });
+    const single = makeUpdate("solo");
+    batcher.push(single);
+    window.dispatchEvent(new Event("pagehide"));
+    await batcher.flush();
+    expect(applied).toHaveLength(1);
+    expect(applied[0]).toBe(single);
+
+    batcher.dispose();
+    batcher.push(makeUpdate("after-dispose"));
+    window.dispatchEvent(new Event("pagehide"));
+    await Promise.resolve();
+    expect(applied).toHaveLength(1);
   });
 });
