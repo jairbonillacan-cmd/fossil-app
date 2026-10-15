@@ -72,6 +72,16 @@
     "mentionsEmpty": "No hay menciones sin enlace del título de esta página.",
     "linkAction": "Enlazar"
   },
+  "palette": {
+    "commandLabel": "Paleta de comandos",
+    "commandPlaceholder": "Escribe un comando o busca una página…",
+    "switcherLabel": "Cambio rápido de página",
+    "switcherPlaceholder": "Ir a la página…",
+    "commandsHeading": "Comandos",
+    "objectsHeading": "Páginas",
+    "empty": "Sin resultados coincidentes.",
+    "toggleBacklinks": "Alternar panel de enlaces"
+  },
   "error": {
     "notImplemented": "Esta función todavía no está disponible.",
     "generic": "Algo salió mal: {{error}}"

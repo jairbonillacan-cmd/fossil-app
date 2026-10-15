@@ -1,8 +1,10 @@
 import { AppIcon, Button } from "@fossil/ui";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { ObjectId, ObjectMeta } from "./bindings";
 import { commands, events } from "./bindings";
+import { registerCommand } from "./shell-commands";
+import { ShellPalette } from "./shell-palette";
 import { ShellSettings } from "./shell-settings";
 import { errorLabel } from "./vault-screen";
 
@@ -79,6 +81,26 @@ export function Sidebar({
       setActionError(t("error.generic", { error: errorLabel(error) }));
     }
   };
+
+  const runRef = useRef(runAction);
+  runRef.current = runAction;
+  useEffect(() => {
+    const newPage = { types: ["Page" as const], title: "", icon: null, parent: null };
+    const offs = (
+      [
+        [
+          "shell.newPage",
+          t("sidebar.newPage"),
+          () => runRef.current(() => commands.objectCreate(newPage)),
+        ],
+        ["shell.today", t("sidebar.today"), () => runRef.current(() => commands.journalToday())],
+        ["shell.settings", t("sidebar.settings"), () => setSettingsOpen(true)],
+      ] as const
+    ).map(([id, title, run]) => registerCommand({ id, title, run }));
+    return () => {
+      for (const off of offs) off();
+    };
+  }, [t]);
 
   return (
     <aside className="flex h-dvh w-64 shrink-0 flex-col gap-4 border-r border-[color:var(--border)] px-3 py-4 in-data-[density=compact]:gap-2.5 in-data-[density=compact]:py-3">
@@ -157,6 +179,7 @@ export function Sidebar({
         vaultName={vaultName}
         onClose={() => setSettingsOpen(false)}
       />
+      <ShellPalette onSelect={onSelect} />
     </aside>
   );
 }

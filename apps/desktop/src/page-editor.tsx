@@ -6,6 +6,7 @@ import { commands } from "./bindings";
 import { PageBody } from "./page-body";
 import { PageBacklinksPanel } from "./page-editor-backlinks";
 import { exportObjectMarkdown } from "./page-export";
+import { registerCommand } from "./shell-commands";
 import { formatObjectTitle } from "./sidebar";
 
 const TITLE_COMMIT_MS = 400;
@@ -22,6 +23,7 @@ export function PageEditor({ object, onSelect }: PageEditorProps) {
   const pendingRef = useRef<string | null>(null);
   const [exportFailed, setExportFailed] = useState(false);
   const [backlinksOpen, setBacklinksOpen] = useState(true);
+  const exportRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     setTitle(object?.title ?? "");
@@ -41,6 +43,19 @@ export function PageEditor({ object, onSelect }: PageEditorProps) {
     }, TITLE_COMMIT_MS);
     return () => window.clearTimeout(timer);
   }, [title, object]);
+
+  useEffect(() => {
+    if (object === null) return undefined;
+    const offs = (
+      [
+        ["editor.exportMarkdown", t("editor.exportMarkdown"), () => exportRef.current()],
+        ["editor.toggleBacklinks", t("palette.toggleBacklinks"), () => setBacklinksOpen((o) => !o)],
+      ] as const
+    ).map(([id, lbl, run]) => registerCommand({ id, title: lbl, run }));
+    return () => {
+      for (const off of offs) off();
+    };
+  }, [object, t]);
 
   const flushTitle = () => {
     const next = pendingRef.current;
@@ -74,6 +89,7 @@ export function PageEditor({ object, onSelect }: PageEditorProps) {
     const name = displayTitle.trim() === "" ? t("editor.untitled") : displayTitle;
     setExportFailed(!(await exportObjectMarkdown(object.id, name, object.id)));
   };
+  exportRef.current = () => void exportMarkdown();
 
   return (
     <div className="flex h-full min-w-0">
