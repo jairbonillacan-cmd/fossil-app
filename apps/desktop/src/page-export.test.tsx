@@ -95,4 +95,34 @@ describe("Export Markdown", () => {
     expect(markdownFileName("con.txt", "x")).toBe("_con.txt.md");
     expect(markdownFileName("   ", "obj-1")).toBe("obj-1.md");
   });
+
+  it("waits for an in-flight title save before calling object_export_markdown (#51)", async () => {
+    const order: string[] = [];
+    let resolveSave!: () => void;
+    vi.mocked(commands.objectUpdateMeta).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          order.push("save:start");
+          resolveSave = () => {
+            order.push("save:done");
+            resolve({ status: "ok", data: { ...page, title: "Plan final" } });
+          };
+        }),
+    );
+    vi.mocked(commands.objectExportMarkdown).mockImplementation(async () => {
+      order.push("export");
+      return { status: "ok", data: MIRROR };
+    });
+
+    render(<PageEditor object={page} />);
+    const input = screen.getByRole("textbox", { name: "Título de la página" });
+    fireEvent.change(input, { target: { value: "Plan final" } });
+    fireEvent.click(screen.getByRole("button", { name: "Exportar Markdown" }));
+    expect(order).toEqual(["save:start"]);
+    expect(commands.objectExportMarkdown).not.toHaveBeenCalled();
+
+    resolveSave();
+    await vi.waitFor(() => expect(clicked).toHaveLength(1));
+    expect(order).toEqual(["save:start", "save:done", "export"]);
+  });
 });

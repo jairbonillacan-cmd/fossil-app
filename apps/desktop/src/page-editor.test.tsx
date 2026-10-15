@@ -171,4 +171,47 @@ describe("PageEditor", () => {
     },
     SLOW,
   );
+
+  it(
+    "saves again when renaming A -> B -> A and avoids duplicate saves between debounce and blur (#51)",
+    async () => {
+      const onObjectUpdated = vi.fn();
+      vi.mocked(commands.objectUpdateMeta).mockImplementation(async (id, patch) => ({
+        status: "ok",
+        data: { ...page, id, title: patch.title ?? page.title },
+      }));
+      const { container } = render(<PageEditor object={page} onObjectUpdated={onObjectUpdated} />);
+      await awaitEditor(container);
+      vi.useFakeTimers();
+
+      const input = titleInput();
+      fireEvent.change(input, { target: { value: "Nuevo" } });
+      vi.advanceTimersByTime(400);
+      fireEvent.blur(input);
+      expect(commands.objectUpdateMeta).toHaveBeenCalledTimes(1);
+      expect(commands.objectUpdateMeta).toHaveBeenLastCalledWith("obj-1", {
+        title: "Nuevo",
+        icon: null,
+        types: null,
+        archived: null,
+      });
+
+      fireEvent.change(input, { target: { value: "Launch checklist" } });
+      vi.advanceTimersByTime(400);
+      expect(commands.objectUpdateMeta).toHaveBeenCalledTimes(2);
+      expect(commands.objectUpdateMeta).toHaveBeenLastCalledWith("obj-1", {
+        title: "Launch checklist",
+        icon: null,
+        types: null,
+        archived: null,
+      });
+      await vi.waitFor(() =>
+        expect(onObjectUpdated).toHaveBeenLastCalledWith({
+          ...page,
+          title: "Launch checklist",
+        }),
+      );
+    },
+    SLOW,
+  );
 });

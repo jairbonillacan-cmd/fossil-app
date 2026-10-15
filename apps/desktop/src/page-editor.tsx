@@ -9,20 +9,26 @@ import { PageBacklinksPanel } from "./page-editor-backlinks";
 import { exportObjectMarkdown, printObjectPdf } from "./page-export";
 import { registerCommand } from "./shell-commands";
 import { PageFindBar } from "./shell-search";
-import { formatObjectTitle } from "./sidebar";
+import { formatObjectTitle, selectWorkspaceObject } from "./sidebar";
 
 const TITLE_COMMIT_MS = 400;
 
 export interface PageEditorProps {
   object: ObjectMeta | null;
   onSelect?: ((object: ObjectMeta) => void) | undefined;
+  onObjectUpdated?: ((object: ObjectMeta) => void) | undefined;
 }
 
 /** Page header (`object_update_meta`, 400 ms debounce + blur), body and collapsible backlinks/AI panels (#26, #28, #14). */
-export function PageEditor({ object, onSelect }: PageEditorProps) {
+export function PageEditor({ object, onSelect, onObjectUpdated }: PageEditorProps) {
   const { t, i18n } = useTranslation();
-  const [title, setTitle] = useState("");
-  const pendingRef = useRef<string | null>(null);
+  const [title, setTitle] = useState(object?.title ?? "");
+  const titleRef = useRef(object?.title ?? "");
+  titleRef.current = title;
+  const lastSavedTitleRef = useRef(object?.title.trim() ?? "");
+  const lastObjectIdRef = useRef<string | null>(object?.id ?? null);
+  const timerRef = useRef<number | null>(null);
+  const inFlightSaveRef = useRef<Promise<void> | null>(null);
   const [exportFailed, setExportFailed] = useState(false);
   const [backlinksOpen, setBacklinksOpen] = useState(true);
   const [aiOpen, setAiOpen] = useState(false);
@@ -31,22 +37,93 @@ export function PageEditor({ object, onSelect }: PageEditorProps) {
   const bodyRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setTitle(object?.title ?? "");
-    pendingRef.current = null;
-    setExportFailed(false);
+    const nextId = object?.id ?? null;
+    if (lastObjectIdRef.current !== nextId) {
+      lastObjectIdRef.current = nextId;
+      if (timerRef.current !== null) {
+        window.clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+      const initialTitle = object?.title ?? "";
+      setTitle(initialTitle);
+      titleRef.current = initialTitle;
+      lastSavedTitleRef.current = initialTitle.trim();
+      inFlightSaveRef.current = null;
+      setExportFailed(false);
+    } else if (
+      object !== null &&
+      timerRef.current === null &&
+      inFlightSaveRef.current === null &&
+      titleRef.current.trim() === lastSavedTitleRef.current &&
+      object.title.trim() !== lastSavedTitleRef.current
+    ) {
+      setTitle(object.title);
+      titleRef.current = object.title;
+      lastSavedTitleRef.current = object.title.trim();
+    }
   }, [object]);
 
+  const flushTitle = (candidate = titleRef.current): Promise<void> => {
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    const trimmed = candidate.trim();
+    if (object === null || trimmed === lastSavedTitleRef.current) {
+      return inFlightSaveRef.current ?? Promise.resolve();
+    }
+    const prevSaved = lastSavedTitleRef.current;
+    lastSavedTitleRef.current = trimmed;
+    const targetObject = object;
+    const prevInFlight = inFlightSaveRef.current;
+    const saveCall = Promise.resolve(
+      commands.objectUpdateMeta(targetObject.id, {
+        title: trimmed,
+        icon: null,
+        types: null,
+        archived: null,
+      }),
+    ).then((res) => {
+      if (res && res.status === "error") {
+        if (lastSavedTitleRef.current === trimmed) {
+          lastSavedTitleRef.current = prevSaved;
+        }
+        return;
+      }
+      const updated =
+        res?.status === "ok" && res.data ? res.data : { ...targetObject, title: trimmed };
+      onObjectUpdated?.(updated);
+      selectWorkspaceObject(updated);
+    });
+    const tracked = (
+      prevInFlight ? Promise.all([prevInFlight, saveCall]).then(() => undefined) : saveCall
+    ).finally(() => {
+      if (inFlightSaveRef.current === tracked) {
+        inFlightSaveRef.current = null;
+      }
+    });
+    inFlightSaveRef.current = tracked;
+    return tracked;
+  };
+
+  const flushRef = useRef(flushTitle);
+  flushRef.current = flushTitle;
+
   useEffect(() => {
-    if (object === null || title === object.title) {
-      pendingRef.current = null;
+    if (object === null || title.trim() === lastSavedTitleRef.current) {
       return undefined;
     }
-    pendingRef.current = title;
     const timer = window.setTimeout(() => {
-      pendingRef.current = null;
-      void commands.objectUpdateMeta(object.id, { title, icon: null, types: null, archived: null });
+      timerRef.current = null;
+      void flushRef.current(title);
     }, TITLE_COMMIT_MS);
-    return () => window.clearTimeout(timer);
+    timerRef.current = timer;
+    return () => {
+      window.clearTimeout(timer);
+      if (timerRef.current === timer) {
+        timerRef.current = null;
+      }
+    };
   }, [title, object]);
 
   useEffect(() => {
@@ -63,18 +140,6 @@ export function PageEditor({ object, onSelect }: PageEditorProps) {
     };
   }, [object, t]);
 
-  const flushTitle = () => {
-    const next = pendingRef.current;
-    if (next === null || object === null) return;
-    pendingRef.current = null;
-    void commands.objectUpdateMeta(object.id, {
-      title: next,
-      icon: null,
-      types: null,
-      archived: null,
-    });
-  };
-
   if (object === null) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2">
@@ -84,20 +149,24 @@ export function PageEditor({ object, onSelect }: PageEditorProps) {
     );
   }
 
+  const currentObject =
+    lastSavedTitleRef.current !== object.title
+      ? { ...object, title: lastSavedTitleRef.current }
+      : object;
   const displayTitle =
-    object.types.includes("Journal") && title === object.title
-      ? formatObjectTitle(object, i18n.language, "")
+    object.types.includes("Journal") && title.trim() === lastSavedTitleRef.current
+      ? formatObjectTitle(currentObject, i18n.language, "")
       : title;
 
   const exportMarkdown = async () => {
     // Flush first: the export reads the stored title, not the one being typed.
-    flushTitle();
+    await flushTitle(titleRef.current);
     const name = displayTitle.trim() === "" ? t("editor.untitled") : displayTitle;
     setExportFailed(!(await exportObjectMarkdown(object.id, name, object.id)));
   };
   exportRef.current = () => void exportMarkdown();
   printRef.current = () => {
-    flushTitle();
+    void flushTitle(titleRef.current);
     printObjectPdf();
   };
 
@@ -110,8 +179,11 @@ export function PageEditor({ object, onSelect }: PageEditorProps) {
             value={displayTitle}
             aria-label={t("editor.titleLabel")}
             placeholder={t("editor.untitled")}
-            onChange={(event) => setTitle(event.target.value)}
-            onBlur={flushTitle}
+            onChange={(event) => {
+              titleRef.current = event.target.value;
+              setTitle(event.target.value);
+            }}
+            onBlur={() => void flushTitle(titleRef.current)}
             className="min-w-0 flex-1 rounded border-0 bg-transparent px-0 text-3xl font-semibold text-[color:var(--fg)] placeholder:text-[color:var(--fg-muted)] focus-visible:outline-2 focus-visible:outline-[color:var(--accent)]"
           />
           <Button
@@ -160,10 +232,10 @@ export function PageEditor({ object, onSelect }: PageEditorProps) {
       </div>
       {backlinksOpen && (
         <div className="contents print:hidden">
-          <PageBacklinksPanel object={object} onSelect={onSelect} />
+          <PageBacklinksPanel object={currentObject} onSelect={onSelect} />
         </div>
       )}
-      {aiOpen && <AiChatPanel key={object.id} object={object} />}
+      {aiOpen && <AiChatPanel key={object.id} object={currentObject} />}
     </div>
   );
 }
