@@ -111,7 +111,7 @@ export function Sidebar({
         <AppIcon />
         <div className="flex min-w-0 flex-col">
           <span className="text-sm font-semibold tracking-tight text-[color:var(--fg)]">
-            Fossil
+            {t("app.name")}
           </span>
           <span className="truncate text-xs text-[color:var(--fg-muted)]">{vaultName}</span>
         </div>
