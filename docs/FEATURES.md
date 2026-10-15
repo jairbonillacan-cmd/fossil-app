@@ -26,9 +26,9 @@ escribiendo el título; ver qué notas apuntan a la actual; buscar al instante.
 | Espacio local: una carpeta con la base SQLite (`.fossil/`) y la copia en Markdown | 0.1 | ADR-0004, `fossil-core::vault` |
 | Copia en Markdown de cada página con frontmatter YAML, 2 s después de editar | 0.1 | `fossil-core::mirror` |
 | Exportar una página como `.md` | 0.1 | `apps/desktop/src/page-export.ts` |
-| Enlaces `[[página]]` con autocompletado; crea la página si no existe | Revisión | `packages/editor` |
-| **Enlazada desde** y **Menciones sin enlace** en el panel derecho | Revisión | `fossil-core::indexer` |
-| Búsqueda de texto completo con fragmento resaltado | Revisión | ADR-0004 (FTS5), `fossil-core::search` |
+| Enlaces `[[página]]` con autocompletado; crea la página si no existe | 0.1 | `packages/editor` |
+| **Enlazada desde** y **Menciones sin enlace** en el panel derecho | 0.1 | `fossil-core::indexer`, `apps/desktop/src/page-editor-backlinks.tsx` |
+| Búsqueda de texto completo con fragmento resaltado | 0.1 | ADR-0004 (FTS5), `fossil-core::search`, `apps/desktop/src/shell-search.tsx` |
 | Grafo local y global | R2 | — |
 | Copia en Markdown bidireccional (editar el `.md` actualiza la página) | R7 | ADR-0004 |
 
@@ -42,9 +42,9 @@ varias vistas sobre los mismos datos; plantillas.
 |---|---|---|
 | Editor de bloques: párrafos, encabezados, listas, tareas, citas y código | 0.1 | ADR-0015, `packages/editor` |
 | Menú `/` y atajos de Markdown al escribir | 0.1 | `packages/editor/src/slash-menu.tsx` |
-| Avisos (callouts) y tablas | Revisión | `packages/editor` |
-| Arrastrar bloques con asa y conteo de palabras | Revisión | `packages/editor` |
-| Imágenes pegadas o arrastradas, guardadas dentro del Espacio | R1 | `fossil-core::attachments` |
+| Avisos (callouts) y tablas | 0.1 | `packages/editor` |
+| Arrastrar bloques con asa y conteo de palabras | 0.1 | `packages/editor` |
+| Imágenes pegadas o arrastradas, guardadas dentro del Espacio | Revisión | `fossil-core::attachments`, `packages/editor` |
 | Campos tipados: texto, número, moneda, fecha, persona, selección, relación, rollup, fórmula | R2 | ADR-0005 |
 | Vistas tabla, tablero, lista y calendario sobre cualquier tipo | R2 | — |
 | Plantillas por tipo | R2 | — |
@@ -73,7 +73,7 @@ referenciar e insertar un bloque en otra página; consultas embebidas.
 | En Fossil | Estado | Dónde |
 |---|---|---|
 | **Bitácora**: el botón **Hoy** abre o crea la nota del día | 0.1 | `fossil-core::journal` |
-| Esquemas: sangría con `Tab`, bloques y secciones plegables, pegado limpio | Revisión | `packages/editor` |
+| Esquemas: sangría con `Tab`, bloques y secciones plegables, pegado limpio | 0.1 | `packages/editor` |
 | Referencias `((bloque))` e inserción de bloques | R2 | ADR-0005 |
 | Consultas embebidas en una página | R5 | — |
 
@@ -86,10 +86,10 @@ imágenes; exportar a varios formatos.
 | En Fossil | Estado | Dónde |
 |---|---|---|
 | Tema claro, oscuro o del sistema; densidad cómoda o compacta; idioma | 0.1 | `DESIGN.md`, `apps/desktop/src/shell-settings.tsx` |
-| Etiquetas `#tag` con autocompletado | Revisión | `packages/editor` |
+| Etiquetas `#tag` con autocompletado | 0.1 | `packages/editor` |
 | Etiquetas anidadas con ícono | R2 | — |
 | Texto en imágenes y PDF con el OCR de Windows | R4 | `fossil-os` |
-| Exportar a PDF | R1 | — |
+| Exportar a PDF | 0.1 | `apps/desktop/src/page-export.ts` |
 | Exportar a DOCX, HTML y ePub | R7 | — |
 
 ### 6. Captura e importación
@@ -99,8 +99,8 @@ desde otra app de notas.
 
 | En Fossil | Estado | Dónde |
 |---|---|---|
-| Paleta de comandos `Ctrl+K` y salto rápido `Ctrl+P` | Revisión | `apps/desktop/src` |
-| Captura rápida con un atajo global, sin abrir la ventana | R1 | `fossil-os` |
+| Paleta de comandos `Ctrl+K` y salto rápido `Ctrl+P` | 0.1 | `apps/desktop/src/shell-palette.tsx` |
+| Captura rápida con un atajo global, sin abrir la ventana | Revisión | `fossil-os` |
 | Importar Markdown y exportaciones (Markdown, HTML, CSV) de otras apps de notas | R2 | — |
 | Recortador web | R6 | — |
 
@@ -224,12 +224,12 @@ que puede actuar dentro de la app con permiso; costo visible.
 
 | En Fossil | Estado | Dónde |
 |---|---|---|
-| Proveedores con clave propia: Anthropic, OpenAI y Gemini; claves en el almacén de credenciales de Windows | Revisión | ADR-0011, `fossil-ai` |
-| Modelos locales con Ollama | Revisión | `fossil-ai` |
-| CLIs de IA ya instalados y con sesión iniciada, como procesos hijo; Fossil nunca lee sus credenciales | Revisión | ADR-0011, ADR-0013, `fossil-bridge` |
-| **Modelos de IA**: router por tarea con cadena de respaldo y registro de costo | Revisión | `fossil-ai` |
-| Chat con contexto: página, selección y `@páginas` | R1 | `docs/specs/r1-ai-router-bridge.md` |
-| Reescribir, resumir, traducir y cambiar el tono de una selección | R1 | — |
+| Proveedores con clave propia: Anthropic, OpenAI y Gemini; claves en el almacén de credenciales de Windows | 0.1 (núcleo) | ADR-0011, `fossil-ai` |
+| Modelos locales con Ollama | 0.1 (núcleo) | `fossil-ai` |
+| CLIs de IA ya instalados y con sesión iniciada, como procesos hijo; Fossil nunca lee sus credenciales | 0.1 (núcleo) | ADR-0011, ADR-0013, `fossil-bridge` |
+| **Modelos de IA**: router por tarea con cadena de respaldo y registro de costo | 0.1 (núcleo) | `fossil-ai` |
+| Chat con contexto: página, selección y `@páginas` | Revisión | `docs/specs/r1-ai-router-bridge.md` |
+| Reescribir, resumir, traducir y cambiar el tono de una selección | Revisión | `docs/specs/r1-ai-router-bridge.md` |
 | Agente con las herramientas de la paleta; confirma lo destructivo o externo | R2 | — |
 | Contador de costos y topes por mes | R2 | — |
 | Voz de marca en todo el contenido; ideas por pilar; campos que llena la IA | R4 | — |
@@ -270,7 +270,7 @@ escribir en Fossil.
 | En Fossil | Estado | Dónde |
 |---|---|---|
 | Ventana nativa de Windows 11 con Mica; tema y densidad aplicados antes de mostrarla | 0.1 | `DESIGN.md` |
-| Sin destello blanco de WebView2 al arrancar | Revisión | `apps/desktop/src-tauri/tauri.conf.json` |
+| Sin destello blanco de WebView2 al arrancar | 0.1 | `apps/desktop/src-tauri/tauri.conf.json` |
 | Instancia única y posición de la ventana recordada | 0.1 | `docs/modules/infra.md` |
 | Pestañas, paneles divididos y panel derecho | R1 | `docs/specs/r1-shell-ux.md` |
 | Recordatorios con notificación de Windows; bandeja Hoy, Próximo, Atrasado | R2 | `fossil-os` |

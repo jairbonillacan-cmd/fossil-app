@@ -12,57 +12,69 @@ Cómo escribir aquí:
 ## En curso
 
 ### Búsqueda
-Encuentra cualquier página por texto, tag o tipo, con el fragmento donde aparece.
+Encuentra cualquier página por texto, etiqueta, tipo o fecha con el fragmento resaltado, o busca dentro de la página con `Ctrl+F`. Ya está terminada; falta publicarla.
 
 ### Paleta de comandos
-Ctrl+K para cualquier acción y Ctrl+P para saltar a una página.
+`Ctrl+K` para cualquier acción y `Ctrl+P` para saltar a una página por su título. Ya está terminada; falta publicarla.
+
+### Enlaces y etiquetas al escribir
+Autocompletado al escribir `[[` o `#` (incluidas etiquetas anidadas como `#marca/acme`), con opción de crear la página si no existe. Ya está terminada; falta publicarla.
 
 ### Enlazada desde
-Ve qué páginas enlazan a la actual y cuáles la mencionan sin enlace.
+Ve qué páginas enlazan a la actual y cuáles la mencionan sin enlace, con un clic para enlazarlas. Ya está terminada; falta publicarla.
+
+### Esquemas y bloques avanzados
+Sangría con `Tab`, bloques y secciones plegables, avisos, tablas simples, arrastrar bloques, conteo de palabras y pegado limpio. Ya está terminada; falta publicarla.
+
+### Exportar Markdown y PDF
+Descarga cualquier página como `.md` o guárdala como PDF limpio en tema claro. Ya está terminada; falta publicarla.
 
 ### Asistente de IA
-Chat con el contexto de tu página. Usa tus propias claves de API o modelos locales.
-
-### Esquemas
-Sangría con Tab, bloques y secciones plegables, pegado limpio.
-
-### Exportar Markdown
-Descarga cualquier página como un archivo `.md`. Ya está terminada; falta publicarla.
+Chat con el contexto de tu página y acciones sobre el texto seleccionado. Usa tus propias claves de API, modelos locales o tu suscripción existente.
 
 ### Imágenes en páginas
-Pega o arrastra imágenes. Se guardan dentro de tu espacio.
+Pega o arrastra imágenes en cualquier página. Se guardan dentro de tu espacio.
+
+### Captura rápida
+Un atajo global (`Win+Shift+F`) y acceso desde la bandeja del sistema para anotar algo al vuelo sin cambiar de ventana.
+
+### Pestañas y paneles divididos
+Abre varias páginas en pestañas o trabaja con dos páginas lado a lado.
 
 ## Planeado
 
-### Enlaces y tags al escribir
-Autocompletado al escribir `[[` o `#`, y crear la página si no existe.
-
-### Captura rápida
-Un atajo global para anotar algo sin abrir la ventana.
-
 ### Tipos y campos
-Define tus propios tipos de página, como proyecto, cliente o publicación, con sus campos.
+Define tus propios tipos de página, como proyecto, cliente, campaña o publicación, con sus propios campos y plantillas.
 
 ### Tareas y recordatorios
-Tareas con fecha, prioridad y recordatorio, en cualquier página.
+Tareas con fecha, prioridad y notificación de Windows, reunidas en Hoy, Próximo y Atrasado.
 
 ### Vistas
-Tabla, tablero y calendario sobre cualquier tipo de página.
+Tabla, tablero, calendario, línea de tiempo y galería sobre cualquier tipo de página o lista guardada.
+
+### Agente y conexión MCP
+Un agente que usa las herramientas de tu espacio con tu permiso, y servidor/cliente MCP local para conectar tus herramientas.
 
 ### Trabajo en equipo
-Edición en vivo, comentarios, roles e historial de cambios.
+Espacios compartidos con edición en vivo, cursores, comentarios en hilo, roles e historial de versiones con restauración.
 
-### Parrilla de contenido
-Planea, previsualiza y aprueba las publicaciones del mes con tu equipo o tu cliente.
+### Parrilla de contenido y marca
+Planea por marca con voz y pilares propios, escribe versiones por red con previsualización para Instagram, TikTok o Facebook y exporta la parrilla.
 
-### Ventas y campañas
-Pedidos, ventas y resultados de anuncios conectados con el trabajo que los produjo.
+### Aprobaciones con el cliente
+Rondas de revisión en orden y enlace de aprobación para que el cliente comente y apruebe desde el navegador sin crear cuenta.
+
+### Ventas, campañas y rentabilidad
+Conecta Shopify, Meta Ads, Google Ads, TikTok Ads y GA4 para ver margen de contribución diario, atribución y qué creativos vendieron más.
+
+### Reportes y alertas
+Plantillas de reporte mensual que se llenan solas, bloques de consulta con gráficas en vivo y alertas cuando un indicador se sale de meta.
 
 ### Publicación programada
-Las publicaciones aprobadas salen solas a la hora elegida.
+Las publicaciones aprobadas salen solas a la hora elegida, con bandeja de comentarios y enlaces con seguimiento.
 
 ### Actualizaciones automáticas
-Fossil se actualiza solo, con canal estable y beta.
+Fossil se actualiza solo, con canal estable y beta, instalador firmado y espacios privados cifrados de extremo a extremo.
 
 ## Lanzado
 

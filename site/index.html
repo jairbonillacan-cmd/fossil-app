@@ -6,7 +6,7 @@
     <meta name="color-scheme" content="light dark" />
     <meta
       name="description"
-      content="Fossil: notas, tareas y contenido de tu equipo, conectados en una app de escritorio local y rápida."
+      content="Fossil: notas, tareas, contenido con aprobaciones y datos de comercio conectados en una app de escritorio local y rápida para Windows 11."
     />
     <title>Fossil</title>
     <link rel="stylesheet" href="./base.css" />
@@ -17,6 +17,8 @@
       <div class="top-inner">
         <a class="wordmark" href="/">Fossil</a>
         <nav class="top-nav" aria-label="Secciones">
+          <a href="#funciones">Funciones</a>
+          <a href="#flujo">El flujo</a>
           <a href="/roadmap/">Roadmap</a>
           <a href="/changelog/">Changelog</a>
         </nav>
@@ -25,76 +27,357 @@
 
     <main>
       <section class="hero">
-        <p class="eyebrow">Alpha para Windows</p>
-        <h1>El trabajo de tu equipo, en un solo lugar.</h1>
+        <p class="eyebrow">Alpha para Windows 11</p>
+        <h1>El trabajo de tu equipo, en un solo grafo.</h1>
         <p class="lede">
-          Notas, tareas y contenido conectados entre sí. Fossil guarda todo en tu computadora, abre en
-          menos de un segundo y funciona sin conexión.
+          Notas, tareas, contenido con aprobaciones y datos de tu tienda y tus anuncios conectados
+          entre sí. Fossil guarda todo en tu computadora, abre en menos de un segundo y funciona sin
+          conexión.
         </p>
         <div class="actions">
           <a class="button primary" href="/changelog/">Qué hay de nuevo</a>
-          <a class="button" href="/roadmap/">Qué sigue</a>
+          <a class="button" href="/roadmap/">Ver el roadmap</a>
         </div>
-        <p class="fineprint">Windows 10 y 11 · Acceso por invitación durante la alpha</p>
+        <p class="fineprint">
+          Windows 11 · Acceso por invitación durante la alpha · Tus archivos siempre en Markdown
+        </p>
       </section>
 
-      <section class="shot" role="img" aria-label="Una página de Fossil con objetivos y tareas, y la barra lateral con las páginas del espacio.">
+      <section
+        class="shot"
+        role="img"
+        aria-label="Ventana de Fossil con la barra lateral del espacio Mi equipo, la página Plan Q4 con enlaces, avisos, tareas y tabla, y el panel derecho Enlazada desde."
+      >
         <div class="window" aria-hidden="true">
-          <div class="window-bar"><span></span><span></span><span></span></div>
+          <div class="window-bar">
+            <div class="window-dots"><span></span><span></span><span></span></div>
+            <div class="window-crumb">Mi equipo / <strong>Plan Q4</strong></div>
+            <div class="window-actions">
+              <span class="kbd-pill">Ctrl+K</span>
+              <span class="bar-btn">Exportar .md</span>
+              <span class="bar-btn">Exportar PDF</span>
+              <span class="bar-btn is-on">Enlazada desde</span>
+            </div>
+          </div>
           <div class="window-body">
             <aside class="mock-side">
               <strong>Mi equipo</strong>
-              <span class="mock-today">Hoy</span>
+              <span class="mock-today">Hoy · 15 oct</span>
+              <span class="mock-search">Buscar… <code>Ctrl+P</code></span>
+              <p class="mock-group">Páginas</p>
               <span class="is-active">Plan Q4</span>
-              <span>Campaña de otoño</span>
+              <span>Campaña Acme Verano</span>
+              <span>Parrilla noviembre</span>
               <span>Ideas para redes</span>
               <span>Reunión semanal</span>
+              <p class="mock-group">Etiquetas</p>
+              <span class="mock-tag">#marca/acme</span>
+              <span class="mock-tag">#campaña</span>
+              <span class="mock-tag">#trimestre</span>
             </aside>
             <article class="mock-page">
-              <p class="mock-title">Plan Q4</p>
+              <div class="mock-page-head">
+                <p class="mock-title">Plan Q4</p>
+                <div class="mock-tags">
+                  <span>#marca/acme</span>
+                  <span>#trimestre</span>
+                </div>
+              </div>
+              <div class="mock-callout">
+                <strong>Meta del trimestre:</strong> conectar cada pieza aprobada con su gasto en
+                anuncios y su margen real en la tienda.
+              </div>
               <p class="mock-h">Objetivos</p>
               <ul>
-                <li>Lanzar la campaña de otoño</li>
-                <li>Parrilla de contenido de noviembre</li>
+                <li>
+                  Cerrar el brief de <span class="mock-link">[[Campaña Acme Verano]]</span> con los
+                  productos clave
+                </li>
+                <li>
+                  Entregar la <span class="mock-link">[[Parrilla noviembre]]</span> lista para
+                  aprobación del cliente
+                </li>
               </ul>
-              <p class="mock-h">Tareas</p>
+              <p class="mock-h">Tareas de la semana</p>
               <ul class="mock-tasks">
-                <li class="done">Brief creativo</li>
-                <li>Aprobar piezas con el equipo</li>
+                <li class="done">Definir pilares y voz de marca de Acme</li>
+                <li class="done">Subir creativos de lanzamiento al espacio</li>
+                <li>Enviar enlace de aprobación de la primera quincena</li>
                 <li>Revisar resultados de la primera semana</li>
               </ul>
+              <table class="mock-table">
+                <thead>
+                  <tr>
+                    <th>Canal</th>
+                    <th>Piezas</th>
+                    <th>Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Instagram · Reels y feed</td>
+                    <td>8</td>
+                    <td>En revisión</td>
+                  </tr>
+                  <tr>
+                    <td>TikTok · Video corto</td>
+                    <td>6</td>
+                    <td>Borrador</td>
+                  </tr>
+                </tbody>
+              </table>
+              <div class="mock-foot">
+                <span><code>/</code> bloques · <code>[[</code> enlaces · <code>#</code> etiquetas · <code>Tab</code> sangría</span>
+                <span>148 palabras · 912 caracteres</span>
+              </div>
             </article>
+            <aside class="mock-backlinks">
+              <p class="mock-panel-title">Enlazada desde · 2</p>
+              <div class="mock-backlink-card">
+                <strong>Campaña Acme Verano</strong>
+                <p>…alineada con los objetivos de <mark>Plan Q4</mark> para el cierre de año…</p>
+              </div>
+              <div class="mock-backlink-card">
+                <strong>15 de octubre de 2026</strong>
+                <p>…revisar pendientes de <mark>Plan Q4</mark> antes de la llamada…</p>
+              </div>
+              <p class="mock-panel-title">Menciones sin enlace · 1</p>
+              <div class="mock-backlink-card">
+                <div class="mock-backlink-row">
+                  <strong>Reunión semanal</strong>
+                  <span class="mock-mini-btn">Enlazar</span>
+                </div>
+                <p>…ajustar el calendario del Plan Q4 con diseño…</p>
+              </div>
+            </aside>
           </div>
         </div>
       </section>
 
-      <section class="features">
-        <div class="feature">
-          <h2>En tu computadora</h2>
-          <p>Cada espacio es una carpeta local. Sin internet, todo sigue funcionando.</p>
+      <section class="section" id="funciones">
+        <div class="section-head">
+          <p class="eyebrow">Disponible en tu Espacio</p>
+          <h2>Un editor rápido que piensa en páginas conectadas.</h2>
+          <p>
+            Úsalo desde hoy como tu cuaderno de trabajo diario: escribe sin fricción, enlaza ideas al
+            vuelo y encuentra cualquier nota en milisegundos.
+          </p>
         </div>
-        <div class="feature">
-          <h2>Sin encierro</h2>
-          <p>Cada página tiene una copia en Markdown. Si un día te vas, tus notas se van contigo.</p>
+
+        <div class="grid-3">
+          <div class="card-block">
+            <h3>Editor de bloques y esquemas</h3>
+            <p>
+              Encabezados, listas, tareas, citas, código, avisos y tablas simples. Sangra con
+              <code>Tab</code>, pliega secciones completas, arrastra bloques desde su asa y pega texto
+              limpio desde cualquier lugar.
+            </p>
+          </div>
+          <div class="card-block">
+            <h3>Enlaces <code>[[página]]</code> y etiquetas <code>#tag</code></h3>
+            <p>
+              Escribe <code>[[</code> para enlazar otra página con autocompletado o crearla si aún no
+              existe. Clasifica con etiquetas simples o anidadas como <code>#marca/acme</code>.
+            </p>
+          </div>
+          <div class="card-block">
+            <h3>Enlazada desde y menciones</h3>
+            <p>
+              Cada página muestra qué otras páginas apuntan a ella y cuáles la nombran sin enlace. Con
+              un clic conviertes cualquier mención en un enlace real.
+            </p>
+          </div>
+          <div class="card-block">
+            <h3>Búsqueda instantánea y paleta</h3>
+            <p>
+              Busca en todo el espacio por texto (con o sin acentos), etiqueta, tipo o fecha con el
+              fragmento resaltado. Salta con <code>Ctrl+P</code>, ejecuta acciones con
+              <code>Ctrl+K</code> o busca en la página con <code>Ctrl+F</code>.
+            </p>
+          </div>
+          <div class="card-block">
+            <h3>Bitácora diaria a un clic</h3>
+            <p>
+              El botón <strong>Hoy</strong> abre la nota del día y la crea si no existe. Anota acuerdos,
+              ideas sueltas y pendientes y enlázalos con tus proyectos sin perder el hilo.
+            </p>
+          </div>
+          <div class="card-block">
+            <h3>Sin encierro: Markdown y PDF</h3>
+            <p>
+              Cada página se guarda también como un archivo <code>.md</code> en tu carpeta. Además,
+              puedes descargar cualquier página en Markdown o exportarla a PDF limpio en tema claro.
+            </p>
+          </div>
         </div>
-        <div class="feature">
-          <h2>Abre al instante</h2>
-          <p>Arranca en menos de un segundo y no se come la memoria de tu equipo.</p>
+      </section>
+
+      <section class="section" id="flujo">
+        <div class="section-head">
+          <p class="eyebrow">Por qué existe Fossil</p>
+          <h2>De la idea a la venta, sin copiar datos entre seis herramientas.</h2>
+          <p>
+            En un equipo de marketing y comercio electrónico, el brief vive en un lado, las tareas en
+            otro, la parrilla y las aprobaciones en otro, y las ventas y anuncios en hojas de cálculo.
+            En Fossil todo es una página dentro del mismo grafo.
+          </p>
         </div>
-        <div class="feature">
-          <h2>Teclado primero</h2>
-          <p>Escribe <code>/</code> para insertar un bloque. Los atajos de Markdown funcionan mientras escribes.</p>
+
+        <ol class="flow-steps" aria-label="Ciclo de trabajo en Fossil">
+          <li>
+            <span class="step-num">01</span>
+            <strong>Idea y brief</strong>
+            <p>Defines objetivos, presupuesto y productos enlazados desde la bitácora o la campaña.</p>
+          </li>
+          <li>
+            <span class="step-num">02</span>
+            <strong>Marca y contenido</strong>
+            <p>Creas publicaciones con versiones por red, voz de marca y previsualización fiel.</p>
+          </li>
+          <li>
+            <span class="step-num">03</span>
+            <strong>Aprobación</strong>
+            <p>El cliente comenta y aprueba desde un enlace web seguro, sin crear cuenta.</p>
+          </li>
+          <li>
+            <span class="step-num">04</span>
+            <strong>Publicación y anuncios</strong>
+            <p>Lo aprobado sale a la hora elegida y se conecta con tus campañas por UTM.</p>
+          </li>
+          <li>
+            <span class="step-num">05</span>
+            <strong>Ventas y margen</strong>
+            <p>Cruza Shopify, Meta Ads, Google Ads, TikTok Ads y GA4 para ver qué creativo vendió más.</p>
+          </li>
+        </ol>
+
+        <div class="questions-box">
+          <p class="questions-title">Preguntas que se responden con una consulta, no con una tarde de hojas de cálculo:</p>
+          <div class="grid-2">
+            <div class="q-item">¿Qué creativo vendió más este mes, y en qué publicaciones y anuncios se usó?</div>
+            <div class="q-item">¿Qué ideas del brief llegaron a publicarse y cuáles siguen en borrador?</div>
+            <div class="q-item">¿El cliente ya aprobó la parrilla de la semana o sigue en segunda ronda?</div>
+            <div class="q-item">¿Cuánto margen real dejó la campaña después de producto, envío, comisiones y anuncios?</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-head">
+          <p class="eyebrow">Para quién</p>
+          <h2>Diseñada para cada rol del equipo, o para trabajar a solas.</h2>
+        </div>
+
+        <div class="grid-3">
+          <div class="card-block">
+            <h3>Estrategia y dirección</h3>
+            <p>
+              Escribe briefs y planes trimestrales, define la ficha de cada marca y revisa resultados
+              por campaña sin perseguir enlaces sueltos.
+            </p>
+          </div>
+          <div class="card-block">
+            <h3>Contenido y redes</h3>
+            <p>
+              Arma la parrilla del mes, adapta versiones para Instagram, TikTok o Facebook y lleva las
+              rondas de aprobación en orden.
+            </p>
+          </div>
+          <div class="card-block">
+            <h3>Diseño y creativos</h3>
+            <p>
+              Sube piezas una sola vez, mira en qué publicaciones y anuncios están ligadas y descubre
+              cuáles traen mejores resultados.
+            </p>
+          </div>
+          <div class="card-block">
+            <h3>Comercio y analítica</h3>
+            <p>
+              Consulta ventas, pedidos, MER, ROAS, costo por cliente nuevo y margen de contribución
+              diario conectados con el trabajo del equipo.
+            </p>
+          </div>
+          <div class="card-block">
+            <h3>Clientes y aprobadores</h3>
+            <p>
+              Revisan la parrilla, dejan comentarios puntuales y aprueban piezas desde un enlace en su
+              navegador, sin instalar nada ni abrir cuenta.
+            </p>
+          </div>
+          <div class="card-block">
+            <h3>Uso personal</h3>
+            <p>
+              Si solo quieres una app de notas, esquemas, bitácora y tareas rápida y local en tu
+              computadora, úsala sin activar funciones de equipo.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-head">
+          <p class="eyebrow">Arquitectura y privacidad</p>
+          <h2>Ligera por presupuesto. Privada por diseño.</h2>
+          <p>
+            Nativa para Windows 11 con superficie Mica, modo claro y oscuro sin parpadeos y presupuestos
+            de rendimiento verificados en cada cambio.
+          </p>
+        </div>
+
+        <div class="metrics">
+          <div class="metric">
+            <strong>&lt; 1.5 s</strong>
+            <span>Arranque en frío hasta estar lista para escribir</span>
+          </div>
+          <div class="metric">
+            <strong>&lt; 200 MB</strong>
+            <span>Memoria en reposo, sin comerse el equipo</span>
+          </div>
+          <div class="metric">
+            <strong>&lt; 30 MB</strong>
+            <span>Instalador nativo para Windows 11</span>
+          </div>
+          <div class="metric">
+            <strong>&lt; 50 ms</strong>
+            <span>Búsqueda en un espacio de 10 000 páginas</span>
+          </div>
+        </div>
+
+        <div class="grid-3">
+          <div class="card-block">
+            <h3>Local primero</h3>
+            <p>
+              Tu Espacio vive en una carpeta de tu disco con base SQLite y copia en Markdown. Si te
+              quedas sin internet, sigues trabajando exactamente igual.
+            </p>
+          </div>
+          <div class="card-block">
+            <h3>IA bajo tu control</h3>
+            <p>
+              Usa tus propias claves de API, modelos locales en tu equipo o tu suscripción existente.
+              Tus notas no entrenan modelos ajenos y siempre ves qué contexto se envía.
+            </p>
+          </div>
+          <div class="card-block">
+            <h3>Teclado y estándar MCP</h3>
+            <p>
+              Cada acción de la paleta <code>Ctrl+K</code> es una herramienta que también podrán usar
+              el asistente y tus agentes externos mediante MCP local con permiso.
+            </p>
+          </div>
         </div>
       </section>
 
       <section class="next">
-        <h2>Lo que viene</h2>
+        <h2>Sigue cada avance</h2>
         <p>
-          Búsqueda, paleta de comandos y un asistente de IA que usa tus propias claves. Después, la
-          parrilla de contenido con aprobaciones, el trabajo en equipo y las ventas conectadas con
-          cada campaña.
+          Publicamos cada mejora conforme entra. Revisa qué ya está listo para la próxima versión y qué
+          viene en los siguientes lanzamientos.
         </p>
-        <a class="link-arrow" href="/roadmap/">Ver el roadmap</a>
+        <div class="actions">
+          <a class="button primary" href="/roadmap/">Ver el roadmap</a>
+          <a class="button" href="/changelog/">Leer el changelog</a>
+        </div>
       </section>
     </main>
 
@@ -102,6 +385,8 @@
       <div class="foot-inner">
         <span class="wordmark small">Fossil</span>
         <nav aria-label="Pie">
+          <a href="#funciones">Funciones</a>
+          <a href="#flujo">El flujo</a>
           <a href="/roadmap/">Roadmap</a>
           <a href="/changelog/">Changelog</a>
         </nav>

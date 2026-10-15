@@ -13,8 +13,19 @@ Cómo escribir aquí:
 ## Sin publicar
 
 ### Novedades
+- **Búsqueda** en todo el espacio: encuentra páginas por texto (con o sin acentos), etiqueta (`tag:`), tipo (`type:`) o fechas, con el fragmento donde aparece resaltado.
+- **Buscar en la página** con `Ctrl+F`: resalta todas las coincidencias y salta de una a otra.
+- **Paleta de comandos** con `Ctrl+K` para ejecutar cualquier acción o buscar páginas, y `Ctrl+P` para saltar directo a una página por su título.
+- **Enlaces y etiquetas al escribir**: escribe `[[` para enlazar otra página (o crearla si no existe) y `#` para autocompletar etiquetas, incluidas las anidadas (`#marca/acme`).
+- **Enlazada desde** y **Menciones sin enlace**: panel en cada página que muestra qué páginas apuntan a la actual y cuáles la nombran sin enlazarla, con un botón para crear el enlace en un clic.
+- **Esquemas**: sangría con `Tab` y `Shift+Tab`, bloques y secciones plegables, y pegado limpio desde otras aplicaciones.
+- **Avisos, tablas y separadores**: nuevos bloques desde el menú `/` o con atajos de Markdown (`>!`, `| col |`, `---`).
+- **Arrastrar bloques y conteo en vivo**: reordena cualquier bloque desde su asa lateral y consulta el total de palabras y caracteres al pie de la página.
 - **Exportar Markdown** en la cabecera de cada página: descarga la página completa como `.md`.
 - **Exportar PDF** en la cabecera de cada página: abre la impresión para guardarla como PDF, siempre en tema claro y sin la barra lateral.
+
+### Ya no falla
+- Al abrir la app con el tema oscuro ya no aparece un destello blanco antes de cargar la ventana.
 
 ## 0.1.1-alpha.2 · 2026-10-14
 
