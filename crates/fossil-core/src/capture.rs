@@ -10,9 +10,7 @@ use crate::objects::{CoreError, ObjectMeta};
 use rusqlite::Connection;
 use yrs::types::xml::XmlOut;
 use yrs::updates::decoder::Decode;
-use yrs::{
-    Doc, GetString, ReadTxn, Transact, Update, Xml, XmlElementPrelim, XmlFragment, XmlTextPrelim,
-};
+use yrs::{Doc, ReadTxn, Transact, Update, Xml, XmlElementPrelim, XmlFragment, XmlTextPrelim};
 
 /// Upper bound per capture: the input is a quick note, not a document import.
 pub const MAX_CAPTURE_CHARS: usize = 20_000;
@@ -61,7 +59,7 @@ pub fn append(
         if body.len(&txn) == 1
             && let Some(XmlOut::Element(only)) = body.get(&txn, 0)
             && only.tag().as_ref() == "paragraph"
-            && only.get_string(&txn).is_empty()
+            && only.len(&txn) == 0
         {
             body.remove_range(&mut txn, 0, 1);
         }
@@ -97,7 +95,10 @@ mod tests {
         let meta = append(&mut conn, None, "Llamar a Acme\n\n  Revisar el brief  \n").unwrap();
         let (today, created) = journal::today(&mut conn).unwrap();
         assert_eq!((meta.id.clone(), created), (today.id, false));
-        assert_eq!(texts(&mut conn, &meta.id), ["Llamar a Acme", "  Revisar el brief"]);
+        assert_eq!(
+            texts(&mut conn, &meta.id),
+            ["Llamar a Acme", "  Revisar el brief"]
+        );
 
         append(&mut conn, None, "Tercera nota").unwrap();
         assert_eq!(texts(&mut conn, &meta.id).len(), 3, "later captures append");
@@ -127,6 +128,10 @@ mod tests {
             append(&mut conn, Some(&missing), "x"),
             Err(CoreError::ObjectNotFound(_))
         ));
-        assert_eq!(texts(&mut conn, &page.id), ["Una idea"], "rejections write nothing");
+        assert_eq!(
+            texts(&mut conn, &page.id),
+            ["Una idea"],
+            "rejections write nothing"
+        );
     }
 }

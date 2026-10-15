@@ -56,11 +56,26 @@ export const commands = {
 	aiRoutesGet: () => typedError<RouteRule[], AiError>(__TAURI_INVOKE("ai_routes_get")),
 	/**  Replaces the route table after validating it. */
 	aiRoutesSet: (rules: RouteRule[]) => typedError<null, AiError>(__TAURI_INVOKE("ai_routes_set", { rules })),
+	/**  Returns the currently configured global capture shortcut (defaults to `"Super+Shift+F"`). */
+	captureShortcutGet: () => typedError<string, OsError>(__TAURI_INVOKE("capture_shortcut_get")),
+	/**  Validates, registers with the OS and persists the global quick-capture shortcut. */
+	captureShortcutSet: (shortcut: string) => typedError<string, OsError>(__TAURI_INVOKE("capture_shortcut_set", { shortcut })),
+	/**  Shows and focuses the floating quick-capture mini-window (`< 300 ms`). */
+	captureWindowShow: () => typedError<null, OsError>(__TAURI_INVOKE("capture_window_show")),
+	/**  Hides the floating quick-capture mini-window after saving or pressing `Escape`. */
+	captureWindowHide: () => typedError<null, OsError>(__TAURI_INVOKE("capture_window_hide")),
+	/**
+	 *  Appends `input.text` as paragraph block(s) to today's journal (creating it
+	 *  if needed) or to `input.target_id`, schedules the `.md` mirror and re-index,
+	 *  and emits `object:changed`.
+	 */
+	captureAppend: (input: QuickCaptureInput) => typedError<ObjectMeta, CoreError>(__TAURI_INVOKE("capture_append", { input })),
 };
 
 /** Events */
 export const events = {
 	aiEvent: makeEvent<AiEvent>("ai:event"),
+	captureRequested: makeEvent<CaptureRequested>("capture:requested"),
 	indexUpdated: makeEvent<IndexUpdated>("index:updated"),
 	objectChanged: makeEvent<ObjectChanged>("object:changed"),
 };
@@ -92,6 +107,11 @@ export type Caps = {
 	embeddings: boolean,
 	streaming: boolean,
 	local: boolean,
+};
+
+/**  Emitted when the global shortcut or system tray requests opening/focusing the capture input. */
+export type CaptureRequested = {
+	target_id: ObjectId | null,
 };
 
 /**
@@ -244,6 +264,9 @@ export type ObjectMeta = {
 	archived: boolean,
 };
 
+/**  Typed errors for OS shortcut and quick-capture window commands. */
+export type OsError = "NotImplemented" | ({ ShortcutInvalid: string }) & { ShortcutConflict?: never; Window?: never } | ({ ShortcutConflict: string }) & { ShortcutInvalid?: never; Window?: never } | ({ Window: string }) & { ShortcutConflict?: never; ShortcutInvalid?: never };
+
 /**  A routable AI provider: one flat union for the whole wire format. */
 export type ProviderId = "Agy" | "Claude" | "Codex" | "Anthropic" | "OpenAi" | "Gemini" | "Ollama";
 
@@ -252,6 +275,14 @@ export type ProviderInfo = {
 	id: ProviderId,
 	caps: Caps,
 	health: Health,
+};
+
+/**  Payload for appending a quick-capture note to today's journal or a chosen object. */
+export type QuickCaptureInput = {
+	/**  Plain text or inline markdown to append as a block at the end of the target document. */
+	text: string,
+	/**  Optional target object ID; when `None`, appends to today's journal (`journal_today`). */
+	target_id: ObjectId | null,
 };
 
 /**
