@@ -72,6 +72,16 @@
     "mentionsEmpty": "No unlinked mentions of this page title.",
     "linkAction": "Link"
   },
+  "palette": {
+    "commandLabel": "Command palette",
+    "commandPlaceholder": "Type a command or search a page…",
+    "switcherLabel": "Quick switcher",
+    "switcherPlaceholder": "Go to page…",
+    "commandsHeading": "Commands",
+    "objectsHeading": "Pages",
+    "empty": "No matching results.",
+    "toggleBacklinks": "Toggle backlinks panel"
+  },
   "error": {
     "notImplemented": "This feature is not available yet.",
     "generic": "Something went wrong: {{error}}"
