@@ -114,4 +114,88 @@ describe("BlockId", () => {
     sourceEditor.destroy();
     targetEditor.destroy();
   });
+
+  it("assigns a fresh UUID to every block produced by repeated splits", () => {
+    const editor = createEditor();
+    editor.commands.insertContent("AlphaBetaGammaDelta");
+    const originalId = topLevelIds(editor)[0] as string;
+    expect(originalId).toBeDefined();
+
+    for (let i = 0; i < 4; i += 1) {
+      editor.commands.setTextSelection(editor.state.doc.content.size);
+      editor.commands.splitBlock();
+    }
+    const ids = topLevelIds(editor);
+    expect(ids).toHaveLength(5);
+    expect(ids[0]).toBe(originalId);
+    expect(new Set(ids).size).toBe(5);
+    for (const id of ids) expect(id).toMatch(/^[0-9a-f-]{36}$/i);
+    editor.destroy();
+  });
+
+  it("keeps a single valid blockId when joining two blocks backward", () => {
+    const editor = createEditor();
+    editor.commands.insertContent("AlphaBeta");
+    editor.commands.setTextSelection(5);
+    editor.commands.splitBlock();
+    const [firstId] = topLevelIds(editor);
+    expect(firstId).toBeDefined();
+
+    // Cursor at the start of the second block's text, then join into the previous one.
+    editor.commands.setTextSelection(editor.state.doc.child(0).nodeSize + 1);
+    editor.commands.joinBackward();
+
+    const idsAfterJoin = topLevelIds(editor);
+    expect(idsAfterJoin).toHaveLength(1);
+    expect(idsAfterJoin[0]).toBe(firstId);
+    expect(idsAfterJoin[0]).toMatch(/^[0-9a-f-]{36}$/i);
+    editor.destroy();
+  });
+
+  it("gives a pasted block carrying an existing ID a fresh UUID", () => {
+    const editor = createEditor();
+    editor.commands.insertContent("Original block");
+    const originalId = topLevelIds(editor)[0] as string;
+
+    editor.commands.setTextSelection(editor.state.doc.content.size);
+    editor.commands.insertContent({
+      type: "paragraph",
+      attrs: { blockId: originalId },
+      content: [{ type: "text", text: "Pasted copy" }],
+    });
+
+    const ids = topLevelIds(editor);
+    expect(ids).toHaveLength(2);
+    expect(ids[1]).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(ids[1]).not.toBe(originalId);
+    expect(ids.filter((id) => id === originalId)).toHaveLength(1);
+    editor.destroy();
+  });
+
+  it("reassigns every duplicated ID when pasting a multi-block copy", () => {
+    const editor = createEditor();
+    editor.commands.insertContent("Original block");
+    const originalId = topLevelIds(editor)[0] as string;
+
+    editor.commands.setTextSelection(editor.state.doc.content.size);
+    editor.commands.insertContent([
+      {
+        type: "paragraph",
+        attrs: { blockId: originalId },
+        content: [{ type: "text", text: "Copy one" }],
+      },
+      {
+        type: "paragraph",
+        attrs: { blockId: originalId },
+        content: [{ type: "text", text: "Copy two" }],
+      },
+    ]);
+
+    const ids = topLevelIds(editor);
+    expect(ids).toHaveLength(3);
+    expect(new Set(ids).size).toBe(3);
+    expect(ids.filter((id) => id === originalId)).toHaveLength(1);
+    for (const id of ids) expect(id).toMatch(/^[0-9a-f-]{36}$/i);
+    editor.destroy();
+  });
 });
