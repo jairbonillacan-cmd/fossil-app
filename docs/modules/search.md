@@ -43,6 +43,8 @@ token       = ( char - ws_char - '"' ) , { char - ws_char - '"' } ;
 ## Reglas y gotchas
 - `updated_from` y `updated_to` viajan como strings ISO-8601 UTC (specta-typescript prohíbe `i64`) y se convierten a milisegundos UTC en la capa SQLite.
 - `SearchHit.snippet` devuelve `Vec<SnippetPart>` (`parse_snippet` sobre `snippet(fts_objects, -1, char(1), char(2), '…', 16)`), nunca HTML crudo, evitando XSS en la WebView.
+- `fts_phrase` filtra bytes NUL (`\0`), caracteres de control y puntuación extrema, y acota a `MAX_FTS_TERMS = 64` términos por cláusula para no superar el límite de profundidad (256) de SQLite FTS5. Si hay tokens positivos pero ninguno produce un término alfanumérico (`"***"`, `"()"`, `'""'`), devuelve `vec![]` en lugar de las páginas recientes.
+- El filtro `types` compara elementos JSON exactos con `json_each(o.types)` (`jt.type = r.type AND jt.value = r.value`), evitando falsos positivos entre `TypeKey::Custom("Page")` y `TypeKey::Page`.
 - El presupuesto de rendimiento con 10 000 objetos (`crates/fossil-core/benches/search_10k.rs`) es **< 50 ms (p95)** en búsqueda y **< 1 s** al abrir la bóveda (`docs/DOD.md`).
 
 **ADRs relacionados:** 0004 (SQLite + FTS5), 0005 (modelo de objetos)
