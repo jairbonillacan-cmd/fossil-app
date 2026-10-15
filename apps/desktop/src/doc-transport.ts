@@ -29,5 +29,15 @@ export function createObjectTransport(id: ObjectId): DocTransport {
       const result = await commands.objectApplyUpdate(id, Array.from(update));
       if (result.status === "error") throw new DocTransportError(result.error);
     },
+    async saveAttachment(fileName, bytes) {
+      const result = await commands.attachmentSave(fileName, Array.from(bytes));
+      if (result.status === "error") throw new DocTransportError(result.error);
+      return result.data;
+    },
+    async loadAttachment(path) {
+      const result = await commands.attachmentLoad(path);
+      if (result.status === "error") throw new DocTransportError(result.error);
+      return Uint8Array.from(result.data);
+    },
   };
 }

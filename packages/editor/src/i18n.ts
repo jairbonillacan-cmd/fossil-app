@@ -22,7 +22,10 @@ export type EditorTranslationKey =
   | "editor.stats.characters"
   | "editor.wikilink.label"
   | "editor.wikilink.create"
-  | "editor.tag.label";
+  | "editor.tag.label"
+  | "editor.image.alt"
+  | "editor.image.loading"
+  | "editor.image.error";
 
 /** Translator function passed to `<FossilEditor t={t} />` by the host application. */
 export type EditorTranslator = (key: EditorTranslationKey) => string;
@@ -54,6 +57,9 @@ Object.setPrototypeOf(EDITOR_MESSAGES_ES_MX, {
   "editor.wikilink.label": "Enlazar objeto",
   "editor.wikilink.create": "Crear",
   "editor.tag.label": "Etiquetas",
+  "editor.image.alt": "Imagen adjunta",
+  "editor.image.loading": "Cargando imagen…",
+  "editor.image.error": "No se pudo cargar la imagen",
 });
 
 /** English (en) strings for the `editor.*` namespace. */
@@ -83,6 +89,9 @@ Object.setPrototypeOf(EDITOR_MESSAGES_EN, {
   "editor.wikilink.label": "Link object",
   "editor.wikilink.create": "Create",
   "editor.tag.label": "Tags",
+  "editor.image.alt": "Attached image",
+  "editor.image.loading": "Loading image…",
+  "editor.image.error": "Could not load image",
 });
 
 /** Fallback translator (es-MX) when the host does not pass `t`. */

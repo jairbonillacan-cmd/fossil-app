@@ -55,8 +55,8 @@ function isFoldableAt(doc: ProseMirrorNode, i: number): boolean {
 }
 
 function createFoldWidget(node: ProseMirrorNode, pos: number, fold: boolean, t: EditorTranslator) {
-  let wPos = pos + 1;
-  for (let c = node; !c.isTextblock && c.firstChild; c = c.firstChild) wPos += 1;
+  let wPos = node.isAtom ? pos : pos + 1;
+  for (let c = node; !c.isAtom && !c.isTextblock && c.firstChild; c = c.firstChild) wPos += 1;
   const label = t(fold ? "editor.outliner.expand" : "editor.outliner.collapse");
   return Decoration.widget(
     wPos,
