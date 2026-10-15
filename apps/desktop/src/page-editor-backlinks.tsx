@@ -27,15 +27,21 @@ export function findUnlinkedMentionRange(text: string, targetTitle: string) {
 /** Replaces the first unlinked mention of `targetTitle` inside `Y.XmlFragment("body")` with `[[<targetTitle>]]`. */
 export function replaceFirstUnlinkedMentionInDoc(doc: Y.Doc, targetTitle: string): boolean {
   const clean = targetTitle.trim();
-  if (clean === "") return false;
+  const safeTitle = clean
+    .replace(/[[\]|#\r\n]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (clean === "" || safeTitle === "") return false;
   const walk = (container: Y.XmlFragment | Y.XmlElement): boolean => {
     for (const node of container.toArray()) {
       if (node instanceof Y.XmlText) {
-        const hit = findUnlinkedMentionRange(Y.Text.prototype.toString.call(node), clean);
+        const text = Y.Text.prototype.toString.call(node);
+        const hit =
+          findUnlinkedMentionRange(text, clean) ?? findUnlinkedMentionRange(text, safeTitle);
         if (hit !== null) {
           doc.transact(() => {
             node.delete(hit.index, hit.length);
-            node.insert(hit.index, `[[${clean}]]`);
+            node.insert(hit.index, `[[${safeTitle}]]`);
           });
           return true;
         }

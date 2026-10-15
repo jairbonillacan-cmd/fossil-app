@@ -136,4 +136,13 @@ describe("PageBacklinksPanel (#28)", () => {
     );
     doc.destroy();
   });
+
+  it("sanitizes wikilink delimiters ([, ], |, #) when inserting [[title]] (#51)", () => {
+    const doc = makeBodyDoc(["Revisar Plan [Q4] | #1 mañana"]);
+    expect(replaceFirstUnlinkedMentionInDoc(doc, "Plan [Q4] | #1")).toBe(true);
+    expect(readBodyText(Array.from(Y.encodeStateAsUpdate(doc)))).toBe(
+      "Revisar [[Plan Q4 1]] mañana",
+    );
+    doc.destroy();
+  });
 });
