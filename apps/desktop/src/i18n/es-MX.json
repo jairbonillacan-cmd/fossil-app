@@ -32,6 +32,10 @@
     "exportPdf": "Exportar PDF",
     "exportFailed": "No se pudo exportar la página. Inténtalo de nuevo.",
     "placeholder": "Escribe algo o pulsa «/» para insertar un bloque",
+    "outliner": {
+      "collapse": "Plegar sección",
+      "expand": "Desplegar sección"
+    },
     "slash": {
       "label": "Comandos de bloque",
       "empty": "Sin bloques coincidentes",
@@ -43,13 +47,35 @@
       "orderedList": "Lista numerada",
       "taskList": "Lista de tareas",
       "blockquote": "Cita",
-      "codeBlock": "Bloque de código"
+      "codeBlock": "Bloque de código",
+      "callout": "Bloque destacado",
+      "horizontalRule": "Divisor",
+      "table": "Tabla simple"
+    },
+    "drag": {
+      "handle": "Arrastrar para reordenar bloque"
+    },
+    "stats": {
+      "words": "palabras",
+      "characters": "caracteres"
+    },
+    "wikilink": {
+      "label": "Enlazar objeto",
+      "create": "Crear"
+    },
+    "tag": {
+      "label": "Etiquetas"
+    },
+    "image": {
+      "alt": "Imagen adjunta",
+      "loading": "Cargando imagen…",
+      "error": "No se pudo cargar la imagen"
     }
   },
   "settings": {
     "title": "Ajustes",
     "close": "Cerrar",
-    "vault": "Bóveda activa",
+    "vault": "Espacio activo",
     "theme": "Tema",
     "themeSystem": "Sistema",
     "themeLight": "Claro",

@@ -12,6 +12,7 @@ import { useEffect, useState } from "react";
 import { defaultEditorTranslator, type EditorTranslator } from "./i18n";
 
 const dragPluginKey = new PluginKey<DecorationSet>("fossilDragHandle");
+export const DRAG_MIME = "application/x-fossil-block-index";
 const GRIP_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/></svg>';
 type Dispatch = ((tr: Transaction) => void) | undefined;
@@ -97,7 +98,11 @@ function buildDragDecorations(doc: ProseMirrorNode, t: EditorTranslator): Decora
           };
           btn.ondragstart = (e) => {
             draggedBlockIndex = blockIdx;
+            e.dataTransfer?.setData(DRAG_MIME, String(blockIdx));
             e.dataTransfer?.setData("text/plain", String(blockIdx));
+          };
+          btn.ondragend = () => {
+            draggedBlockIndex = null;
           };
           return btn;
         },
@@ -155,12 +160,26 @@ export const DragHandle = Extension.create<{ t: EditorTranslator }>({
           decorations: (state) => dragPluginKey.getState(state),
           handleDOMEvents: {
             dragover: (_view, e) => {
-              if (draggedBlockIndex !== null) e.preventDefault();
+              if (
+                draggedBlockIndex !== null ||
+                (e.dataTransfer?.types?.includes(DRAG_MIME) ?? false)
+              ) {
+                e.preventDefault();
+              }
+              return false;
+            },
+            dragend: () => {
+              draggedBlockIndex = null;
               return false;
             },
             drop: (view, e) => {
-              const raw = e.dataTransfer?.getData("text/plain");
-              const fromIdx = draggedBlockIndex ?? (raw ? Number.parseInt(raw, 10) : Number.NaN);
+              const mimeData = e.dataTransfer?.getData(DRAG_MIME) ?? "";
+              const hasMime =
+                mimeData.length > 0 || (e.dataTransfer?.types?.includes(DRAG_MIME) ?? false);
+              const raw =
+                mimeData || (hasMime ? (e.dataTransfer?.getData("text/plain") ?? "") : "");
+              const fromIdx =
+                draggedBlockIndex ?? (/^\d+$/.test(raw) ? Number.parseInt(raw, 10) : Number.NaN);
               draggedBlockIndex = null;
               if (Number.isNaN(fromIdx)) return false;
               const el = (e.target as HTMLElement | null)?.closest?.("[data-block-id]");

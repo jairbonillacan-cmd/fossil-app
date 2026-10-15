@@ -20,8 +20,13 @@ export {
 } from "./controls";
 export type { FossilEditorProps } from "./editor";
 export { BODY_FRAGMENT_KEY, FossilEditor, getBodyFragment } from "./editor";
-export type { EditorTranslationKey, EditorTranslator } from "./i18n";
-export { defaultEditorTranslator, EDITOR_MESSAGES_EN, EDITOR_MESSAGES_ES_MX } from "./i18n";
+export type { EditorMessages, EditorTranslationKey, EditorTranslator } from "./i18n";
+export {
+  defaultEditorMessages,
+  defaultEditorTranslator,
+  EDITOR_MESSAGES_EN,
+  EDITOR_MESSAGES_ES_MX,
+} from "./i18n";
 export * from "./image-attachment";
 export * from "./links";
 export { cleanPastedHTML, cleanPastedText, MAX_OUTLINER_INDENT, Outliner } from "./outliner";

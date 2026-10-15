@@ -57,10 +57,16 @@ describe("SlashMenu and live Markdown shortcuts", () => {
     expect(editor.state.doc.firstChild?.textContent).toBe("");
   });
 
-  it("navigates slash items with ArrowDown and closes on Escape", async () => {
+  it("navigates slash items with ArrowDown, ignores modified arrows, and closes on Escape", async () => {
     const { editor } = await mountEditor();
     act(() => typeLiveText(editor, "/"));
     expect(await screen.findByRole("listbox", { name: "Comandos de bloque" })).toBeDefined();
+    expect(screen.getAllByRole("option")[0]?.getAttribute("aria-selected")).toBe("true");
+    act(() => {
+      fireEvent.keyDown(editor.view.dom, { key: "ArrowDown", shiftKey: true });
+      fireEvent.keyDown(editor.view.dom, { key: "ArrowDown", altKey: true });
+      fireEvent.keyDown(editor.view.dom, { key: "ArrowDown", ctrlKey: true });
+    });
     expect(screen.getAllByRole("option")[0]?.getAttribute("aria-selected")).toBe("true");
     act(() => {
       fireEvent.keyDown(editor.view.dom, { key: "ArrowDown" });
