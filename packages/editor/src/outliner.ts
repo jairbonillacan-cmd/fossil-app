@@ -160,6 +160,7 @@ export function cleanPastedHTML(html: string): string {
       const keep =
         (tag === "a" && k === "href" && /^(https?:\/\/|mailto:)/i.test(a.value)) ||
         (tag === "ul" && k === "data-type" && a.value === "taskList") ||
+        (tag === "aside" && k === "data-type" && a.value === "callout") ||
         (tag === "li" && k === "data-checked") ||
         (tag === "input" && (k === "type" || k === "checked"));
       if (!keep) el.removeAttribute(a.name);
