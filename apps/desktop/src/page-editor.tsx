@@ -4,17 +4,24 @@ import { useTranslation } from "react-i18next";
 import type { ObjectMeta } from "./bindings";
 import { commands } from "./bindings";
 import { PageBody } from "./page-body";
+import { PageBacklinksPanel } from "./page-editor-backlinks";
 import { exportObjectMarkdown } from "./page-export";
 import { formatObjectTitle } from "./sidebar";
 
 const TITLE_COMMIT_MS = 400;
 
-/** Page header (`object_update_meta`, 400 ms debounce + blur) and body placeholder (#26). */
-export function PageEditor({ object }: { object: ObjectMeta | null }) {
+export interface PageEditorProps {
+  object: ObjectMeta | null;
+  onSelect?: ((object: ObjectMeta) => void) | undefined;
+}
+
+/** Page header (`object_update_meta`, 400 ms debounce + blur), body and collapsible backlinks panel (#26, #28). */
+export function PageEditor({ object, onSelect }: PageEditorProps) {
   const { t, i18n } = useTranslation();
   const [title, setTitle] = useState("");
   const pendingRef = useRef<string | null>(null);
   const [exportFailed, setExportFailed] = useState(false);
+  const [backlinksOpen, setBacklinksOpen] = useState(true);
 
   useEffect(() => {
     setTitle(object?.title ?? "");
@@ -69,32 +76,43 @@ export function PageEditor({ object }: { object: ObjectMeta | null }) {
   };
 
   return (
-    <div className="mx-auto flex h-full w-full max-w-2xl flex-col gap-4 px-6 py-8 in-data-[density=compact]:gap-2.5 in-data-[density=compact]:py-5">
-      <div className="flex items-start gap-3">
-        <input
-          type="text"
-          value={displayTitle}
-          aria-label={t("editor.titleLabel")}
-          placeholder={t("editor.untitled")}
-          onChange={(event) => setTitle(event.target.value)}
-          onBlur={flushTitle}
-          className="min-w-0 flex-1 rounded border-0 bg-transparent px-0 text-3xl font-semibold text-[color:var(--fg)] placeholder:text-[color:var(--fg-muted)] focus-visible:outline-2 focus-visible:outline-[color:var(--accent)]"
-        />
-        <Button
-          variant="secondary"
-          className="mt-1.5 shrink-0"
-          onClick={() => void exportMarkdown()}
-        >
-          {t("editor.exportMarkdown")}
-        </Button>
+    <div className="flex h-full min-w-0">
+      <div className="mx-auto flex h-full w-full max-w-2xl flex-1 flex-col gap-4 overflow-y-auto px-6 py-8 in-data-[density=compact]:gap-2.5 in-data-[density=compact]:py-5">
+        <div className="flex items-start gap-2">
+          <input
+            type="text"
+            value={displayTitle}
+            aria-label={t("editor.titleLabel")}
+            placeholder={t("editor.untitled")}
+            onChange={(event) => setTitle(event.target.value)}
+            onBlur={flushTitle}
+            className="min-w-0 flex-1 rounded border-0 bg-transparent px-0 text-3xl font-semibold text-[color:var(--fg)] placeholder:text-[color:var(--fg-muted)] focus-visible:outline-2 focus-visible:outline-[color:var(--accent)]"
+          />
+          <Button
+            variant="secondary"
+            className="mt-1.5 shrink-0"
+            onClick={() => void exportMarkdown()}
+          >
+            {t("editor.exportMarkdown")}
+          </Button>
+          <Button
+            variant="secondary"
+            className="mt-1.5 shrink-0"
+            aria-expanded={backlinksOpen}
+            onClick={() => setBacklinksOpen((open) => !open)}
+          >
+            {t("backlinks.toggle")}
+          </Button>
+        </div>
+        {exportFailed && (
+          <p role="alert" className="text-sm text-[color:var(--fg-muted)]">
+            {t("editor.exportFailed")}
+          </p>
+        )}
+        {/* key: a new object remounts the body, so its Y.Doc and error state never leak across pages. */}
+        <PageBody key={object.id} objectId={object.id} />
       </div>
-      {exportFailed && (
-        <p role="alert" className="text-sm text-[color:var(--fg-muted)]">
-          {t("editor.exportFailed")}
-        </p>
-      )}
-      {/* key: a new object remounts the body, so its Y.Doc and error state never leak across pages. */}
-      <PageBody key={object.id} objectId={object.id} />
+      {backlinksOpen && <PageBacklinksPanel object={object} onSelect={onSelect} />}
     </div>
   );
 }
