@@ -1,6 +1,7 @@
 import { Button } from "@fossil/ui";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { AiChatPanel } from "./ai-panel";
 import type { ObjectMeta } from "./bindings";
 import { commands } from "./bindings";
 import { PageBody } from "./page-body";
@@ -17,13 +18,14 @@ export interface PageEditorProps {
   onSelect?: ((object: ObjectMeta) => void) | undefined;
 }
 
-/** Page header (`object_update_meta`, 400 ms debounce + blur), body and collapsible backlinks panel (#26, #28). */
+/** Page header (`object_update_meta`, 400 ms debounce + blur), body and collapsible backlinks/AI panels (#26, #28, #14). */
 export function PageEditor({ object, onSelect }: PageEditorProps) {
   const { t, i18n } = useTranslation();
   const [title, setTitle] = useState("");
   const pendingRef = useRef<string | null>(null);
   const [exportFailed, setExportFailed] = useState(false);
   const [backlinksOpen, setBacklinksOpen] = useState(true);
+  const [aiOpen, setAiOpen] = useState(false);
   const exportRef = useRef<() => void>(() => {});
   const printRef = useRef<() => void>(() => {});
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -134,6 +136,14 @@ export function PageEditor({ object, onSelect }: PageEditorProps) {
           >
             {t("backlinks.toggle")}
           </Button>
+          <Button
+            variant="secondary"
+            className="mt-1.5 shrink-0"
+            aria-expanded={aiOpen}
+            onClick={() => setAiOpen((open) => !open)}
+          >
+            {t("ai.toggle")}
+          </Button>
         </div>
         {exportFailed && (
           <p role="alert" className="text-sm text-[color:var(--fg-muted)] print:hidden">
@@ -153,6 +163,7 @@ export function PageEditor({ object, onSelect }: PageEditorProps) {
           <PageBacklinksPanel object={object} onSelect={onSelect} />
         </div>
       )}
+      {aiOpen && <AiChatPanel key={object.id} object={object} />}
     </div>
   );
 }
