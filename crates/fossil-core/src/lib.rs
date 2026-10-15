@@ -2,6 +2,7 @@
 //! R1 issues) CRDT documents, indexing and queries (`docs/ARCHITECTURE.md`).
 
 pub mod attachments;
+pub mod capture;
 pub mod doc_store;
 pub mod ids;
 pub mod indexer;

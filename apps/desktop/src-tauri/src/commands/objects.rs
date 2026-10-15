@@ -65,7 +65,7 @@ impl Generations {
     }
 }
 
-fn with_session<T>(
+pub(crate) fn with_session<T>(
     state: tauri::State<'_, VaultState>,
     action: impl FnOnce(&mut VaultSession) -> Result<T, CoreError>,
 ) -> Result<T, CoreError> {
@@ -168,7 +168,7 @@ pub fn object_list(
     })
 }
 
-fn changed(app: &tauri::AppHandle, meta: ObjectMeta) -> ObjectMeta {
+pub(crate) fn changed(app: &tauri::AppHandle, meta: ObjectMeta) -> ObjectMeta {
     // Persistence already succeeded; a disconnected event listener must not turn it into a failed edit.
     let _ = ObjectChanged {
         id: meta.id.clone(),

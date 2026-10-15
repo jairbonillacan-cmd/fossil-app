@@ -19,6 +19,10 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         object_create, object_export_markdown, object_get, object_list, object_load_doc,
         object_update_meta, vault_create, vault_open, vault_recent,
     };
+    use commands::os::{
+        CaptureRequested, capture_append, capture_shortcut_get, capture_shortcut_set,
+        capture_window_hide, capture_window_show,
+    };
     use commands::search::search_query;
 
     tauri_specta::Builder::<tauri::Wry>::new()
@@ -46,11 +50,17 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             ai_cancel,
             ai_routes_get,
             ai_routes_set,
+            capture_shortcut_get,
+            capture_shortcut_set,
+            capture_window_show,
+            capture_window_hide,
+            capture_append,
         ])
         .events(tauri_specta::collect_events![
             ObjectChanged,
             IndexUpdated,
-            AiEvent
+            AiEvent,
+            CaptureRequested
         ])
 }
 
