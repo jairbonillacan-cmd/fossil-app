@@ -192,9 +192,14 @@ export const Table = Node.create({
         handler: ({ state, range, match }) => {
           const raw = (match[1] ?? "").split("|").map((s) => s.trim());
           const headers = raw.length === 1 ? [raw[0] ?? "", ""] : raw;
-          const start = state.selection.$from.before(1);
-          const tr = state.tr.replaceWith(start, range.to, createTableNode(state.schema, headers));
-          tr.setSelection(TextSelection.create(tr.doc, start + 4 + (headers[0] ?? "").length));
+          const { $from } = state.selection;
+          const blockStart = $from.before($from.depth);
+          const tr = state.tr.replaceWith(
+            blockStart,
+            range.to,
+            createTableNode(state.schema, headers),
+          );
+          tr.setSelection(TextSelection.create(tr.doc, blockStart + 4 + (headers[0] ?? "").length));
         },
       }),
     ];

@@ -84,4 +84,22 @@ describe("Callout, horizontalRule & Table blocks (#105a)", () => {
     expect(edB.state.doc.child(3).child(0).child(0).textContent).toBe("Métrica");
     expect(edB.state.doc.child(3).child(1).child(1).textContent).toBe("12 ms");
   });
+
+  it("replaces only the current paragraph when triggering | a | b | inside a nested container", () => {
+    const ed = makeEditor();
+    ed.commands.setContent('<aside data-type="callout"><p>Conservar</p><p>| A | B |</p></aside>');
+    const calloutBefore = ed.state.doc.firstChild;
+    const secondParaEnd =
+      1 + (calloutBefore?.child(0).nodeSize ?? 0) + (calloutBefore?.child(1).nodeSize ?? 0) - 1;
+    ed.commands.setTextSelection(secondParaEnd);
+    const { from, to } = ed.state.selection;
+    const deflt = () => ed.state.tr.insertText(" ", from, to);
+    const handled = ed.view.someProp("handleTextInput", (f) => f(ed.view, from, to, " ", deflt));
+    if (!handled) ed.view.dispatch(deflt());
+    const callout = ed.state.doc.firstChild;
+    expect(callout?.type.name).toBe("callout");
+    expect(callout?.childCount).toBe(2);
+    expect(callout?.child(0).textContent).toBe("Conservar");
+    expect(callout?.child(1).type.name).toBe("table");
+  });
 });

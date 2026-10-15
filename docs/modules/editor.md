@@ -40,6 +40,8 @@ del doc Yjs** sin error visible (spike #13: 758 de 5 000 bloques).
 - Undo/redo va con `Y.UndoManager`; el history de TipTap se desactiva (`undoRedo: false`).
 - `createUpdateBatcher` reencola el lote en `pending` si `transport.apply` falla (para no romper el reloj lógico de Yjs), evita `Y.mergeUpdates` con un solo delta y hace `flush()` en `pagehide`/`dispose()`.
 - En `cleanPastedHTML`, normaliza `\u00a0` en los nodos de texto del DOM antes de serializar `innerHTML` (que convierte `\u00a0` en `&nbsp;`), filtra controles de formulario salvo `input[type="checkbox"]` y acota `indent` a `[0, 6]` tanto en `parseHTML` como en `renderHTML`.
+- Todas las claves de `EDITOR_MESSAGES_ES_MX`/`EDITOR_MESSAGES_EN` (`defaultEditorMessages`) deben ser propiedades propias enumerables (nunca en el prototipo) y existir en `apps/desktop/src/i18n/{es-MX,en}.json`.
+- `DragHandle` identifica arrastres propios con el MIME `application/x-fossil-block-index` y limpia el índice en `dragend`; la regla `| a | b |` de `Table` reemplaza solo `$from.before($from.depth)` para no destruir contenedores padre.
 - Solo extensiones MIT; textos de UI en el namespace i18n `editor` (es-MX por defecto).
 - **Updates malformados (#42):** `Y.applyUpdate` con bytes basura o truncados lanza sin
   aplicar a medias: el doc queda intacto y sigue usable. `Y.mergeUpdates` es tolerante con

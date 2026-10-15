@@ -187,6 +187,7 @@ export function SlashMenu({ editor, t }: SlashMenuProps) {
       }
       if (items.length === 0) return;
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        if (event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) return;
         event.preventDefault();
         event.stopPropagation();
         const delta = event.key === "ArrowDown" ? 1 : items.length - 1;

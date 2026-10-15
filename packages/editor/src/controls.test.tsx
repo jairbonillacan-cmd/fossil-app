@@ -2,9 +2,14 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import type { Editor } from "@tiptap/core";
 import { describe, expect, it } from "vitest";
 import * as Y from "yjs";
-import { countDocumentStats, moveTopBlock } from "./controls";
+import { countDocumentStats, DRAG_MIME, moveTopBlock } from "./controls";
 import { FossilEditor, getBodyFragment } from "./editor";
-import { EDITOR_MESSAGES_EN, type EditorTranslator } from "./i18n";
+import {
+  defaultEditorMessages,
+  EDITOR_MESSAGES_EN,
+  EDITOR_MESSAGES_ES_MX,
+  type EditorTranslator,
+} from "./i18n";
 import type { DocTransport } from "./transport";
 
 const emptyTransport = (): DocTransport => ({
@@ -29,6 +34,76 @@ const mountEditor = async (t?: EditorTranslator, doc = new Y.Doc()) => {
 };
 
 describe("DragHandle & EditorWordCount (#105b)", () => {
+  it("includes all EditorMessages keys as own enumerable properties on defaultEditorMessages", () => {
+    const keys = Object.keys(defaultEditorMessages);
+    expect(keys).toEqual(Object.keys(EDITOR_MESSAGES_ES_MX));
+    expect(keys).toEqual(Object.keys(EDITOR_MESSAGES_EN));
+    for (const k of [
+      "editor.outliner.collapse",
+      "editor.outliner.expand",
+      "editor.slash.callout",
+      "editor.slash.horizontalRule",
+      "editor.slash.table",
+      "editor.drag.handle",
+      "editor.stats.words",
+      "editor.stats.characters",
+    ]) {
+      expect(keys).toContain(k);
+    }
+  });
+
+  it("ignores external plain-text drops starting with digits and clears draggedBlockIndex on dragend", async () => {
+    const { editor, view } = await mountEditor();
+    act(() => {
+      editor.commands.setContent("<p>Primero</p><p>Segundo</p>");
+    });
+    const handles = screen.getAllByRole("button", { name: "Arrastrar para reordenar bloque" });
+    const targetBlock = editor.view.dom.querySelectorAll("p")[1] as HTMLElement;
+
+    // Start dragging block 0 via handle's ondragstart, then cancel via ondragend
+    const handleBtn = handles[0] as HTMLButtonElement;
+    handleBtn.ondragstart?.({
+      dataTransfer: { setData: () => {} },
+    } as unknown as DragEvent);
+    handleBtn.ondragend?.({} as unknown as DragEvent);
+
+    const dispatchDrop = (dataTransfer: { types: string[]; getData: (t: string) => string }) =>
+      editor.view.someProp("handleDOMEvents", (events) =>
+        events.drop?.(editor.view, {
+          target: targetBlock,
+          dataTransfer,
+          preventDefault: () => {},
+        } as unknown as DragEvent),
+      );
+
+    // Dropping plain text starting with digits must not reorder blocks
+    expect(
+      dispatchDrop({
+        types: ["text/plain"],
+        getData: (type: string) => (type === "text/plain" ? "0 manzanas" : ""),
+      }),
+    ).toBeFalsy();
+    expect([0, 1].map((i) => editor.state.doc.child(i).textContent)).toEqual([
+      "Primero",
+      "Segundo",
+    ]);
+
+    // Dropping with DRAG_MIME reorders blocks
+    act(() => {
+      expect(
+        dispatchDrop({
+          types: [DRAG_MIME, "text/plain"],
+          getData: (type: string) => (type === DRAG_MIME || type === "text/plain" ? "0" : ""),
+        }),
+      ).toBe(true);
+    });
+    expect([0, 1].map((i) => editor.state.doc.child(i).textContent)).toEqual([
+      "Segundo",
+      "Primero",
+    ]);
+    view.unmount();
+  });
+
   it("reorders top-level blocks via drag handle without losing or duplicating blockId across Yjs", async () => {
     const { editor, doc } = await mountEditor();
     act(() => {

@@ -32,6 +32,10 @@
     "exportPdf": "Export PDF",
     "exportFailed": "The page could not be exported. Try again.",
     "placeholder": "Type something or press “/” to insert a block",
+    "outliner": {
+      "collapse": "Collapse section",
+      "expand": "Expand section"
+    },
     "slash": {
       "label": "Block commands",
       "empty": "No matching blocks",
@@ -43,7 +47,29 @@
       "orderedList": "Numbered list",
       "taskList": "Task list",
       "blockquote": "Quote",
-      "codeBlock": "Code block"
+      "codeBlock": "Code block",
+      "callout": "Callout",
+      "horizontalRule": "Divider",
+      "table": "Simple table"
+    },
+    "drag": {
+      "handle": "Drag to reorder block"
+    },
+    "stats": {
+      "words": "words",
+      "characters": "characters"
+    },
+    "wikilink": {
+      "label": "Link object",
+      "create": "Create"
+    },
+    "tag": {
+      "label": "Tags"
+    },
+    "image": {
+      "alt": "Attached image",
+      "loading": "Loading image…",
+      "error": "Could not load image"
     }
   },
   "settings": {
