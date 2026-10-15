@@ -2,24 +2,34 @@
 //!
 //! Stub signature fixed by contract #92; the implementation arrives in #20.
 
-use fossil_core::search::{SearchError, SearchHit, SearchQuery};
+use crate::commands::objects::VaultState;
+use fossil_core::search::{self, SearchError, SearchHit, SearchQuery};
 
 /// Searches the open vault using FTS5 and inline operators.
 #[tauri::command]
 #[specta::specta]
-#[allow(unused_variables)] // contract stub: body arrives with #20
-pub fn search_query(query: SearchQuery) -> Result<Vec<SearchHit>, SearchError> {
-    Err(SearchError::NotImplemented)
+pub fn search_query(
+    state: tauri::State<'_, VaultState>,
+    query: SearchQuery,
+) -> Result<Vec<SearchHit>, SearchError> {
+    let mut s = state
+        .0
+        .lock()
+        .map_err(|e| SearchError::Storage(e.to_string()))?;
+    s.with_connection(|conn| Ok(search::search_query(conn, &query)))?
 }
 
 #[cfg(test)]
 mod tests {
-    use super::search_query;
     use fossil_core::search::{SearchError, SearchQuery};
 
     #[test]
     fn stub_returns_not_implemented() {
-        let err = search_query(SearchQuery::default()).unwrap_err();
-        assert_eq!(err, SearchError::NotImplemented);
+        let c = fossil_core::storage::open_vault(":memory:").unwrap();
+        let hits = fossil_core::search::search_query(&c, &SearchQuery::default()).unwrap();
+        assert_eq!(
+            (hits.len(), SearchError::NotImplemented),
+            (0, SearchError::NotImplemented)
+        );
     }
 }
