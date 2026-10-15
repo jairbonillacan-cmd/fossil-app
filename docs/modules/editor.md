@@ -38,8 +38,13 @@ del doc Yjs** sin error visible (spike #13: 758 de 5 000 bloques).
   5 000 bloques una pulsación cuesta ~15 ms (límite del presupuesto de 16 ms).
 - Undo/redo va con `Y.UndoManager`; el history de TipTap se desactiva (`undoRedo: false`).
 - Solo extensiones MIT; textos de UI en el namespace i18n `editor` (es-MX por defecto).
+- **Updates malformados (#42):** `Y.applyUpdate` con bytes basura o truncados lanza sin
+  aplicar a medias: el doc queda intacto y sigue usable. `Y.mergeUpdates` es tolerante con
+  basura *a solas* (el payload fusionado explota al aplicarlo, p. ej. en Rust), pero basura
+  mezclada con cualquier segundo update lanza dentro del `send()` del batcher y el error
+  escapa del timer o `flush()` sin pasar por `onError` (solo cubre fallos de `apply`).
 
-**Cómo probar:** `pnpm.cmd --filter @fossil/editor test` ejecuta los tests de Vitest para transporte, `BlockId`, menú `/`, atajos Markdown e ida y vuelta Yjs ↔ documento; para regresiones de rendimiento, el harness del spike (`spike.ts` mide carga, tecleo, IDs y memoria con 5 000 bloques).
+**Cómo probar:** `pnpm.cmd --filter @fossil/editor test` ejecuta los tests de Vitest para transporte, `BlockId`, menú `/`, atajos Markdown, ida y vuelta Yjs ↔ documento, convergencia de updates (desordenados, duplicados, malformados) y recarga de un cuerpo de 5 000 bloques; para regresiones de rendimiento, el harness del spike (`spike.ts` mide carga, tecleo, IDs y memoria con 5 000 bloques).
 
 **ADRs relacionados:** [0003](../adr/0003-yjs-crdt.md), [0005](../adr/0005-object-model.md),
 [0015](../adr/0015-block-editor.md)
