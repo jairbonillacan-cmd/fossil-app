@@ -125,11 +125,34 @@ function canMapOnly(tr: Transaction, oldDoc: ProseMirrorNode, newDoc: ProseMirro
   );
 }
 
+const FORBIDDEN_PASTE_TAGS =
+  "script, style, meta, link, title, xml, iframe, object, svg, template, math, embed, form, textarea, select, button, audio, video, source, track";
+
+function normalizeNbspInTextNodes(root: Node): void {
+  for (const child of Array.from(root.childNodes)) {
+    if (child.nodeType === 3 && child.nodeValue) {
+      child.nodeValue = child.nodeValue.replace(/\u00a0/g, " ");
+    } else {
+      normalizeNbspInTextNodes(child);
+    }
+  }
+}
+
 /** Strips foreign styles, classes, and external wrapper noise from pasted HTML. */
 export function cleanPastedHTML(html: string): string {
   const doc = new DOMParser().parseFromString(html, "text/html");
-  for (const el of doc.querySelectorAll("style,script,meta,link,title,xml,svg,iframe,object")) {
+  for (const el of Array.from(doc.querySelectorAll(FORBIDDEN_PASTE_TAGS))) {
     el.remove();
+  }
+  for (const input of Array.from(doc.querySelectorAll("input"))) {
+    if ((input.getAttribute("type") ?? "").toLowerCase() !== "checkbox") {
+      input.remove();
+    } else {
+      input.setAttribute("type", "checkbox");
+    }
+  }
+  for (const el of Array.from(doc.body.querySelectorAll("[style]"))) {
+    normalizeNbspInTextNodes(el);
   }
   for (const b of Array.from(doc.querySelectorAll("b,strong"))) {
     if (/font-weight\s*:\s*(normal|400)\b/i.test(b.getAttribute("style") ?? "")) {
@@ -166,6 +189,7 @@ export function cleanPastedHTML(html: string): string {
       if (!keep) el.removeAttribute(a.name);
     }
   }
+  normalizeNbspInTextNodes(doc.body);
   return doc.body.innerHTML.replace(/\u00a0/g, " ");
 }
 
@@ -184,10 +208,12 @@ export const Outliner = Extension.create<{ t: EditorTranslator }>({
         indent: {
           default: 0,
           parseHTML: (el: HTMLElement) => clampIndent(el.getAttribute("data-indent")),
-          renderHTML: (a: Record<string, unknown>) =>
-            typeof a.indent === "number" && a.indent > 0
-              ? { "data-indent": String(a.indent), style: `--indent: ${a.indent}` }
-              : {},
+          renderHTML: (a: Record<string, unknown>) => {
+            const indent = clampIndent(a.indent);
+            return indent > 0
+              ? { "data-indent": String(indent), style: `--indent: ${indent}` }
+              : {};
+          },
         },
         collapsed: {
           default: false,

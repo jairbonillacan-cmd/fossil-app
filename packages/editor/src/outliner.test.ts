@@ -59,14 +59,49 @@ describe("Outliner (#25)", () => {
   });
 
   it("cleans pasted HTML with inline styles and wrapper noise while keeping semantic marks", () => {
-    const dirty = `<style>body{color:red}</style><b style="font-weight:normal" id="docs-internal-guid"><p class="MsoNormal" style="font-family:Calibri" data-block-id="x">Texto\u00a0con <span style="font-weight:700;font-style:italic;color:blue">énfasis</span>, <a href="https://example.com" onclick="alert(1)" style="color:green">enlace</a> y <a href="javascript:alert(1)">malo</a></p></b>`;
+    const dirty = `<style>body{color:red}</style><template><p>oculto</p></template><form><textarea>x</textarea><select><option>y</option></select><button>z</button></form><input type="text" value="no"><ul data-type="taskList"><li data-checked="true"><input type="CHECKBOX" checked></li></ul><audio><source><track></audio><video></video><math></math><embed><b style="font-weight:normal" id="docs-internal-guid"><p class="MsoNormal" style="font-family:Calibri" data-block-id="x">Texto\u00a0con&nbsp;<span style="font-weight:700;font-style:italic;color:blue">énfasis</span>, <a href="https://example.com" onclick="alert(1)" style="color:green">enlace</a> y <a href="javascript:alert(1)">malo</a></p></b>`;
     const cleaned = outliner.cleanPastedHTML(dirty);
-    for (const bad of ["style=", "class=", "data-block-id", "onclick", "javascript:"]) {
+    for (const bad of [
+      "style=",
+      "class=",
+      "data-block-id",
+      "onclick",
+      "javascript:",
+      "&nbsp;",
+      "\u00a0",
+      "<template",
+      "<form",
+      "<textarea",
+      "<select",
+      "<button",
+      "<audio",
+      "<video",
+      "<math",
+      "<embed",
+      'type="text"',
+    ]) {
       expect(cleaned).not.toContain(bad);
     }
-    expect(cleaned).toContain("<strong><em>énfasis</em></strong>");
+    expect(cleaned).toContain("Texto con <strong><em>énfasis</em></strong>");
+    expect(cleaned).toContain('<input type="checkbox" checked="">');
     expect(cleaned).toContain('<a href="https://example.com">enlace</a>');
     expect(outliner.cleanPastedText("a\r\nb\u00a0c")).toBe("a\nb c");
+  });
+
+  it("clamps indent to [0, MAX_OUTLINER_INDENT] in both parseHTML and renderHTML", () => {
+    const ed = makeEditor();
+    ed.commands.setContent('<p data-indent="99">Demasiado</p><p data-indent="-4">Negativo</p>');
+    expect(ed.state.doc.child(0).attrs.indent).toBe(outliner.MAX_OUTLINER_INDENT);
+    expect(ed.state.doc.child(1).attrs.indent).toBe(0);
+    const pos = 0;
+    const node = ed.state.doc.nodeAt(pos);
+    expect(node).not.toBeNull();
+    if (node) {
+      ed.view.dispatch(ed.state.tr.setNodeMarkup(pos, undefined, { ...node.attrs, indent: 42 }));
+    }
+    const firstP = ed.view.dom.querySelectorAll("p")[0];
+    expect(firstP?.getAttribute("data-indent")).toBe(String(outliner.MAX_OUTLINER_INDENT));
+    expect(firstP?.getAttribute("style")).toContain(`--indent: ${outliner.MAX_OUTLINER_INDENT}`);
   });
 
   it("round-trips numeric indent and boolean collapsed across Yjs and reuses decorations on inline edits", () => {

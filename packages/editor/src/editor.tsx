@@ -135,7 +135,7 @@ export function FossilEditor({
     return () => {
       cancelled = true;
       doc.off("update", onUpdate);
-      batcher.flush();
+      batcher.dispose();
     };
   }, [doc, transport]);
 

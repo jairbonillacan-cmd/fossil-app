@@ -38,6 +38,8 @@ del doc Yjs** sin error visible (spike #13: 758 de 5 000 bloques).
 - El coste por transacción es lineal con el número de bloques (~2.5 µs/bloque): con
   5 000 bloques una pulsación cuesta ~15 ms (límite del presupuesto de 16 ms).
 - Undo/redo va con `Y.UndoManager`; el history de TipTap se desactiva (`undoRedo: false`).
+- `createUpdateBatcher` reencola el lote en `pending` si `transport.apply` falla (para no romper el reloj lógico de Yjs), evita `Y.mergeUpdates` con un solo delta y hace `flush()` en `pagehide`/`dispose()`.
+- En `cleanPastedHTML`, normaliza `\u00a0` en los nodos de texto del DOM antes de serializar `innerHTML` (que convierte `\u00a0` en `&nbsp;`), filtra controles de formulario salvo `input[type="checkbox"]` y acota `indent` a `[0, 6]` tanto en `parseHTML` como en `renderHTML`.
 - Solo extensiones MIT; textos de UI en el namespace i18n `editor` (es-MX por defecto).
 - **Updates malformados (#42):** `Y.applyUpdate` con bytes basura o truncados lanza sin
   aplicar a medias: el doc queda intacto y sigue usable. `Y.mergeUpdates` es tolerante con

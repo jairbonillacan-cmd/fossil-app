@@ -16,7 +16,9 @@ export interface UpdateBatcher {
   /** Queues one Yjs update; sends the merged batch after the delay. */
   push(update: Uint8Array): void;
   /** Sends whatever is pending right now. */
-  flush(): void;
+  flush(): Promise<void>;
+  /** Flushes pending updates and detaches window listeners. */
+  dispose(): void;
 }
 
 export interface UpdateBatcherOptions {
@@ -37,16 +39,44 @@ export function createUpdateBatcher(
   let timer: ReturnType<typeof setTimeout> | null = null;
   let chain: Promise<void> = Promise.resolve();
 
-  const send = (): void => {
-    const merged = Y.mergeUpdates(pending);
+  const send = (): Promise<void> => {
+    const batch = pending;
+    const first = batch[0];
+    if (first === undefined) return chain;
     pending = [];
+    const merged = batch.length === 1 ? first : Y.mergeUpdates(batch);
     // Chained so updates reach storage in order even when one apply is slow.
     chain = chain
-      .then(() => transport.apply(merged))
+      .then(async () => {
+        try {
+          await transport.apply(merged);
+        } catch (error: unknown) {
+          pending.unshift(merged);
+          throw error;
+        }
+      })
       .catch((error: unknown) => {
         onError?.(error);
       });
+    return chain;
   };
+
+  const flush = (): Promise<void> => {
+    if (timer !== null) {
+      clearTimeout(timer);
+      timer = null;
+    }
+    if (pending.length > 0) return send();
+    return chain;
+  };
+
+  const onPageHide = (): void => {
+    void flush();
+  };
+
+  if (typeof window !== "undefined") {
+    window.addEventListener("pagehide", onPageHide);
+  }
 
   return {
     push(update: Uint8Array): void {
@@ -54,16 +84,16 @@ export function createUpdateBatcher(
       if (timer === null) {
         timer = setTimeout(() => {
           timer = null;
-          send();
+          void send();
         }, delayMs);
       }
     },
-    flush(): void {
-      if (timer !== null) {
-        clearTimeout(timer);
-        timer = null;
+    flush,
+    dispose(): void {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("pagehide", onPageHide);
       }
-      if (pending.length > 0) send();
+      void flush();
     },
   };
 }
