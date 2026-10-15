@@ -30,7 +30,7 @@ const textEl = (tag: string, id: string, text: string, attrs: Record<string, Att
 };
 
 /** Builds a deterministic, neutral sample Yjs document showcasing all alpha block types. */
-const buildSampleUpdate = (): Uint8Array => {
+const buildSampleUpdate = (openLinks = false): Uint8Array => {
   const doc = new Y.Doc();
   const bullets = new Y.XmlElement("bulletList");
   setAttr(bullets, "blockId", "blk_ul");
@@ -101,14 +101,24 @@ const buildSampleUpdate = (): Uint8Array => {
       "blk_table",
     ),
     textEl(
+      "paragraph",
+      "blk_links",
+      "Referencias [[Arquitectura del grafo local]] en #marca/acme.",
+    ),
+    textEl(
       "codeBlock",
       "blk_code",
       'const body = doc.getXmlFragment("body");\nY.applyUpdate(doc, snapshot);',
     ),
-    textEl("paragraph", "blk_slash", "/enc"),
+    textEl("paragraph", "blk_slash", openLinks ? "Enlazar [[Campaña Acme" : "/enc"),
   ]);
   return Y.encodeStateAsUpdate(doc);
 };
+
+const SAMPLE_OBJECTS = [
+  { id: "1", title: "Arquitectura del grafo local" },
+  { id: "2", title: "Campaña Acme Q4" },
+] as const;
 
 function PlaygroundApp() {
   const params = new URLSearchParams(window.location.search);
@@ -116,16 +126,17 @@ function PlaygroundApp() {
     "data-theme",
     params.get("theme") === "dark" ? "dark" : "light",
   );
-  const openSlash = params.get("slash") !== "0";
+  const openLinks = params.get("links") === "1";
+  const openMenu = openLinks || params.get("slash") !== "0";
 
   const doc = useMemo(() => new Y.Doc(), []);
   const transport = useMemo<DocTransport>(
-    () => ({ load: async () => buildSampleUpdate(), apply: async () => {} }),
-    [],
+    () => ({ load: async () => buildSampleUpdate(openLinks), apply: async () => {} }),
+    [openLinks],
   );
 
   const handleReady = (editor: Editor) => {
-    if (openSlash) editor.commands.setTextSelection(editor.state.doc.content.size - 1);
+    if (openMenu) editor.commands.setTextSelection(editor.state.doc.content.size - 1);
   };
 
   return (
@@ -140,7 +151,12 @@ function PlaygroundApp() {
         color: "var(--fg)",
       }}
     >
-      <FossilEditor doc={doc} transport={transport} onReady={handleReady} />
+      <FossilEditor
+        doc={doc}
+        transport={transport}
+        onReady={handleReady}
+        onSearchObjects={() => SAMPLE_OBJECTS}
+      />
     </main>
   );
 }

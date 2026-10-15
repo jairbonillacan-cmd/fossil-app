@@ -22,6 +22,7 @@ export type { FossilEditorProps } from "./editor";
 export { BODY_FRAGMENT_KEY, FossilEditor, getBodyFragment } from "./editor";
 export type { EditorTranslationKey, EditorTranslator } from "./i18n";
 export { defaultEditorTranslator, EDITOR_MESSAGES_EN, EDITOR_MESSAGES_ES_MX } from "./i18n";
+export * from "./links";
 export { cleanPastedHTML, cleanPastedText, MAX_OUTLINER_INDENT, Outliner } from "./outliner";
 export type { SlashCommandItem, SlashMenuProps } from "./slash-menu";
 export { filterSlashItems, matchSlashQuery, SLASH_COMMAND_ITEMS, SlashMenu } from "./slash-menu";
