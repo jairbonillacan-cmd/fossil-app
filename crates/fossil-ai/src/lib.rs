@@ -9,6 +9,7 @@ pub mod contract;
 pub mod gemini;
 pub mod http;
 pub mod keyring;
+pub mod ollama;
 pub mod openai;
 pub mod provider;
 
@@ -16,6 +17,7 @@ pub use anthropic::AnthropicProvider;
 pub use contract::*;
 pub use gemini::GeminiProvider;
 pub use keyring::{KeyStore, MemoryKeyring, OsKeyring, SecretKey};
+pub use ollama::OllamaProvider;
 pub use openai::OpenAiProvider;
 pub use provider::{Provider, ProviderError};
 
