@@ -6,6 +6,9 @@ import { commands, events } from "./bindings";
 import { ShellSettings } from "./shell-settings";
 import { errorLabel } from "./vault-screen";
 
+let workspaceOnSelect: ((object: ObjectMeta) => void) | null = null;
+export const selectWorkspaceObject = (object: ObjectMeta) => workspaceOnSelect?.(object);
+
 /** Formats ISO `YYYY-MM-DD` journal titles with the active locale. */
 export function formatObjectTitle(object: ObjectMeta, language: string, untitled: string): string {
   const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(object.title);
@@ -32,6 +35,7 @@ export function Sidebar({
   const [objects, setObjects] = useState<ObjectMeta[] | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  workspaceOnSelect = onSelect;
 
   const refresh = useCallback(() => {
     void commands

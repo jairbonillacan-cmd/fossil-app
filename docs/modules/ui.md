@@ -32,7 +32,8 @@
 
 **Espacio de trabajo (bóveda abierta):**
 - `sidebar.tsx` — barra lateral (`object_list`), botones **Nueva página** (`object_create` con `types: ["Page"]`), **Hoy** (`journal_today`) y **Ajustes** (`ShellSettings`), con recarga automática al recibir `object:changed` e `index:updated`. Los journals con título ISO `YYYY-MM-DD` se formatean con `Intl.DateTimeFormat` (`formatObjectTitle`).
-- `page-editor.tsx` — título editable con debounce de 400 ms y guardado al perder el foco (`object_update_meta`), botón **Exportar Markdown** y `<PageBody key={object.id}>`.
+- `page-editor.tsx` — título editable con debounce de 400 ms y guardado al perder el foco (`object_update_meta`), botones **Exportar Markdown** y **Enlazada desde** (muestra/oculta el panel derecho) y `<PageBody key={object.id}>`.
+- `page-editor-backlinks.tsx` — panel derecho colapsable (#28) con secciones **Enlazada desde** (`links_backlinks`) y **Menciones sin enlace** (`links_unlinked_mentions`), recarga al cambiar de página o recibir `object:changed` / `index:updated`. El botón **Enlazar** reemplaza la primera ocurrencia no enlazada (palabra completa fuera de `[[...]]`) del título actual en `Y.XmlFragment("body")` por `[[<título>]]` y persiste con `object_apply_update`.
 - `page-export.ts` — `exportObjectMarkdown` (#126): pide `object_export_markdown` y descarga el `.md` tal como lo escribe el espejo (frontmatter y cuerpo). `markdownFileName` aplica las mismas reglas que `safe_name` en Rust. Si el comando falla, la página muestra un aviso y no descarga nada.
 - `page-body.tsx` — el editor de bloques real (`@fossil/editor`) sobre el `Y.Doc` del objeto; errores de carga como alerta localizada (`error.notImplemented` / `error.generic`).
 - `doc-transport.ts` — `createObjectTransport(id)`: `object_load_doc` al abrir y `object_apply_update` (updates lib0 v1) en cada edición.

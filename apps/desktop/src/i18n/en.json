@@ -63,6 +63,15 @@
     "shortcutQuickOpen": "Quick switcher",
     "shortcutCapture": "Global quick capture"
   },
+  "backlinks": {
+    "panelLabel": "Backlinks panel",
+    "toggle": "Backlinks panel",
+    "title": "Backlinks",
+    "empty": "No other pages link here yet.",
+    "mentionsTitle": "Unlinked mentions",
+    "mentionsEmpty": "No unlinked mentions of this page title.",
+    "linkAction": "Link"
+  },
   "error": {
     "notImplemented": "This feature is not available yet.",
     "generic": "Something went wrong: {{error}}"

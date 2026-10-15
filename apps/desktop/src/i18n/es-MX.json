@@ -63,6 +63,15 @@
     "shortcutQuickOpen": "Cambio rápido de página",
     "shortcutCapture": "Captura rápida global"
   },
+  "backlinks": {
+    "panelLabel": "Enlazada desde",
+    "toggle": "Enlazada desde",
+    "title": "Enlazada desde",
+    "empty": "Ninguna otra página enlaza aquí todavía.",
+    "mentionsTitle": "Menciones sin enlace",
+    "mentionsEmpty": "No hay menciones sin enlace del título de esta página.",
+    "linkAction": "Enlazar"
+  },
   "error": {
     "notImplemented": "Esta función todavía no está disponible.",
     "generic": "Algo salió mal: {{error}}"
