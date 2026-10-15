@@ -16,7 +16,7 @@ Todo cambio llega con pruebas. Esta página dice qué niveles hay, dónde viven 
 | Rendimiento | `scripts/perf.ps1` | Instalador, arranque, RAM ([`PERFORMANCE.md`](PERFORMANCE.md)) | `perf.yml`, PRs de código |
 | Denylist | `scripts/check-denylist.ps1` | Todo el repo | CI, siempre |
 | Visual | Capturas y revisión humana o de agente | Adjuntas al PR | Cada PR con interfaz |
-| De extremo a extremo | WebDriver (`tauri-driver`) | Por crear | R1 (pendiente) |
+| De extremo a extremo | WebDriver (`tauri-driver`) + Vitest | `scripts/e2e.ps1`, `apps/desktop/src/e2e-flows.test.tsx` | CI (`ci.yml`) |
 
 Contados el 2026-10-15: 58 pruebas de Rust y 77 de Vitest ([`STATUS.md`](STATUS.md)).
 
@@ -27,6 +27,7 @@ cargo nextest run --workspace                 # todo Rust
 cargo nextest run -p fossil-core search       # un crate, filtrado por nombre
 pnpm check                                    # Biome + tipos + Vitest de todos los paquetes
 pnpm --filter @fossil/editor test             # Vitest de un paquete
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/e2e.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/tests/merge-gate.tests.ps1
 ```
 

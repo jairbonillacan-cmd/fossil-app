@@ -67,11 +67,12 @@ pnpm --version   # corepack descarga la versión de "packageManager"
 ```
 rustc --version; cargo --version; pnpm --version
 pnpm install; pnpm check
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/e2e.ps1
 cargo clippy --workspace --all-targets -- -D warnings; cargo nextest run --workspace
 ```
 
 ## CI
-`.github/workflows/ci.yml`: job `ci` en `windows-latest` (nombre estable para el gate de merges, ADR-0012). Corre en cada PR y push a `main`: `pnpm install --frozen-lockfile` → tests del merge gate (`scripts/tests/merge-gate.tests.ps1`, Windows PowerShell 5.1, `gh` simulado) → `pnpm check` → `cargo fmt --all --check` → `cargo clippy --workspace --all-targets -- -D warnings` → `cargo nextest run --workspace` → `git diff --exit-code -- apps/desktop/src/bindings.ts` (el contrato generado y el Rust deben coincidir). Cachés: pnpm (setup-node) y cargo (`Swatinem/rust-cache@v2`); `cargo-nextest` se instala con `taiki-e/install-action`. **El PR que agrega o cambia CI debe mostrarlo en verde en sí mismo.**
+`.github/workflows/ci.yml`: job `ci` en `windows-latest` (nombre estable para el gate de merges, ADR-0012). Corre en cada PR y push a `main`: `pnpm install --frozen-lockfile` → tests del merge gate (`scripts/tests/merge-gate.tests.ps1`, Windows PowerShell 5.1, `gh` simulado) → `pnpm check` → `scripts/e2e.ps1` (flujos clave e2e + sesión WebDriver `tauri-driver` cuando hay binario release) → `cargo fmt --all --check` → `cargo clippy --workspace --all-targets -- -D warnings` → `cargo nextest run --workspace` → `git diff --exit-code -- apps/desktop/src/bindings.ts` (el contrato generado y el Rust deben coincidir). Cachés: pnpm (setup-node) y cargo (`Swatinem/rust-cache@v2`); `cargo-nextest` se instala con `taiki-e/install-action`. **El PR que agrega o cambia CI debe mostrarlo en verde en sí mismo.**
 
 ## Release
 `.github/workflows/release.yml`: con un tag `v*`, `tauri-apps/tauri-action@v1` compila el bundle NSIS y crea un release en **draft** (publicarlo es manual). Subir cambios en `.github/workflows/` requiere el scope `workflow` del token (`gh auth refresh -s workflow`). Instalador local: `pnpm.cmd build` → `target/release/bundle/nsis/` (presupuesto < 30 MB, `docs/DOD.md`).
