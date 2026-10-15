@@ -184,7 +184,7 @@ pub(crate) fn changed(app: &tauri::AppHandle, meta: ObjectMeta) -> ObjectMeta {
         id: meta.id.clone(),
     }
     .emit(app);
-    schedule_mirror(app, meta.id.clone());
+    schedule_mirror(app, meta.id.clone(), true);
     schedule_index(app, meta.id.clone());
     meta
 }
@@ -210,7 +210,7 @@ fn schedule_index(app: &tauri::AppHandle, id: ObjectId) {
     });
 }
 
-fn schedule_mirror(app: &tauri::AppHandle, id: ObjectId) {
+fn schedule_mirror(app: &tauri::AppHandle, id: ObjectId, tree: bool) {
     let generation = app.state::<MirrorDebounce>().0.bump(&id.0);
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
@@ -226,8 +226,14 @@ fn schedule_mirror(app: &tauri::AppHandle, id: ObjectId) {
             let Some(root) = session.root().map(Path::to_path_buf) else {
                 return Ok(());
             };
-            // export_tree: a renamed parent moves the files of its children too.
-            session.with_connection(|conn| mirror::export_tree(conn, &root, &id))
+            // export_tree on metadata changes moves children; body edits only export the page itself.
+            session.with_connection(|conn| {
+                if tree {
+                    mirror::export_tree(conn, &root, &id)
+                } else {
+                    mirror::export(conn, &root, &id).map(|_| ())
+                }
+            })
         });
         // Export only (ADR-0004): a failed write never touches the vault data.
         if let Err(error) = result {
@@ -299,7 +305,7 @@ pub fn object_apply_update(
         session.with_connection(|conn| doc_store::apply_update(conn, &id, &update))
     })?;
     schedule_idle_compaction(app.clone(), id.clone(), idle.0.bump(&id.0));
-    schedule_mirror(&app, id.clone());
+    schedule_mirror(&app, id.clone(), false);
     schedule_index(&app, id.clone());
     // Persistence already succeeded; a disconnected listener must not fail the edit.
     let _ = ObjectChanged { id }.emit(&app);
