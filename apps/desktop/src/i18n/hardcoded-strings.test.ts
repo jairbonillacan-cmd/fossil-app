@@ -13,12 +13,7 @@ const SRC_ROOT = join(import.meta.dirname, "..");
  * Known exceptions, one comment each. Keep this list short: a new hardcoded
  * string must be routed through i18n or justified here.
  */
-const ALLOWED: readonly string[] = [
-  // Brand name in the sidebar header: identical in every language and the
-  // same string the <Wordmark /> of @fossil/ui already hardcodes. Cleanup
-  // (shared brand constant or permanent exception) tracked in #43.
-  'sidebar.tsx: "Fossil"',
-];
+const ALLOWED: readonly string[] = [];
 
 // Characters that betray TypeScript between tags (arrows, generics, calls)
 // rather than prose. Braces and angle brackets are already excluded by the
