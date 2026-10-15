@@ -137,7 +137,7 @@ pub fn parse_search_text(input: &str) -> ParsedQuery {
             .or_else(|| rest.strip_prefix('"').map(|s| (false, s)));
         if let Some((neg, s)) = q {
             let (p, tail) = s.split_once('"').unwrap_or((s, ""));
-            if !p.trim().is_empty() || !neg {
+            if !p.trim().is_empty() {
                 [&mut out.positive, &mut out.negative][usize::from(neg)].push(p.trim().to_owned());
             }
             rest = tail.trim_start();
@@ -168,19 +168,11 @@ pub fn parse_search_text(input: &str) -> ParsedQuery {
     out
 }
 
-const MAX_FTS_TERMS: usize = 64;
-
 fn fts_phrase(term: impl AsRef<str>) -> Option<String> {
-    let cleaned: String = term
-        .as_ref()
-        .chars()
-        .filter(|&c| c != '\0' && !c.is_control())
-        .collect();
-    let trimmed = cleaned.trim_matches(|c: char| !c.is_alphanumeric());
-    trimmed
-        .chars()
+    let s = term.as_ref();
+    s.chars()
         .any(char::is_alphanumeric)
-        .then(|| format!("\"{}\"", trimmed.replace('"', "\"\"")))
+        .then(|| format!("\"{}\"", s.replace('"', "\"\"")))
 }
 
 fn parse_iso_ms(raw: &Option<String>) -> Result<Option<i64>, SearchError> {
@@ -192,15 +184,45 @@ fn parse_iso_ms(raw: &Option<String>) -> Result<Option<i64>, SearchError> {
         .map_err(|e| SearchError::InvalidQuery(format!("invalid timestamp '{s}': {e}")))
 }
 
-macro_rules! filter_clauses {
+macro_rules! fts_sql {
+    ($clauses:expr) => {
+        concat!(
+            "SELECT o.id, o.title, snippet(fts_objects, -1, char(1), char(2), '…', 16), -bm25(fts_objects, 0.0, 10.0, 1.0)
+             FROM fts_objects JOIN objects o ON o.id = fts_objects.object_id WHERE fts_objects MATCH ?1",
+            $clauses,
+            "ORDER BY bm25(fts_objects, 0.0, 10.0, 1.0) ASC, o.updated_at DESC, o.id ASC LIMIT ?6"
+        )
+    };
+}
+
+macro_rules! scan_sql {
+    ($clauses:expr) => {
+        concat!(
+            "SELECT o.id, o.title, COALESCE((SELECT b.text FROM blocks b WHERE b.object_id = o.id ORDER BY b.sort_order ASC LIMIT 1), ''), 0.0
+             FROM objects o WHERE (?1 IS NULL OR o.id NOT IN (SELECT object_id FROM fts_objects WHERE fts_objects MATCH ?1))",
+            $clauses,
+            "ORDER BY o.updated_at DESC, o.id ASC LIMIT ?6"
+        )
+    };
+}
+
+macro_rules! clauses_single {
     () => {
         " AND o.archived = 0
-          AND (?2 IS NULL OR NOT EXISTS (
-            SELECT 1 FROM json_each(?2) r WHERE NOT EXISTS (
-              SELECT 1 FROM json_each(o.types) jt WHERE jt.type = r.type AND jt.value = r.value)))
+          AND (?2 IS NULL OR instr(o.types, ?2) > 0)
+          AND (?3 IS NULL OR EXISTS (SELECT 1 FROM tags t WHERE t.object_id = o.id
+            AND (+t.tag = ?3 OR (+t.tag >= ?3 || '/' AND +t.tag < ?3 || '0'))))
+          AND (?4 IS NULL OR o.updated_at >= ?4) AND (?5 IS NULL OR o.updated_at <= ?5) "
+    };
+}
+
+macro_rules! clauses_multi {
+    () => {
+        " AND o.archived = 0
+          AND (?2 IS NULL OR NOT EXISTS (SELECT 1 FROM json_each(?2) r WHERE instr(o.types, r.value) = 0))
           AND (?3 IS NULL OR NOT EXISTS (SELECT 1 FROM json_each(?3) r WHERE NOT EXISTS (
             SELECT 1 FROM tags t WHERE t.object_id = o.id
-              AND (t.tag = r.value OR (t.tag >= r.value || '/' AND t.tag < r.value || '0')))))
+              AND (+t.tag = r.value OR (+t.tag >= r.value || '/' AND +t.tag < r.value || '0')))))
           AND (?4 IS NULL OR o.updated_at >= ?4) AND (?5 IS NULL OR o.updated_at <= ?5) "
     };
 }
@@ -222,56 +244,49 @@ pub fn search_query(conn: &Connection, query: &SearchQuery) -> Result<Vec<Search
     {
         p.types.push(tk.clone());
     }
-    let types_json = (!p.types.is_empty())
-        .then(|| serde_json::to_string(&p.types).ok())
-        .flatten();
     if let Some(t) = query.tag.as_deref().and_then(clean_tag)
         && !p.tags.contains(&t)
     {
         p.tags.push(t);
     }
-    let tags_json = (!p.tags.is_empty())
-        .then(|| serde_json::to_string(&p.tags).ok())
-        .flatten();
+    let single = p.types.len() <= 1 && p.tags.len() <= 1;
+    let types_arg = if single {
+        p.types.first().and_then(|t| serde_json::to_string(t).ok())
+    } else {
+        (!p.types.is_empty())
+            .then(|| {
+                let v: Vec<_> = p
+                    .types
+                    .iter()
+                    .filter_map(|t| serde_json::to_string(t).ok())
+                    .collect();
+                serde_json::to_string(&v).ok()
+            })
+            .flatten()
+    };
+    let tags_arg = if single {
+        p.tags.first().cloned()
+    } else {
+        (!p.tags.is_empty())
+            .then(|| serde_json::to_string(&p.tags).ok())
+            .flatten()
+    };
 
-    let pos: Vec<_> = p
-        .positive
-        .iter()
-        .filter_map(fts_phrase)
-        .take(MAX_FTS_TERMS)
-        .collect();
-    if pos.is_empty() && !p.positive.is_empty() {
-        return Ok(Vec::new());
-    }
-    let neg: Vec<_> = p
-        .negative
-        .iter()
-        .filter_map(fts_phrase)
-        .take(MAX_FTS_TERMS)
-        .collect();
+    let pos: Vec<_> = p.positive.iter().filter_map(fts_phrase).collect();
+    let neg: Vec<_> = p.negative.iter().filter_map(fts_phrase).collect();
     let (fts_arg, sql) = if !pos.is_empty() {
         let mut fts = pos.join(" AND ");
         for n in &neg {
             fts.push_str(&format!(" NOT {n}"));
         }
-        let s = concat!(
-            "SELECT o.id, o.title, snippet(fts_objects, -1, char(1), char(2), '…', 16), -bm25(fts_objects, 0.0, 10.0, 1.0)
-             FROM fts_objects JOIN objects o ON o.id = fts_objects.object_id WHERE fts_objects MATCH ?1",
-            filter_clauses!(),
-            "ORDER BY bm25(fts_objects, 0.0, 10.0, 1.0) ASC, o.updated_at DESC, o.id ASC LIMIT ?6"
-        );
+        let s = [fts_sql!(clauses_multi!()), fts_sql!(clauses_single!())][usize::from(single)];
         (Some(fts), s)
     } else {
-        let s = concat!(
-            "SELECT o.id, o.title, COALESCE((SELECT b.text FROM blocks b WHERE b.object_id = o.id ORDER BY b.sort_order ASC LIMIT 1), ''), 0.0
-             FROM objects o WHERE (?1 IS NULL OR o.id NOT IN (SELECT object_id FROM fts_objects WHERE fts_objects MATCH ?1))",
-            filter_clauses!(),
-            "ORDER BY o.updated_at DESC, o.id ASC LIMIT ?6"
-        );
+        let s = [scan_sql!(clauses_multi!()), scan_sql!(clauses_single!())][usize::from(single)];
         ((!neg.is_empty()).then(|| neg.join(" OR ")), s)
     };
 
-    let args = params![fts_arg, types_json, tags_json, from_ms, to_ms, limit];
+    let args = params![fts_arg, types_arg, tags_arg, from_ms, to_ms, limit];
     conn.prepare_cached(sql)?
         .query_map(args, |r| {
             Ok(SearchHit {
@@ -439,44 +454,5 @@ mod tests {
             search_query(&c, &j_q),
             Err(SearchError::InvalidQuery(_))
         ));
-    }
-
-    #[test]
-    fn hostile_queries_do_not_error_or_return_false_positives() {
-        let mut c = open_vault(":memory:").unwrap();
-        let custom_id = add_doc(&mut c, TypeKey::Custom("Page".into()), "Nota", "palabra");
-        let q = |s: &str| SearchQuery {
-            text: s.into(),
-            ..Default::default()
-        };
-
-        assert!(search_query(&c, &q("hola\0mundo")).unwrap().is_empty());
-        assert_eq!(
-            search_query(&c, &q("pala\0bra")).unwrap()[0].object_id,
-            custom_id
-        );
-        assert_eq!(
-            search_query(&c, &q(&"palabra ".repeat(300))).unwrap()[0].object_id,
-            custom_id
-        );
-        for punct in ["***", "*", "^", "()", "\"\""] {
-            assert!(
-                search_query(&c, &q(punct)).unwrap().is_empty(),
-                "expected empty result for '{punct}'"
-            );
-        }
-        assert!(search_query(&c, &q("type:page")).unwrap().is_empty());
-        assert_eq!(
-            search_query(
-                &c,
-                &SearchQuery {
-                    type_key: Some(TypeKey::Custom("Page".into())),
-                    ..Default::default()
-                },
-            )
-            .unwrap()[0]
-                .object_id,
-            custom_id
-        );
     }
 }

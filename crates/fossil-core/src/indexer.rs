@@ -1,6 +1,5 @@
 //! Background content indexer (#19): blocks (`blockId`), wikilinks, tags and FTS in one transaction.
 
-use crate::doc_store;
 use crate::ids::{BlockId, ObjectId};
 use crate::object_store::{self, storage_error};
 use crate::objects::{CoreError, Link, LinkKind, Mention};
@@ -17,7 +16,10 @@ use yrs::{
 pub struct IndexedBlock(pub BlockId, pub String, pub i64);
 
 fn exec(conn: &Connection, sql: &str, p: impl Params) -> Result<(), CoreError> {
-    conn.execute(sql, p).map(|_| ()).map_err(storage_error)
+    conn.prepare_cached(sql)
+        .and_then(|mut stmt| stmt.execute(p))
+        .map(|_| ())
+        .map_err(storage_error)
 }
 
 /// Plain text of a Yjs text node: only the inserted strings, never the
@@ -49,6 +51,31 @@ fn element_text<T: ReadTxn>(el: &XmlElementRef, txn: &T) -> String {
         .join(if inline { "" } else { "\n" })
 }
 
+fn collect_doc_blocks<T: ReadTxn>(
+    object_id: &ObjectId,
+    body: &yrs::XmlFragmentRef,
+    txn: &T,
+) -> Vec<IndexedBlock> {
+    body.children(txn)
+        .enumerate()
+        .filter_map(|(i, node)| {
+            let (id, text) = match node {
+                XmlOut::Element(el) => {
+                    let s = match el.get_attribute(txn, "blockId") {
+                        Some(Out::Any(Any::String(s))) => s.to_string(),
+                        _ => String::new(),
+                    };
+                    ((!s.trim().is_empty()).then_some(s), element_text(&el, txn))
+                }
+                XmlOut::Text(t) => (None, plain_text(&t, txn)),
+                XmlOut::Fragment(_) => return None,
+            };
+            let bid = BlockId(id.unwrap_or_else(|| format!("{}:{i}", object_id.0)));
+            Some(IndexedBlock(bid, text, i as i64))
+        })
+        .collect()
+}
+
 /// Extracts ordered blocks from `Y.XmlFragment("body")` of a lib0 v1 state blob.
 pub fn extract_blocks(object_id: &ObjectId, state: &[u8]) -> Result<Vec<IndexedBlock>, CoreError> {
     let doc = Doc::new();
@@ -59,25 +86,43 @@ pub fn extract_blocks(object_id: &ObjectId, state: &[u8]) -> Result<Vec<IndexedB
         txn.apply_update(u)
             .map_err(|e| storage_error(format!("corrupt Yjs: {e}")))?;
     }
-    Ok(body
-        .children(&txn)
-        .enumerate()
-        .filter_map(|(i, node)| {
-            let (id, text) = match node {
-                XmlOut::Element(el) => {
-                    let s = match el.get_attribute(&txn, "blockId") {
-                        Some(Out::Any(Any::String(s))) => s.to_string(),
-                        _ => String::new(),
-                    };
-                    ((!s.trim().is_empty()).then_some(s), element_text(&el, &txn))
-                }
-                XmlOut::Text(t) => (None, plain_text(&t, &txn)),
-                XmlOut::Fragment(_) => return None,
-            };
-            let bid = BlockId(id.unwrap_or_else(|| format!("{}:{i}", object_id.0)));
-            Some(IndexedBlock(bid, text, i as i64))
-        })
-        .collect())
+    Ok(collect_doc_blocks(object_id, &body, &txn))
+}
+
+fn load_blocks(conn: &Connection, id: &ObjectId) -> Result<Vec<IndexedBlock>, CoreError> {
+    use rusqlite::OptionalExtension;
+
+    let doc = Doc::new();
+    let body = doc.get_or_insert_xml_fragment("body");
+    let mut txn = doc.transact_mut();
+    let mut apply = |bytes: &[u8]| -> Result<(), CoreError> {
+        if !bytes.is_empty() {
+            let u =
+                Update::decode_v1(bytes).map_err(|e| storage_error(format!("corrupt Yjs: {e}")))?;
+            txn.apply_update(u)
+                .map_err(|e| storage_error(format!("corrupt Yjs: {e}")))?;
+        }
+        Ok(())
+    };
+    if let Some(state) = conn
+        .prepare_cached("SELECT state FROM object_snapshots WHERE object_id = ?1")
+        .map_err(storage_error)?
+        .query_row([&id.0], |r| r.get::<_, Vec<u8>>(0))
+        .optional()
+        .map_err(storage_error)?
+    {
+        apply(&state)?;
+    }
+    let mut stmt = conn
+        .prepare_cached("SELECT payload FROM object_updates WHERE object_id = ?1 ORDER BY seq")
+        .map_err(storage_error)?;
+    for row in stmt
+        .query_map([&id.0], |r| r.get::<_, Vec<u8>>(0))
+        .map_err(storage_error)?
+    {
+        apply(&row.map_err(storage_error)?)?;
+    }
+    Ok(collect_doc_blocks(id, &body, &txn))
 }
 
 fn parse_wikilinks(bid: &BlockId, mut s: &str) -> Vec<(BlockId, String, Option<BlockId>)> {
@@ -114,6 +159,9 @@ fn strip_wikilinks(mut s: &str) -> String {
 }
 
 fn parse_tags(text: &str) -> Vec<String> {
+    if !text.contains('#') {
+        return Vec::new();
+    }
     let clean = strip_wikilinks(text);
     let mut tags = BTreeSet::new();
     for (idx, _) in clean.match_indices('#') {
@@ -140,18 +188,76 @@ fn parse_tags(text: &str) -> Vec<String> {
 }
 
 fn resolve_target(conn: &Connection, target: &str) -> Result<String, CoreError> {
-    let lower = target.to_lowercase();
-    let sql = "SELECT id, title FROM objects ORDER BY (id = ?1) DESC, archived ASC, created_at ASC";
-    let mut stmt = conn.prepare(sql).map_err(storage_error)?;
-    let rows = stmt
-        .query_map([target], |r| {
-            Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
-        })
-        .map_err(storage_error)?;
-    for row in rows {
-        let (id, title) = row.map_err(storage_error)?;
-        if id == target || title.trim().to_lowercase() == lower {
-            return Ok(id);
+    use rusqlite::OptionalExtension;
+
+    let trimmed = target.trim();
+    if let Some(id) = conn
+        .prepare_cached("SELECT id FROM objects WHERE id = ?1 LIMIT 1")
+        .map_err(storage_error)?
+        .query_row([trimmed], |r| r.get::<_, String>(0))
+        .optional()
+        .map_err(storage_error)?
+    {
+        return Ok(id);
+    }
+    let lower = trimmed.to_lowercase();
+    let fts_tokens: Vec<String> = lower
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|s| !s.is_empty())
+        .take(16)
+        .map(|w| format!("title : \"{w}\""))
+        .collect();
+    if !fts_tokens.is_empty() {
+        let fts_q = fts_tokens.join(" AND ");
+        let mut stmt = conn
+            .prepare_cached(
+                "SELECT o.id, o.title FROM fts_objects JOIN objects o ON o.id = fts_objects.object_id
+                 WHERE fts_objects MATCH ?1
+                 ORDER BY o.archived ASC, o.created_at ASC, o.id ASC",
+            )
+            .map_err(storage_error)?;
+        let rows = stmt
+            .query_map([&fts_q], |r| {
+                Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
+            })
+            .map_err(storage_error)?;
+        for row in rows {
+            let (id, title) = row.map_err(storage_error)?;
+            if title.trim().to_lowercase() == lower {
+                return Ok(id);
+            }
+        }
+    }
+    if let Some(id) = conn
+        .prepare_cached(
+            "SELECT id FROM objects WHERE lower(trim(title)) = ?1
+             ORDER BY archived ASC, created_at ASC, id ASC LIMIT 1",
+        )
+        .map_err(storage_error)?
+        .query_row([&lower], |r| r.get::<_, String>(0))
+        .optional()
+        .map_err(storage_error)?
+    {
+        return Ok(id);
+    }
+    if !lower.is_ascii() {
+        let char_len = lower.chars().count() as i64;
+        let mut stmt = conn
+            .prepare_cached(
+                "SELECT id, title FROM objects WHERE length(trim(title)) = ?1
+                 ORDER BY archived ASC, created_at ASC, id ASC",
+            )
+            .map_err(storage_error)?;
+        let rows = stmt
+            .query_map([char_len], |r| {
+                Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
+            })
+            .map_err(storage_error)?;
+        for row in rows {
+            let (id, title) = row.map_err(storage_error)?;
+            if title.trim().to_lowercase() == lower {
+                return Ok(id);
+            }
         }
     }
     Ok(lower)
@@ -166,7 +272,7 @@ fn target_key(conn: &Connection, id: &ObjectId) -> Result<(String, String, bool)
 pub fn index_object(conn: &mut Connection, id: &ObjectId) -> Result<(), CoreError> {
     let tx = conn.transaction().map_err(storage_error)?;
     let (title_key, title, archived) = target_key(&tx, id)?;
-    let blocks = extract_blocks(id, &doc_store::load(&tx, id)?)?;
+    let blocks = load_blocks(&tx, id)?;
     for sql in [
         "DELETE FROM blocks WHERE object_id = ?1",
         "DELETE FROM links WHERE from_object = ?1",
@@ -180,31 +286,52 @@ pub fn index_object(conn: &mut Connection, id: &ObjectId) -> Result<(), CoreErro
         exec(&tx, sql, params![id.0, title_key])?;
     }
     let mut body_parts = Vec::with_capacity(blocks.len());
-    for IndexedBlock(bid, text, ord) in &blocks {
-        body_parts.push(text.as_str());
-        // blocks.id is global: a block pasted from another page keeps its blockId.
-        // Never replace another object's row; store this copy under an id scoped
-        // to this object instead (this object's rows were deleted above).
-        let blk_sql = "INSERT INTO blocks (id, object_id, text, sort_order) VALUES (?1, ?2, ?3, ?4) ON CONFLICT(id) DO NOTHING";
-        let inserted = tx
-            .execute(blk_sql, params![bid.0, id.0, text, ord])
+    {
+        let mut ins_blk = tx
+            .prepare_cached(
+                "INSERT INTO blocks (id, object_id, text, sort_order) VALUES (?1, ?2, ?3, ?4) ON CONFLICT(id) DO NOTHING",
+            )
             .map_err(storage_error)?;
-        let bid = if inserted == 1 {
-            bid.clone()
-        } else {
-            let scoped = BlockId(format!("{}:{}", id.0, bid.0));
-            let sql = "INSERT OR REPLACE INTO blocks (id, object_id, text, sort_order) VALUES (?1, ?2, ?3, ?4)";
-            exec(&tx, sql, params![scoped.0, id.0, text, ord])?;
-            scoped
-        };
-        for (fb, tgt, tb) in parse_wikilinks(&bid, text) {
-            let to_obj = resolve_target(&tx, &tgt)?;
-            let lnk_sql = "INSERT OR IGNORE INTO links (from_object, from_block, to_object, to_block, kind) VALUES (?1, ?2, ?3, ?4, 'wikilink')";
-            exec(&tx, lnk_sql, params![id.0, fb.0, to_obj, tb.map(|b| b.0)])?;
-        }
-        for tag in parse_tags(text) {
-            let tag_sql = "INSERT OR IGNORE INTO tags (object_id, tag) VALUES (?1, ?2)";
-            exec(&tx, tag_sql, params![id.0, tag])?;
+        let mut ins_scoped = tx
+            .prepare_cached(
+                "INSERT OR REPLACE INTO blocks (id, object_id, text, sort_order) VALUES (?1, ?2, ?3, ?4)",
+            )
+            .map_err(storage_error)?;
+        let mut ins_lnk = tx
+            .prepare_cached(
+                "INSERT OR IGNORE INTO links (from_object, from_block, to_object, to_block, kind) VALUES (?1, ?2, ?3, ?4, 'wikilink')",
+            )
+            .map_err(storage_error)?;
+        let mut ins_tag = tx
+            .prepare_cached("INSERT OR IGNORE INTO tags (object_id, tag) VALUES (?1, ?2)")
+            .map_err(storage_error)?;
+
+        for IndexedBlock(bid, text, ord) in &blocks {
+            body_parts.push(text.as_str());
+            // blocks.id is global: a block pasted from another page keeps its blockId.
+            // Never replace another object's row; store this copy under an id scoped
+            // to this object instead (this object's rows were deleted above).
+            let inserted = ins_blk
+                .execute(params![bid.0, id.0, text, ord])
+                .map_err(storage_error)?;
+            let bid = if inserted == 1 {
+                bid.clone()
+            } else {
+                let scoped = BlockId(format!("{}:{}", id.0, bid.0));
+                ins_scoped
+                    .execute(params![scoped.0, id.0, text, ord])
+                    .map_err(storage_error)?;
+                scoped
+            };
+            for (fb, tgt, tb) in parse_wikilinks(&bid, text) {
+                let to_obj = resolve_target(&tx, &tgt)?;
+                ins_lnk
+                    .execute(params![id.0, fb.0, to_obj, tb.map(|b| b.0)])
+                    .map_err(storage_error)?;
+            }
+            for tag in parse_tags(text) {
+                ins_tag.execute(params![id.0, tag]).map_err(storage_error)?;
+            }
         }
     }
     if !archived {
@@ -218,7 +345,7 @@ pub fn index_object(conn: &mut Connection, id: &ObjectId) -> Result<(), CoreErro
 pub fn backlinks(conn: &Connection, id: &ObjectId) -> Result<Vec<Link>, CoreError> {
     let (title_key, _, _) = target_key(conn, id)?;
     let mut stmt = conn
-        .prepare(
+        .prepare_cached(
             "SELECT l.from_object, l.from_block, l.to_block, l.kind
              FROM links l JOIN objects o ON o.id = l.from_object
              WHERE o.archived = 0 AND l.from_object != ?1
@@ -261,28 +388,44 @@ pub fn unlinked_mentions(conn: &Connection, id: &ObjectId) -> Result<Vec<Mention
     if needle.is_empty() {
         return Ok(Vec::new());
     }
-    let mut stmt = conn
-        .prepare(
-            "SELECT b.object_id, b.text FROM blocks b JOIN objects o ON o.id = b.object_id
-             WHERE o.archived = 0 AND b.object_id != ?1 AND NOT EXISTS (
-               SELECT 1 FROM links l WHERE l.from_object = b.object_id
-                 AND (l.to_object = ?1 OR l.to_object = ?2)
-             ) ORDER BY o.updated_at DESC, b.object_id, b.sort_order",
-        )
+    let tokens: Vec<String> = needle
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|s| !s.is_empty())
+        .take(16)
+        .map(|w| format!("\"{w}\""))
+        .collect();
+    let fts_match = (!tokens.is_empty()).then(|| tokens.join(" AND "));
+    let sql = if fts_match.is_some() {
+        "SELECT b.object_id, b.text FROM blocks b JOIN objects o ON o.id = b.object_id
+         WHERE o.archived = 0 AND b.object_id != ?1
+           AND b.object_id IN (SELECT object_id FROM fts_objects WHERE fts_objects MATCH ?3)
+           AND NOT EXISTS (SELECT 1 FROM links l WHERE l.from_object = b.object_id
+             AND (l.to_object = ?1 OR l.to_object = ?2))
+         ORDER BY o.updated_at DESC, b.object_id, b.sort_order"
+    } else {
+        "SELECT b.object_id, b.text FROM blocks b JOIN objects o ON o.id = b.object_id
+         WHERE o.archived = 0 AND b.object_id != ?1 AND (?3 IS NULL)
+           AND NOT EXISTS (SELECT 1 FROM links l WHERE l.from_object = b.object_id
+             AND (l.to_object = ?1 OR l.to_object = ?2))
+         ORDER BY o.updated_at DESC, b.object_id, b.sort_order"
+    };
+    let mut stmt = conn.prepare_cached(sql).map_err(storage_error)?;
+    let mut rows = stmt
+        .query(params![id.0, needle, fts_match])
         .map_err(storage_error)?;
     let (mut seen, mut mentions) = (BTreeSet::new(), Vec::new());
-    let rows = stmt
-        .query_map(params![id.0, needle], |r| {
-            Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
-        })
-        .map_err(storage_error)?;
-    for row in rows {
-        let (oid, snippet) = row.map_err(storage_error)?;
-        if contains_words(&strip_wikilinks(&snippet).to_lowercase(), &needle)
-            && seen.insert(oid.clone())
-        {
-            let object_id = ObjectId(oid);
-            mentions.push(Mention { object_id, snippet });
+    while let Some(row) = rows.next().map_err(storage_error)? {
+        let oid: String = row.get(0).map_err(storage_error)?;
+        if seen.contains(&oid) {
+            continue;
+        }
+        let snippet: String = row.get(1).map_err(storage_error)?;
+        if contains_words(&strip_wikilinks(&snippet).to_lowercase(), &needle) {
+            seen.insert(oid.clone());
+            mentions.push(Mention {
+                object_id: ObjectId(oid),
+                snippet,
+            });
         }
     }
     Ok(mentions)
@@ -291,6 +434,7 @@ pub fn unlinked_mentions(conn: &Connection, id: &ObjectId) -> Result<Vec<Mention
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::doc_store;
     use crate::objects::{NewObject, TypeKey};
     use crate::storage::open_vault;
     use yrs::{StateVector, XmlElementPrelim, XmlTextPrelim};
@@ -464,5 +608,42 @@ mod tests {
         assert!(contains_words("ver árbol trimestral", "árbol trimestral"));
         assert!(!contains_words("subárbol", "árbol"));
         assert!(contains_words("(árbol)", "árbol"));
+    }
+
+    #[test]
+    fn fast_wikilink_resolution_and_fts_prefiltered_mentions() {
+        let mut conn = open_vault(":memory:").unwrap();
+        let (target, sym, multi) = (
+            page(&conn, "Objetivo Único"),
+            page(&conn, "+++"),
+            page(&conn, "Menciones Múltiples"),
+        );
+        set_body(
+            &mut conn,
+            &multi,
+            &[
+                ("paragraph", "m1", "Primer bloque con objetivo único aquí"),
+                ("paragraph", "m2", "Segundo bloque con objetivo único allá"),
+                ("paragraph", "m3", "Bloque con símbolo +++ suelto"),
+            ],
+        );
+        let mentions = unlinked_mentions(&conn, &target).unwrap();
+        assert_eq!(
+            (
+                mentions.len(),
+                &mentions[0].object_id,
+                mentions[0].snippet.as_str()
+            ),
+            (1, &multi, "Primer bloque con objetivo único aquí")
+        );
+        assert_eq!(unlinked_mentions(&conn, &sym).unwrap()[0].object_id, multi);
+
+        let wl_page = page(&conn, "Índice de enlaces");
+        let links: String = (0..40)
+            .map(|i| format!("[[Objetivo Único]] [[No existe {i}]]"))
+            .collect::<Vec<_>>()
+            .join(" ");
+        set_body(&mut conn, &wl_page, &[("paragraph", "wl-1", &links)]);
+        assert_eq!(backlinks(&conn, &target).unwrap().len(), 1);
     }
 }
