@@ -6,6 +6,10 @@ export interface DocTransport {
   load(): Promise<Uint8Array>;
   /** Persists one batched local update, as sent to `object_apply_update`. */
   apply(update: Uint8Array): Promise<void>;
+  /** Stores a pasted or dropped image in `attachments/` and returns its relative path (#5). */
+  saveAttachment?(fileName: string, bytes: Uint8Array): Promise<string>;
+  /** Reads an attachment's bytes by its `attachments/<name>.<ext>` relative path (#5). */
+  loadAttachment?(path: string): Promise<Uint8Array>;
 }
 
 export interface UpdateBatcher {

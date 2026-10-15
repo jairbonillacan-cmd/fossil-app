@@ -21,6 +21,7 @@ Cómo escribir aquí:
 - **Esquemas**: sangría con `Tab` y `Shift+Tab`, bloques y secciones plegables, y pegado limpio desde otras aplicaciones.
 - **Avisos, tablas y separadores**: nuevos bloques desde el menú `/` o con atajos de Markdown (`>!`, `| col |`, `---`).
 - **Arrastrar bloques y conteo en vivo**: reordena cualquier bloque desde su asa lateral y consulta el total de palabras y caracteres al pie de la página.
+- Pega o arrastra imágenes al editor (`PNG`, `JPG`, `GIF`, `WebP`): se guardan en la carpeta `attachments/` del Espacio y se muestran al volver a abrir la página.
 - **Exportar Markdown** en la cabecera de cada página: descarga la página completa como `.md`.
 - **Exportar PDF** en la cabecera de cada página: abre la impresión para guardarla como PDF, siempre en tema claro y sin la barra lateral.
 

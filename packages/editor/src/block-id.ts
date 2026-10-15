@@ -14,6 +14,7 @@ export const BLOCK_ID_TYPES = [
   "callout",
   "horizontalRule",
   "table",
+  "image",
 ] as const;
 
 const BLOCK_ID_TYPE_SET: ReadonlySet<string> = new Set(BLOCK_ID_TYPES);

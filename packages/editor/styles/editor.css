@@ -394,3 +394,30 @@
   color: var(--fg-muted);
   font: 12px var(--font-mono);
 }
+
+/* Image attachments (#5): monochrome frame, 4 px scale, rounded corners */
+.fossil-image-block {
+  margin: 8px 0;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-elevated);
+}
+.fossil-image-block.ProseMirror-selectednode {
+  border-color: var(--accent);
+}
+.fossil-image {
+  display: block;
+  max-width: 100%;
+  max-height: 420px;
+  height: auto;
+  border-radius: 4px;
+}
+.fossil-image-status {
+  font-size: 13px;
+  color: var(--fg-muted);
+}
+.fossil-image-block:not([data-state="ready"]) .fossil-image,
+.fossil-image-block[data-state="ready"] .fossil-image-status {
+  display: none;
+}

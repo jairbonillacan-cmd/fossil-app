@@ -4,12 +4,13 @@
 con bloques referenciables por ID (ADR-0005) y escritura rápida en documentos grandes
 (ADR-0015).
 
-**Rutas:** `packages/editor` (`@fossil/editor`, issues #23, #24, #25, #105):
-- `src/editor.tsx`: `<FossilEditor />`, `getBodyFragment` y extensiones MIT (`StarterKit`, `TaskList`, `TaskItem`, `Callout`, `TABLE_EXTENSIONS`, `BlockId`, `Outliner`, `DragHandle`, `LinksExtension`, `EditorWordCount`, `SlashMenu`, `LinkAutocompleteMenu`).
+**Rutas:** `packages/editor` (`@fossil/editor`, issues #5, #23, #24, #25, #105):
+- `src/editor.tsx`: `<FossilEditor />`, `getBodyFragment` y extensiones MIT (`StarterKit`, `TaskList`, `TaskItem`, `Callout`, `TABLE_EXTENSIONS`, `ImageAttachment`, `BlockId`, `Outliner`, `DragHandle`, `LinksExtension`, `EditorWordCount`, `SlashMenu`, `LinkAutocompleteMenu`).
 - `src/transport.ts`: `DocTransport` y `createUpdateBatcher` (agrupa `Y.mergeUpdates` cada 250 ms y encadena promesas).
 - `src/block-id.ts`: extensión `BlockId` (`data-block-id` con `crypto.randomUUID()` en bloques de primer nivel nuevos o divididos).
 - `src/blocks.ts`: bloques `Callout` (`aside[data-type="callout"]`, atajos `>! `, `> ! `, `:::callout `) y tabla simple (`Table`, `TableRow`, `TableHeader`, `TableCell`, atajo `| col | ` y navegación `Tab`/`Shift-Tab`).
 - `src/controls.tsx`: `DragHandle`, `moveTopBlock`/`moveCurrentTopBlock` (reordena bloques conservando `blockId`) y `<EditorWordCount />` (`countDocumentStats`, claves `editor.stats.words` y `editor.stats.characters`).
+- `src/image-attachment.ts`: nodo de bloque `image` (`ImageAttachment`, #5) conectado a `saveAttachment`/`loadAttachment` en `DocTransport`; valida que `src` viva dentro de `attachments/<nombre>.<ext>` (`png`, `jpg`, `jpeg`, `gif`, `webp`) y guarda solo la ruta relativa en Yjs.
 - `src/links.tsx`: `LinksExtension` y `<LinkAutocompleteMenu />` (#24: wikilinks `[[Título]]` con autocompletado, opción `"Crear «X»"` vía `onCreateObject`, apertura en pestaña nueva con `Ctrl+clic`/`Cmd+clic` vía `onOpenObject(target, { newTab: true })`, y autocompletado/decoración de tags `#etiqueta` y anidados `#marca/acme` conservados como texto plano en `Y.XmlText` para `fossil-core::indexer`).
 - `src/outliner.ts`: extensión `Outliner` (#25: sangría `Tab`/`Shift+Tab` `indent` `0..6`, plegado de bloques/secciones `collapsed` y pegado limpio `cleanPastedHTML`/`cleanPastedText`).
 - `src/slash-menu.tsx` y `src/i18n.ts`: menú `/` filtrable con teclado y claves `editor.*` (`EditorTranslationKey`, `EditorTranslator`, `EDITOR_MESSAGES_ES_MX`, `EDITOR_MESSAGES_EN`) inyectables vía `t`.
@@ -18,8 +19,8 @@ con bloques referenciables por ID (ADR-0005) y escritura rápida en documentos g
 
 **Contratos públicos:**
 - `<FossilEditor doc={Y.Doc} transport={DocTransport} t?: EditorTranslator onSearchObjects? onCreateObject? onOpenObject? onSearchTags? onReady?: (editor) => void />` con
-  `interface DocTransport { load(): Promise<Uint8Array>; apply(update: Uint8Array): Promise<void> }`.
-  La app conecta el transporte real a `object_load_doc` / `object_apply_update`; el paquete no depende de la persistencia.
+  `interface DocTransport { load(): Promise<Uint8Array>; apply(update: Uint8Array): Promise<void>; saveAttachment?(fileName: string, bytes: Uint8Array): Promise<string>; loadAttachment?(path: string): Promise<Uint8Array> }`.
+  La app conecta el transporte real a `object_load_doc` / `object_apply_update` y `attachment_save` / `attachment_load`; el paquete no depende de la persistencia.
 - Cada bloque de primer nivel es un `Y.XmlElement` con atributo `blockId`
   (`crypto.randomUUID()`), reasignado por `BlockId` a todo nodo nuevo o duplicado.
 
