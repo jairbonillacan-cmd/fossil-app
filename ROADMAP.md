@@ -33,13 +33,28 @@ Descarga cualquier página como `.md` o guárdala como PDF limpio en tema claro.
 Chat con el contexto de tu página y acciones sobre el texto seleccionado. Usa tus propias claves de API, modelos locales o tu suscripción existente.
 
 ### Imágenes en páginas
-Pega o arrastra imágenes en cualquier página. Se guardan dentro de tu espacio.
+Pega o arrastra imágenes en cualquier página; se guardan dentro de tu espacio. Ya está terminada; falta publicarla.
 
 ### Captura rápida
 Un atajo global (`Win+Shift+F`) y acceso desde la bandeja del sistema para anotar algo al vuelo sin cambiar de ventana.
 
 ### Pestañas y paneles divididos
 Abre varias páginas en pestañas o trabaja con dos páginas lado a lado.
+
+### Bloques de código avanzados
+Resaltado de sintaxis por lenguaje, título de archivo, botón de copiar, números y resaltado de línea, vista de diferencias, formateo de JSON o SQL y atajos de edición de código.
+
+### Matemáticas, diagramas y gráficas
+Fórmulas con LaTeX en línea o en bloque, diagramas en texto y gráficas de líneas, barras, área, pastel o indicadores a partir de tablas o datos de la página.
+
+### Tipografía y preferencias de lectura
+Elige entre fuente sin patines, con patines o monoespaciada para el editor, ajusta el tamaño de letra y alterna entre lectura centrada o ancho completo.
+
+### Modo Markdown, buscar y reemplazar e índice
+Alterna entre el editor de bloques y el texto en Markdown, reemplaza texto con `Ctrl+H`, navega por el índice de encabezados y presenta cualquier página a pantalla completa.
+
+### Favoritos, recientes y papelera
+Fija páginas importantes en la barra lateral, vuelve rápido a las últimas que abriste, inserta fechas con `@hoy` y recupera páginas borradas desde la papelera del espacio.
 
 ## Planeado
 
@@ -50,7 +65,7 @@ Define tus propios tipos de página, como proyecto, cliente, campaña o publicac
 Tareas con fecha, prioridad y notificación de Windows, reunidas en Hoy, Próximo y Atrasado.
 
 ### Vistas
-Tabla, tablero, calendario, línea de tiempo y galería sobre cualquier tipo de página o lista guardada.
+Tabla, tablero, calendario, gráfica, línea de tiempo y galería sobre cualquier tipo de página o lista guardada.
 
 ### Agente y conexión MCP
 Un agente que usa las herramientas de tu espacio con tu permiso, y servidor/cliente MCP local para conectar tus herramientas.

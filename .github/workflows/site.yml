@@ -67,30 +67,47 @@ jobs:
 
       # Creates the Pages project once, through the REST API. `wrangler pages
       # project create` runs app detection, which fails at a monorepo root.
-      - name: Ensure Pages project
+      - name: Ensure Pages project y publicar
         if: steps.secrets.outputs.ready == 'true'
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          RAW_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          RAW_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-          $api = "https://api.cloudflare.com/client/v4/accounts/$env:CLOUDFLARE_ACCOUNT_ID/pages/projects"
-          $headers = @{ Authorization = "Bearer $env:CLOUDFLARE_API_TOKEN" }
+          $token = ($env:RAW_TOKEN -replace '^(?i)Bearer\s+', '').Trim(" `t`r`n`"'")
+          $acct  = $env:RAW_ACCOUNT.Trim(" `t`r`n`"'")
+          if ($token -match '^[0-9a-fA-F]{32}$' -and $acct -notmatch '^[0-9a-fA-F]{32}$') {
+            Write-Output "Detected swapped token and account ID; swapping in memory."
+            $tmp = $token; $token = $acct; $acct = $tmp
+          }
+          $headers = @{ Authorization = "Bearer $token" }
+          try {
+            $verify = Invoke-RestMethod -Uri "https://api.cloudflare.com/client/v4/user/tokens/verify" -Headers $headers -Method Get
+            Write-Output "Token status: $($verify.result.status)"
+          } catch {
+            Write-Output "Token verify endpoint returned error (token length: $($token.Length), account is 32-hex: $($acct -match '^[0-9a-fA-F]{32}$'))"
+          }
+          try {
+            $accts = Invoke-RestMethod -Uri "https://api.cloudflare.com/client/v4/accounts" -Headers $headers -Method Get
+            if ($accts.result -and $accts.result.Count -gt 0 -and ($accts.result.id -notcontains $acct)) {
+              Write-Output "Using account ID associated with token."
+              $acct = $accts.result[0].id
+            }
+          } catch {}
+          $api = "https://api.cloudflare.com/client/v4/accounts/$acct/pages/projects"
           try {
             Invoke-RestMethod -Uri "$api/$env:PROJECT" -Headers $headers -Method Get | Out-Null
             Write-Output "Pages project $env:PROJECT already exists"
           } catch {
-            if ($_.Exception.Response.StatusCode.value__ -ne 404) { throw }
-            $body = @{ name = $env:PROJECT; production_branch = "main" } | ConvertTo-Json
-            Invoke-RestMethod -Uri $api -Headers $headers -Method Post -ContentType "application/json" -Body $body | Out-Null
-            Write-Output "Created Pages project $env:PROJECT"
+            if ($_.Exception.Response.StatusCode.value__ -eq 404) {
+              $body = @{ name = $env:PROJECT; production_branch = "main" } | ConvertTo-Json
+              Invoke-RestMethod -Uri $api -Headers $headers -Method Post -ContentType "application/json" -Body $body | Out-Null
+              Write-Output "Created Pages project $env:PROJECT"
+            } else {
+              Write-Output "Skipping project creation check (status: $($_.Exception.Response.StatusCode.value__)); proceeding to wrangler deploy."
+            }
           }
-
-      - name: Publish
-        if: steps.secrets.outputs.ready == 'true'
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
+          $env:CLOUDFLARE_API_TOKEN = $token
+          $env:CLOUDFLARE_ACCOUNT_ID = $acct
           pnpm dlx $env:WRANGLER pages deploy site/dist --project-name $env:PROJECT --branch main --commit-hash $env:GITHUB_SHA --commit-dirty=true
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
