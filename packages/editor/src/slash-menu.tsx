@@ -22,6 +22,9 @@ const ICONS: Readonly<Record<string, string>> = {
   taskList: "M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11",
   blockquote: "M3 21c3 0 7-1 7-8V5H4v6h3c0 4-4 5-4 5M15 21c3 0 7-1 7-8V5h-6v6h3c0 4-4 5-4 5",
   codeBlock: "m16 18 6-6-6-6M8 6l-6 6 6 6",
+  callout: "M12 8v4M12 16h.01M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0Z",
+  horizontalRule: "M5 12h14",
+  table: "M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5ZM3 10h18M10 3v18",
 };
 
 const runBlockCommand = (editor: Editor, range: Range, id: string): void => {
@@ -35,6 +38,9 @@ const runBlockCommand = (editor: Editor, range: Range, id: string): void => {
   else if (id === "taskList") c.toggleTaskList().run();
   else if (id === "blockquote") c.toggleBlockquote().run();
   else if (id === "codeBlock") c.toggleCodeBlock().run();
+  else if (id === "callout") c.toggleCallout().run();
+  else if (id === "horizontalRule") c.setHorizontalRule().run();
+  else if (id === "table") c.insertTable({ rows: 2, cols: 2 }).run();
 };
 
 const SPECS: ReadonlyArray<readonly [string, EditorTranslationKey, string, string]> = [
@@ -47,6 +53,14 @@ const SPECS: ReadonlyArray<readonly [string, EditorTranslationKey, string, strin
   ["taskList", "editor.slash.taskList", "[]", "task|todo|tareas|check|[]"],
   ["blockquote", "editor.slash.blockquote", ">", "quote|blockquote|cita|>"],
   ["codeBlock", "editor.slash.codeBlock", "```", "code|codigo|código|pre|```"],
+  ["callout", "editor.slash.callout", ">!", "callout|note|info|destacado|nota|aviso|>!"],
+  [
+    "horizontalRule",
+    "editor.slash.horizontalRule",
+    "---",
+    "divider|horizontal|rule|hr|divisor|separador|---",
+  ],
+  ["table", "editor.slash.table", "| |", "table|grid|tabla|celdas|columnas"],
 ];
 
 /** Alpha block commands exposed in the `/` slash menu. */

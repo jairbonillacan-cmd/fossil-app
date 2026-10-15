@@ -81,6 +81,11 @@ describe("SlashMenu and live Markdown shortcuts", () => {
     ["[] ", "taskList", {}],
     ["> ", "blockquote", {}],
     ["``` ", "codeBlock", {}],
+    ["---", "horizontalRule", {}],
+    ["> ! ", "callout", {}],
+    [">! ", "callout", {}],
+    [":::callout ", "callout", {}],
+    ["| col | ", "table", {}],
   ])("converts block on live Markdown shortcut %j -> %s", async (input, expectedType, attrs) => {
     const { editor, view } = await mountEditor();
     act(() => typeLiveText(editor, input));

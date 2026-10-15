@@ -6,6 +6,7 @@ import StarterKit from "@tiptap/starter-kit";
 import { useEffect, useRef, useState } from "react";
 import * as Y from "yjs";
 import { BlockId } from "./block-id";
+import { Callout, TABLE_EXTENSIONS } from "./blocks";
 import { defaultEditorTranslator, type EditorTranslator } from "./i18n";
 import { Outliner } from "./outliner";
 import { SlashMenu } from "./slash-menu";
@@ -58,6 +59,8 @@ function BoundEditor({ doc, t, onReady, className }: BoundEditorProps) {
         }),
         TaskList,
         TaskItem.configure({ nested: true }),
+        Callout,
+        ...TABLE_EXTENSIONS,
         BlockId,
         Placeholder.configure({ placeholder: () => tRef.current("editor.placeholder") }),
         Outliner.configure({ t }),

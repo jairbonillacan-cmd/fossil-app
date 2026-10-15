@@ -1,5 +1,15 @@
 export type { Editor } from "@tiptap/core";
 export { BLOCK_ID_TYPES, BlockId } from "./block-id";
+export {
+  Callout,
+  createTableNode,
+  moveTableCell,
+  TABLE_EXTENSIONS,
+  Table,
+  TableCell,
+  TableHeader,
+  TableRow,
+} from "./blocks";
 export type { FossilEditorProps } from "./editor";
 export { BODY_FRAGMENT_KEY, FossilEditor, getBodyFragment } from "./editor";
 export type { EditorTranslationKey, EditorTranslator } from "./i18n";

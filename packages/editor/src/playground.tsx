@@ -69,6 +69,15 @@ const buildSampleUpdate = (): Uint8Array => {
     pEl("La estructura del documento reproduce el esquema para preservar cada nodo."),
   ]);
 
+  const box = (t: string, ch: Y.XmlElement[], id?: string) => {
+    const el = new Y.XmlElement(t);
+    if (id) setAttr(el, "blockId", id);
+    if (ch.length) el.insert(0, ch);
+    return el;
+  };
+  const row = (t: string, a: string, b: string) =>
+    box("tableRow", [box(t, [pEl(a)]), box(t, [pEl(b)])]);
+
   getBodyFragment(doc).insert(0, [
     textEl("heading", "blk_h1", "Arquitectura del grafo local", { level: 1 }),
     textEl(
@@ -84,6 +93,13 @@ const buildSampleUpdate = (): Uint8Array => {
     bullets,
     tasks,
     quote,
+    box("callout", [pEl("Bloque destacado monocromático sincronizado en Yjs.")], "blk_callout"),
+    box("horizontalRule", [], "blk_hr"),
+    box(
+      "table",
+      [row("tableHeader", "Métrica", "Presupuesto"), row("tableCell", "Tecleo p95", "≤ 16 ms")],
+      "blk_table",
+    ),
     textEl(
       "codeBlock",
       "blk_code",

@@ -11,6 +11,9 @@ export const BLOCK_ID_TYPES = [
   "taskList",
   "blockquote",
   "codeBlock",
+  "callout",
+  "horizontalRule",
+  "table",
 ] as const;
 
 const BLOCK_ID_TYPE_SET: ReadonlySet<string> = new Set(BLOCK_ID_TYPES);

@@ -13,7 +13,10 @@ export type EditorTranslationKey =
   | "editor.slash.codeBlock"
   | "editor.placeholder"
   | "editor.outliner.collapse"
-  | "editor.outliner.expand";
+  | "editor.outliner.expand"
+  | "editor.slash.callout"
+  | "editor.slash.horizontalRule"
+  | "editor.slash.table";
 
 /** Translator function passed to `<FossilEditor t={t} />` by the host application. */
 export type EditorTranslator = (key: EditorTranslationKey) => string;
@@ -36,6 +39,9 @@ export const EDITOR_MESSAGES_ES_MX: Readonly<Record<EditorTranslationKey, string
 Object.setPrototypeOf(EDITOR_MESSAGES_ES_MX, {
   "editor.outliner.collapse": "Plegar sección",
   "editor.outliner.expand": "Desplegar sección",
+  "editor.slash.callout": "Bloque destacado",
+  "editor.slash.horizontalRule": "Divisor",
+  "editor.slash.table": "Tabla simple",
 });
 
 /** English (en) strings for the `editor.*` namespace. */
@@ -56,6 +62,9 @@ export const EDITOR_MESSAGES_EN: Readonly<Record<EditorTranslationKey, string>> 
 Object.setPrototypeOf(EDITOR_MESSAGES_EN, {
   "editor.outliner.collapse": "Collapse section",
   "editor.outliner.expand": "Expand section",
+  "editor.slash.callout": "Callout",
+  "editor.slash.horizontalRule": "Divider",
+  "editor.slash.table": "Simple table",
 });
 
 /** Fallback translator (es-MX) when the host does not pass `t`. */
