@@ -1,4 +1,5 @@
 import { Extension } from "@tiptap/core";
+import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { ySyncPluginKey } from "y-prosemirror";
 
@@ -19,6 +20,19 @@ export const BLOCK_ID_TYPES = [
 
 const BLOCK_ID_TYPE_SET: ReadonlySet<string> = new Set(BLOCK_ID_TYPES);
 const blockIdPluginKey = new PluginKey("fossilBlockId");
+
+function keepsValidTopLevelBlockIds(oldDoc: ProseMirrorNode, newDoc: ProseMirrorNode): boolean {
+  if (oldDoc.childCount !== newDoc.childCount) return false;
+  for (let i = 0; i < newDoc.childCount; i++) {
+    const next = newDoc.child(i);
+    const prev = oldDoc.child(i);
+    if (!BLOCK_ID_TYPE_SET.has(next.type.name)) continue;
+    const nextId = next.attrs.blockId;
+    if (typeof nextId !== "string" || nextId.length === 0) return false;
+    if (next !== prev && nextId !== prev.attrs.blockId) return false;
+  }
+  return true;
+}
 
 /**
  * Attaches a global `blockId` attribute (`data-block-id` in DOM) to top-level block nodes
@@ -57,11 +71,15 @@ export const BlockId = Extension.create({
     return [
       new Plugin({
         key: blockIdPluginKey,
-        appendTransaction(transactions, _oldState, newState) {
+        appendTransaction(transactions, oldState, newState) {
           if (transactions.some((tr) => Boolean(tr.getMeta(ySyncPluginKey)))) {
             return null;
           }
-          if (!transactions.some((tr) => tr.docChanged || Boolean(tr.getMeta(blockIdPluginKey)))) {
+          const forceInit = transactions.some((tr) => Boolean(tr.getMeta(blockIdPluginKey)));
+          if (!forceInit && !transactions.some((tr) => tr.docChanged)) {
+            return null;
+          }
+          if (!forceInit && keepsValidTopLevelBlockIds(oldState.doc, newState.doc)) {
             return null;
           }
           const seen = new Set<string>();

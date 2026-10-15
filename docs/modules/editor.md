@@ -36,7 +36,7 @@ del doc Yjs** sin error visible (spike #13: 758 de 5 000 bloques).
   (`addProsemirrorPlugins`) el plugin se ignora en silencio y no hay sincronización.
 - Enter hereda `blockId` del bloque original: sin reasignación quedan IDs duplicados.
 - El coste por transacción es lineal con el número de bloques (~2.5 µs/bloque): con
-  5 000 bloques una pulsación cuesta ~15 ms (límite del presupuesto de 16 ms).
+  5 000 bloques una pulsación cuesta ~15 ms (límite del presupuesto de 16 ms). Para no romperlo, `DragHandle` mapea su `DecorationSet` (`prev.map`) cuando no cambian los bloques de primer nivel, `BlockId` toma vía rápida si `childCount` e IDs existentes se mantienen y `EditorWordCount` escucha `"update"` con conteo en una sola pasada sin `textBetween`.
 - Undo/redo va con `Y.UndoManager`; el history de TipTap se desactiva (`undoRedo: false`).
 - `createUpdateBatcher` reencola el lote en `pending` si `transport.apply` falla (para no romper el reloj lógico de Yjs), evita `Y.mergeUpdates` con un solo delta y hace `flush()` en `pagehide`/`dispose()`.
 - En `cleanPastedHTML`, normaliza `\u00a0` en los nodos de texto del DOM antes de serializar `innerHTML` (que convierte `\u00a0` en `&nbsp;`), filtra controles de formulario salvo `input[type="checkbox"]` y acota `indent` a `[0, 6]` tanto en `parseHTML` como en `renderHTML`.
