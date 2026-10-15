@@ -13,7 +13,7 @@ export function App() {
   }
 
   return (
-    <main className="flex h-dvh">
+    <main className="flex h-dvh print:block print:h-auto">
       <Sidebar vaultName={vault.name} selectedId={selected?.id ?? null} onSelect={setSelected} />
       <div className="min-w-0 flex-1">
         <PageEditor object={selected} />

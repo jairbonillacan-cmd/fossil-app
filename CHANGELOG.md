@@ -14,6 +14,7 @@ Cómo escribir aquí:
 
 ### Novedades
 - **Exportar Markdown** en la cabecera de cada página: descarga la página completa como `.md`.
+- **Exportar PDF** en la cabecera de cada página: abre la impresión para guardarla como PDF, siempre en tema claro y sin la barra lateral.
 
 ## 0.1.1-alpha.2 · 2026-10-14
 

@@ -106,7 +106,7 @@ export function Sidebar({
   }, [t]);
 
   return (
-    <aside className="flex h-dvh w-64 shrink-0 flex-col gap-4 border-r border-[color:var(--border)] px-3 py-4 in-data-[density=compact]:gap-2.5 in-data-[density=compact]:py-3">
+    <aside className="flex print:hidden h-dvh w-64 shrink-0 flex-col gap-4 border-r border-[color:var(--border)] px-3 py-4 in-data-[density=compact]:gap-2.5 in-data-[density=compact]:py-3">
       <header className="flex items-center gap-2 px-2">
         <AppIcon />
         <div className="flex min-w-0 flex-col">
