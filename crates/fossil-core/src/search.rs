@@ -137,7 +137,7 @@ pub fn parse_search_text(input: &str) -> ParsedQuery {
             .or_else(|| rest.strip_prefix('"').map(|s| (false, s)));
         if let Some((neg, s)) = q {
             let (p, tail) = s.split_once('"').unwrap_or((s, ""));
-            if !p.trim().is_empty() {
+            if !p.trim().is_empty() || !neg {
                 [&mut out.positive, &mut out.negative][usize::from(neg)].push(p.trim().to_owned());
             }
             rest = tail.trim_start();
@@ -168,11 +168,19 @@ pub fn parse_search_text(input: &str) -> ParsedQuery {
     out
 }
 
+const MAX_FTS_TERMS: usize = 64;
+
 fn fts_phrase(term: impl AsRef<str>) -> Option<String> {
-    let s = term.as_ref();
-    s.chars()
+    let cleaned: String = term
+        .as_ref()
+        .chars()
+        .filter(|&c| c != '\0' && !c.is_control())
+        .collect();
+    let trimmed = cleaned.trim_matches(|c: char| !c.is_alphanumeric());
+    trimmed
+        .chars()
         .any(char::is_alphanumeric)
-        .then(|| format!("\"{}\"", s.replace('"', "\"\"")))
+        .then(|| format!("\"{}\"", trimmed.replace('"', "\"\"")))
 }
 
 fn parse_iso_ms(raw: &Option<String>) -> Result<Option<i64>, SearchError> {
@@ -188,7 +196,8 @@ macro_rules! filter_clauses {
     () => {
         " AND o.archived = 0
           AND (?2 IS NULL OR NOT EXISTS (
-            SELECT 1 FROM json_each(?2) r WHERE instr(o.types, r.value) = 0))
+            SELECT 1 FROM json_each(?2) r WHERE NOT EXISTS (
+              SELECT 1 FROM json_each(o.types) jt WHERE jt.type = r.type AND jt.value = r.value)))
           AND (?3 IS NULL OR NOT EXISTS (SELECT 1 FROM json_each(?3) r WHERE NOT EXISTS (
             SELECT 1 FROM tags t WHERE t.object_id = o.id
               AND (t.tag = r.value OR (t.tag >= r.value || '/' AND t.tag < r.value || '0')))))
@@ -214,14 +223,7 @@ pub fn search_query(conn: &Connection, query: &SearchQuery) -> Result<Vec<Search
         p.types.push(tk.clone());
     }
     let types_json = (!p.types.is_empty())
-        .then(|| {
-            let v: Vec<_> = p
-                .types
-                .iter()
-                .filter_map(|t| serde_json::to_string(t).ok())
-                .collect();
-            serde_json::to_string(&v).ok()
-        })
+        .then(|| serde_json::to_string(&p.types).ok())
         .flatten();
     if let Some(t) = query.tag.as_deref().and_then(clean_tag)
         && !p.tags.contains(&t)
@@ -232,8 +234,21 @@ pub fn search_query(conn: &Connection, query: &SearchQuery) -> Result<Vec<Search
         .then(|| serde_json::to_string(&p.tags).ok())
         .flatten();
 
-    let pos: Vec<_> = p.positive.iter().filter_map(fts_phrase).collect();
-    let neg: Vec<_> = p.negative.iter().filter_map(fts_phrase).collect();
+    let pos: Vec<_> = p
+        .positive
+        .iter()
+        .filter_map(fts_phrase)
+        .take(MAX_FTS_TERMS)
+        .collect();
+    if pos.is_empty() && !p.positive.is_empty() {
+        return Ok(Vec::new());
+    }
+    let neg: Vec<_> = p
+        .negative
+        .iter()
+        .filter_map(fts_phrase)
+        .take(MAX_FTS_TERMS)
+        .collect();
     let (fts_arg, sql) = if !pos.is_empty() {
         let mut fts = pos.join(" AND ");
         for n in &neg {
@@ -424,5 +439,44 @@ mod tests {
             search_query(&c, &j_q),
             Err(SearchError::InvalidQuery(_))
         ));
+    }
+
+    #[test]
+    fn hostile_queries_do_not_error_or_return_false_positives() {
+        let mut c = open_vault(":memory:").unwrap();
+        let custom_id = add_doc(&mut c, TypeKey::Custom("Page".into()), "Nota", "palabra");
+        let q = |s: &str| SearchQuery {
+            text: s.into(),
+            ..Default::default()
+        };
+
+        assert!(search_query(&c, &q("hola\0mundo")).unwrap().is_empty());
+        assert_eq!(
+            search_query(&c, &q("pala\0bra")).unwrap()[0].object_id,
+            custom_id
+        );
+        assert_eq!(
+            search_query(&c, &q(&"palabra ".repeat(300))).unwrap()[0].object_id,
+            custom_id
+        );
+        for punct in ["***", "*", "^", "()", "\"\""] {
+            assert!(
+                search_query(&c, &q(punct)).unwrap().is_empty(),
+                "expected empty result for '{punct}'"
+            );
+        }
+        assert!(search_query(&c, &q("type:page")).unwrap().is_empty());
+        assert_eq!(
+            search_query(
+                &c,
+                &SearchQuery {
+                    type_key: Some(TypeKey::Custom("Page".into())),
+                    ..Default::default()
+                },
+            )
+            .unwrap()[0]
+                .object_id,
+            custom_id
+        );
     }
 }
