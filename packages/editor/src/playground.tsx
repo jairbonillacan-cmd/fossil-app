@@ -135,7 +135,7 @@ function PlaygroundApp() {
         boxSizing: "border-box",
         maxWidth: "680px",
         margin: "0 auto",
-        padding: "24px 32px 24px 36px",
+        padding: "24px 32px 24px 56px",
         background: "var(--bg)",
         color: "var(--fg)",
       }}

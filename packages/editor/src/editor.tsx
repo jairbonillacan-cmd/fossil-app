@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import * as Y from "yjs";
 import { BlockId } from "./block-id";
 import { Callout, TABLE_EXTENSIONS } from "./blocks";
+import { DragHandle, EditorWordCount } from "./controls";
 import { defaultEditorTranslator, type EditorTranslator } from "./i18n";
 import { Outliner } from "./outliner";
 import { SlashMenu } from "./slash-menu";
@@ -64,6 +65,7 @@ function BoundEditor({ doc, t, onReady, className }: BoundEditorProps) {
         BlockId,
         Placeholder.configure({ placeholder: () => tRef.current("editor.placeholder") }),
         Outliner.configure({ t }),
+        DragHandle.configure({ t }),
         YSync(getBodyFragment(doc)),
       ],
       immediatelyRender: true,
@@ -79,6 +81,7 @@ function BoundEditor({ doc, t, onReady, className }: BoundEditorProps) {
   return (
     <div className="fossil-editor-root">
       <EditorContent editor={editor} className={className} />
+      <EditorWordCount editor={editor} t={t} />
       <SlashMenu editor={editor} t={t} />
     </div>
   );
