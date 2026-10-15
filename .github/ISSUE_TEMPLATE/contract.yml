@@ -1,0 +1,37 @@
+name: Contrato (tipos / IPC / esquema)
+description: Interfaz que debe mergearse ANTES de trabajo en paralelo
+labels: ["type:contract"]
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: Qué contrato define
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Contexto a leer
+    validations:
+      required: true
+  - type: textarea
+    id: shape
+    attributes:
+      label: Forma propuesta
+      description: Tipos Rust, comandos IPC, eventos, tablas SQL.
+      render: rust
+    validations:
+      required: true
+  - type: textarea
+    id: consumers
+    attributes:
+      label: Issues que dependen de este contrato
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Criterios de aceptación
+      value: |
+        - [ ] Tipos en Rust con docs
+        - [ ] Bindings TS generados (tauri-specta) y commiteados
+        - [ ] Implementación stub que compila (puede devolver datos falsos)
+        - [ ] docs/modules/<area>.md actualizado

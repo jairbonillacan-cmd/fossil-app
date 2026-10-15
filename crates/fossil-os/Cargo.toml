@@ -1,0 +1,12 @@
+[package]
+name = "fossil-os"
+description = "Fossil Windows integration: notifications, global shortcuts, OCR, credentials"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true

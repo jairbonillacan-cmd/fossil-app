@@ -1,0 +1,92 @@
+{
+  "$comment": "Carriles y dueños de archivos (ADR-0014). Globs estilo -like de PowerShell: * cruza carpetas. Tocar rutas fuera de tu carril o archivos calientes exige el label cross-lane (solo claude).",
+  "lanes": {
+    "core": {
+      "agents": ["claude"],
+      "paths": [
+        "crates/*",
+        "apps/desktop/src-tauri/src/*",
+        "docs/modules/storage.md",
+        "docs/modules/objects.md",
+        "docs/specs/r1-objects-storage.md"
+      ]
+    },
+    "infra": {
+      "agents": ["claude"],
+      "paths": [
+        "scripts/*",
+        ".github/*",
+        "AGENTS.md",
+        "docs/PROTOCOL.md",
+        "docs/DOD.md",
+        "docs/adr/0014-*",
+        "docs/modules/infra.md",
+        "docs/retro/*"
+      ]
+    },
+    "shell": {
+      "agents": ["zcode-a", "antigravity"],
+      "paths": [
+        "apps/desktop/src/vault-screen*",
+        "apps/desktop/src/sidebar*",
+        "apps/desktop/src/shell*",
+        "apps/desktop/src/page-editor*",
+        "apps/desktop/src/page-body*",
+        "apps/desktop/src/i18n/*",
+        "docs/modules/ui.md",
+        "docs/screenshots/26-*"
+      ]
+    },
+    "editor": {
+      "agents": ["zcode-b", "antigravity-b"],
+      "paths": [
+        "packages/editor/*",
+        "docs/modules/editor.md",
+        "docs/adr/0015-*",
+        "docs/screenshots/13-*",
+        "docs/screenshots/23-*"
+      ]
+    },
+    "bugs": {
+      "agents": ["antigravity-c"],
+      "paths": ["docs/screenshots/*"],
+      "note": "Además, solo los archivos que exige su issue de bug; lo demás va con cross-lane."
+    },
+    "search": {
+      "agents": ["antigravity-search"],
+      "paths": [
+        "crates/fossil-core/src/search*",
+        "crates/fossil-core/src/indexer*",
+        "crates/fossil-core/benches/*",
+        "crates/fossil-core/migrations/0002_*",
+        "apps/desktop/src-tauri/src/commands/search*",
+        "docs/modules/search.md",
+        "docs/specs/r1-search.md"
+      ]
+    },
+    "ai": {
+      "agents": ["antigravity-ai"],
+      "paths": [
+        "crates/fossil-ai/*",
+        "crates/fossil-bridge/*",
+        "apps/desktop/src-tauri/src/commands/ai*",
+        "docs/modules/ai.md",
+        "docs/specs/r1-ai-router-bridge.md"
+      ]
+    }
+  },
+  "hot": [
+    "Cargo.toml",
+    "package.json",
+    "pnpm-workspace.yaml",
+    "apps/desktop/package.json",
+    "apps/desktop/src-tauri/Cargo.toml",
+    "apps/desktop/src-tauri/tauri.conf.json",
+    "apps/desktop/src-tauri/capabilities/*",
+    "apps/desktop/src-tauri/src/lib.rs",
+    "apps/desktop/src/app.tsx",
+    "apps/desktop/src/main.tsx",
+    "apps/desktop/src/styles.css"
+  ],
+  "generated": ["pnpm-lock.yaml", "Cargo.lock", "apps/desktop/src/bindings.ts"]
+}

@@ -1,0 +1,181 @@
+import { Button } from "@fossil/ui";
+import { useEffect, useId, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { AppInfoPanel } from "./app-info";
+import { applyDensity, applyLanguage, applyTheme, readShellPreferences } from "./shell-prefs";
+
+const SHORTCUTS = [
+  ["settings.shortcutPalette", "Ctrl+K"],
+  ["settings.shortcutQuickOpen", "Ctrl+P"],
+  ["settings.shortcutCapture", "Win+Shift+F"],
+] as const;
+
+function OptionRow<T extends string>(props: {
+  label: string;
+  value: T;
+  options: readonly (readonly [T, string])[];
+  onSelect: (next: T) => void;
+}) {
+  const labelId = useId();
+  return (
+    <section className="flex items-center justify-between gap-4 border-b border-[color:var(--border)] py-3">
+      <span id={labelId} className="text-sm font-medium text-[color:var(--fg)]">
+        {props.label}
+      </span>
+      <fieldset
+        aria-labelledby={labelId}
+        className="m-0 inline-flex min-w-0 gap-1 rounded-md border border-[color:var(--border)] bg-[color:var(--bg)] p-1"
+      >
+        {props.options.map(([opt, text]) => (
+          <Button
+            key={opt}
+            className="border-0 px-2.5 text-xs"
+            variant={props.value === opt ? "primary" : "secondary"}
+            aria-pressed={props.value === opt}
+            onClick={() => props.onSelect(opt)}
+          >
+            {text}
+          </Button>
+        ))}
+      </fieldset>
+    </section>
+  );
+}
+
+const FOCUSABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+
+/**
+ * Settings dialog (#31): vault, theme, density, language, shortcuts and app
+ * diagnostics. Modal: focus moves in on open, Tab stays inside, Escape or a
+ * click on the backdrop closes it, and focus returns to the opener.
+ */
+export function ShellSettings(props: { open: boolean; vaultName: string; onClose: () => void }) {
+  const { t } = useTranslation();
+  const [prefs, setPrefs] = useState(readShellPreferences);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const { open, onClose } = props;
+  const titleId = useId();
+  // The parent passes a new onClose each render; a ref keeps the focus effect
+  // tied to "open" only, so a re-render never steals focus inside the dialog.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    dialogRef.current?.querySelector<HTMLElement>(FOCUSABLE)?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onCloseRef.current();
+        return;
+      }
+      if (e.key !== "Tab" || dialogRef.current === null) return;
+      const items = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(FOCUSABLE));
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (first === undefined || last === undefined) return;
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      opener?.focus();
+    };
+  }, [open]);
+
+  if (!open) return null;
+
+  return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: backdrop click is a mouse shortcut; keyboard users close with Escape (handled above).
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[color:var(--bg)]/75 p-4"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="flex w-full max-w-lg flex-col rounded-lg border border-[color:var(--border)] bg-[color:var(--bg-elevated)] p-5 text-[color:var(--fg)]"
+      >
+        <header className="flex items-center justify-between border-b border-[color:var(--border)] pb-3">
+          <h2 id={titleId} className="text-base font-semibold">
+            {t("settings.title")}
+          </h2>
+          <Button variant="secondary" onClick={onClose}>
+            {t("settings.close")}
+          </Button>
+        </header>
+
+        <section className="flex items-center justify-between gap-4 border-b border-[color:var(--border)] py-3 text-sm">
+          <span className="font-medium text-[color:var(--fg)]">{t("settings.vault")}</span>
+          <span className="font-mono text-xs text-[color:var(--fg-muted)]">{props.vaultName}</span>
+        </section>
+
+        <OptionRow
+          label={t("settings.theme")}
+          value={prefs.theme}
+          options={[
+            ["system", t("settings.themeSystem")],
+            ["light", t("settings.themeLight")],
+            ["dark", t("settings.themeDark")],
+          ]}
+          onSelect={(theme) => {
+            applyTheme(theme);
+            setPrefs((p) => ({ ...p, theme }));
+          }}
+        />
+        <OptionRow
+          label={t("settings.density")}
+          value={prefs.density}
+          options={[
+            ["comfortable", t("settings.densityComfortable")],
+            ["compact", t("settings.densityCompact")],
+          ]}
+          onSelect={(density) => {
+            applyDensity(density);
+            setPrefs((p) => ({ ...p, density }));
+          }}
+        />
+        <OptionRow
+          label={t("settings.language")}
+          value={prefs.language}
+          options={[
+            ["es-MX", t("settings.languageEs")],
+            ["en", t("settings.languageEn")],
+          ]}
+          onSelect={(language) => {
+            applyLanguage(language);
+            setPrefs((p) => ({ ...p, language }));
+          }}
+        />
+
+        <section className="flex flex-col gap-1.5 border-b border-[color:var(--border)] py-3 text-xs">
+          <span className="font-medium text-[color:var(--fg-muted)]">
+            {t("settings.shortcuts")}
+          </span>
+          {SHORTCUTS.map(([key, combo]) => (
+            <div key={combo} className="flex items-center justify-between py-0.5">
+              <span className="text-[color:var(--fg)]">{t(key)}</span>
+              <kbd className="rounded border border-[color:var(--border)] bg-[color:var(--bg)] px-1.5 py-0.5 font-mono text-[color:var(--fg-muted)]">
+                {combo}
+              </kbd>
+            </div>
+          ))}
+        </section>
+
+        <footer className="pt-3">
+          <AppInfoPanel />
+        </footer>
+      </div>
+    </div>
+  );
+}

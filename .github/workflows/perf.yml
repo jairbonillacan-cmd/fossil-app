@@ -1,0 +1,88 @@
+name: Perf
+
+on:
+  # Every code PR (the table is commented on the PR) and every merge to main.
+  # Docs and management scripts never change the app.
+  pull_request:
+    paths-ignore:
+      - "docs/**"
+      - "site/**"
+      - "**/*.md"
+      - "scripts/merge.ps1"
+      - "scripts/tests/**"
+      - "scripts/check-denylist.ps1"
+      - "scripts/capture-window.ps1"
+      - "scripts/github-bootstrap.sh"
+      - ".github/lanes.json"
+      - ".github/denylist.txt"
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".github/PULL_REQUEST_TEMPLATE.md"
+  push:
+    branches: [main]
+    paths-ignore:
+      - "docs/**"
+      - "site/**"
+      - "**/*.md"
+      - "scripts/merge.ps1"
+      - "scripts/tests/**"
+      - "scripts/check-denylist.ps1"
+      - "scripts/capture-window.ps1"
+      - "scripts/github-bootstrap.sh"
+      - ".github/lanes.json"
+      - ".github/denylist.txt"
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".github/PULL_REQUEST_TEMPLATE.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: perf-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  perf:
+    name: perf
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: powershell
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+
+      # pnpm must be installed before setup-node enables its pnpm cache.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install JS dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Rust toolchain (stable + MSVC per rust-toolchain.toml)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build release (NSIS installer)
+        run: pnpm build
+
+      - name: Run perf measurements
+        id: perf
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/perf.ps1
+        continue-on-error: true
+
+      - name: Comment metrics on PR
+        if: always() && github.event_name == 'pull_request'
+        # PRs from forks get a read-only token: the table is also in the job log.
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh pr comment ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --body-file perf-report.md
+
+      - name: Enforce budgets
+        if: steps.perf.outcome == 'failure'
+        run: exit 1

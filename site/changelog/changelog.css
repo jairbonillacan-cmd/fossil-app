@@ -1,0 +1,98 @@
+/* Changelog */
+
+.entries {
+  margin-top: 48px;
+}
+
+.entry {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 40px;
+  padding: 40px 0;
+  border-top: 1px solid var(--border);
+}
+
+.entry-meta {
+  position: sticky;
+  top: 80px;
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.entry-meta h2 {
+  margin: 0;
+  font: 600 20px / 1.3 var(--display);
+  letter-spacing: -0.01em;
+}
+
+.entry-meta h2 a {
+  text-decoration: none;
+}
+
+.entry-meta h2 a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.entry-meta time,
+.platform {
+  font-size: 14px;
+  color: var(--fg-muted);
+}
+
+.platform {
+  color: var(--fg-faint);
+}
+
+.badge {
+  align-self: start;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border: 1px solid var(--fg);
+  border-radius: 999px;
+}
+
+.entry-body > :first-child {
+  margin-top: 0;
+}
+
+.entry-body p {
+  margin: 0 0 16px;
+}
+
+.entry-body h3 {
+  margin: 28px 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+
+.entry-body ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.entry-body li {
+  margin: 6px 0;
+}
+
+.entry-body li::marker {
+  color: var(--fg-faint);
+}
+
+@media (max-width: 760px) {
+  .entry {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    padding: 32px 0;
+  }
+
+  .entry-meta {
+    position: static;
+  }
+}

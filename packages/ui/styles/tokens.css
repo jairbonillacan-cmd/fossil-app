@@ -1,0 +1,43 @@
+/*
+ * Fossil design tokens (docs/DESIGN.md).
+ *
+ * Monochrome brand palette: the accent is black in light theme and white in
+ * dark theme; neutral grays (no color tint) cover surfaces and borders; color
+ * is reserved for semantic states and data. Every pair meets WCAG AA contrast.
+ *
+ * Each color token uses light-dark(lightValue, darkValue): the value follows
+ * the *used* color-scheme. The scheme follows the OS by default; setting
+ * data-theme="light|dark" on <html> pins it explicitly (in-app theme setting).
+ */
+:root {
+  color-scheme: light dark;
+
+  /* Semantic surfaces, text and borders. */
+  --bg: light-dark(#ffffff, #0a0a0a);
+  --bg-elevated: light-dark(#f5f5f5, #1a1a1a);
+  --fg: light-dark(#0a0a0a, #fafafa);
+  --fg-muted: light-dark(#525252, #a3a3a3);
+  --border: light-dark(#d4d4d4, #2e2e2e);
+
+  /* Brand accent: black on light, white on dark. */
+  --accent: light-dark(#0a0a0a, #fafafa);
+  --accent-fg: light-dark(#ffffff, #0a0a0a);
+
+  /* Semantic states (the only non-monochrome colors in the UI). */
+  --danger: light-dark(#b91c1c, #f87171);
+  --success: light-dark(#15803d, #4ade80);
+  --warning: light-dark(#a16207, #fbbf24);
+
+  /* Type: self-hosted variable fonts, see fonts.css. */
+  --font-ui: "InterVariable", "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrainsMonoVariable", "JetBrains Mono", ui-monospace, monospace;
+}
+
+/* Explicit theme overrides; without them the OS preference wins. */
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}

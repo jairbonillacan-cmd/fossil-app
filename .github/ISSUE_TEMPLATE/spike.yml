@@ -1,0 +1,29 @@
+name: Spike (investigación con tiempo fijo)
+description: Reducir un riesgo técnico en 1–2 días; el entregable es conocimiento
+labels: ["type:spike"]
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Pregunta a responder
+    validations:
+      required: true
+  - type: input
+    id: timebox
+    attributes:
+      label: Timebox
+      value: "2 días máx."
+  - type: textarea
+    id: context
+    attributes:
+      label: Contexto a leer
+    validations:
+      required: true
+  - type: textarea
+    id: deliverable
+    attributes:
+      label: Entregable
+      value: |
+        - [ ] Hallazgos (mediciones, comandos exactos, limitaciones) comentados en el issue
+        - [ ] Conclusión en docs/modules/<area>.md y/o ADR nuevo si cambia una decisión
+        - [ ] Código de prueba en rama `spike/<n>-<slug>` (no se mergea salvo que se indique)

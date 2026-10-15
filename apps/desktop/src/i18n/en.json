@@ -1,0 +1,70 @@
+{
+  "app": {
+    "loading": "Loading…",
+    "info": "Version {{version}} · Data: {{dataDir}}",
+    "error": "Error: {{error}}"
+  },
+  "vault": {
+    "subtitle": "Choose a vault to get started",
+    "loading": "Loading…",
+    "create": "New vault",
+    "createHint": "Create a new vault in a folder on your computer",
+    "open": "Open vault",
+    "openHint": "Open an existing vault",
+    "recents": "Recent vaults",
+    "recentsEmpty": "No recent vaults yet."
+  },
+  "sidebar": {
+    "label": "Pages",
+    "newPage": "New page",
+    "today": "Today",
+    "settings": "Settings",
+    "loading": "Loading…",
+    "empty": "No pages yet. Create the first one with “New page”."
+  },
+  "editor": {
+    "emptyTitle": "No page open",
+    "emptyBody": "Pick a page from the list or create a new one.",
+    "titleLabel": "Page title",
+    "untitled": "Untitled",
+    "exportMarkdown": "Export Markdown",
+    "exportFailed": "The page could not be exported. Try again.",
+    "placeholder": "Type something or press “/” to insert a block",
+    "slash": {
+      "label": "Block commands",
+      "empty": "No matching blocks",
+      "paragraph": "Text",
+      "heading1": "Heading 1",
+      "heading2": "Heading 2",
+      "heading3": "Heading 3",
+      "bulletList": "Bullet list",
+      "orderedList": "Numbered list",
+      "taskList": "Task list",
+      "blockquote": "Quote",
+      "codeBlock": "Code block"
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "close": "Close",
+    "vault": "Active vault",
+    "theme": "Theme",
+    "themeSystem": "System",
+    "themeLight": "Light",
+    "themeDark": "Dark",
+    "density": "Density",
+    "densityComfortable": "Comfortable",
+    "densityCompact": "Compact",
+    "language": "Language",
+    "languageEs": "Español (MX)",
+    "languageEn": "English",
+    "shortcuts": "Keyboard shortcuts",
+    "shortcutPalette": "Command palette",
+    "shortcutQuickOpen": "Quick switcher",
+    "shortcutCapture": "Global quick capture"
+  },
+  "error": {
+    "notImplemented": "This feature is not available yet.",
+    "generic": "Something went wrong: {{error}}"
+  }
+}

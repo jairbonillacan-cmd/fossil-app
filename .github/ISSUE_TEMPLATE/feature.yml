@@ -1,0 +1,46 @@
+name: Feature / tarea
+description: Trabajo autocontenido para un agente (size S o M)
+labels: ["type:feat"]
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: Objetivo
+      description: Una frase.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Contexto a leer
+      description: Lista EXACTA de archivos y docs. El agente no debe explorar más allá de esto.
+      placeholder: |
+        - AGENTS.md
+        - docs/specs/r1-editor.md §Features
+        - docs/modules/editor.md
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Criterios de aceptación
+      placeholder: |
+        - [ ] ...
+    validations:
+      required: true
+  - type: textarea
+    id: out
+    attributes:
+      label: Fuera de alcance
+  - type: input
+    id: deps
+    attributes:
+      label: Depende de
+      placeholder: "#12, #13"
+  - type: textarea
+    id: verify
+    attributes:
+      label: Cómo verificar
+      description: Comandos o pasos concretos.
+    validations:
+      required: true

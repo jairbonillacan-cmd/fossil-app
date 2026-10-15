@@ -1,0 +1,44 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: release
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: powershell
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+
+      # pnpm must be installed before setup-node enables its pnpm cache.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install JS dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Rust toolchain (stable + MSVC per rust-toolchain.toml)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build NSIS installer and create draft release
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "Fossil ${{ github.ref_name }}"
+          releaseBody: "Instalador NSIS de Fossil. Ver los assets."
+          releaseDraft: true
+          prerelease: false

@@ -1,0 +1,121 @@
+name: CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# A new push to a PR cancels its previous run, but every commit on main
+# finishes its CI (main's status gates every merge).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # Job name is stable: required status check for main branch protection.
+  ci:
+    name: ci
+    # Drafts skip CI; it runs on ready_for_review and on every push to a ready PR.
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    runs-on: windows-latest
+    defaults:
+      run:
+        # Windows PowerShell 5.1, the same shell contributors use for the scripts.
+        shell: powershell
+    timeout-minutes: 60
+    steps:
+      # Depth 2: for a PR, HEAD is GitHub's merge commit and HEAD^1 the base tip,
+      # so `git diff HEAD^1 HEAD` is exactly what the PR changes.
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+
+      # Path filters. The job always runs and
+      # always reports "ci"; only the steps that cannot be affected are skipped.
+      # Anything unexpected (push to main, diff error, no files) runs everything.
+      - name: Detect changed areas
+        id: changes
+        run: |
+          $js = "true"; $rust = "true"
+          if ("${{ github.event_name }}" -eq "pull_request") {
+            # --no-renames: a moved file counts at its old path too. quotepath=false: non-ASCII paths stay unquoted.
+            $files = @(git -c core.quotepath=false diff --name-only --no-renames HEAD^1 HEAD)
+            $diffOk = $LASTEXITCODE -eq 0
+            if ($diffOk -and $files.Count -gt 0) {
+              $rustPattern = '^(crates/|apps/desktop/src-tauri/|Cargo\.(toml|lock)$|rust-toolchain\.toml$|rustfmt\.toml$|clippy\.toml$|\.cargo/|\.config/nextest\.toml$|deny\.toml$|\.github/workflows/|apps/desktop/src/bindings\.ts$)'
+              $docsPattern = '^docs/|\.md$'
+              if (-not ($files | Where-Object { $_ -match $rustPattern })) { $rust = "false" }
+              if (-not ($files | Where-Object { $_ -notmatch $docsPattern })) { $js = "false"; $rust = "false" }
+            }
+            Write-Output ("changed files: " + ($files -join ", "))
+          }
+          Write-Output "js=$js rust=$rust"
+          "js=$js" | Add-Content -Encoding ascii $env:GITHUB_OUTPUT
+          "rust=$rust" | Add-Content -Encoding ascii $env:GITHUB_OUTPUT
+          # A failed `git diff` already chose "run everything"; do not fail the step on its exit code.
+          $global:LASTEXITCODE = 0
+
+      # pnpm must be installed before setup-node enables its pnpm cache.
+      - uses: pnpm/action-setup@v4
+        if: steps.changes.outputs.js == 'true'
+
+      - uses: actions/setup-node@v5
+        if: steps.changes.outputs.js == 'true'
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install JS dependencies
+        if: steps.changes.outputs.js == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Rust toolchain (stable + MSVC per rust-toolchain.toml)
+        if: steps.changes.outputs.rust == 'true'
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        if: steps.changes.outputs.rust == 'true'
+
+      - uses: taiki-e/install-action@v2
+        if: steps.changes.outputs.rust == 'true'
+        with:
+          tool: cargo-nextest
+
+      # Windows PowerShell 5.1, the same shell agents use to run the gate.
+      # Always runs: it is fast and needs no dependencies.
+      - name: merge gate tests
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/tests/merge-gate.tests.ps1
+
+      - name: pnpm check (biome + typecheck + vitest)
+        if: steps.changes.outputs.js == 'true'
+        run: pnpm check
+
+      - name: cargo fmt
+        if: steps.changes.outputs.rust == 'true'
+        run: cargo fmt --all --check
+
+      - name: cargo clippy
+        if: steps.changes.outputs.rust == 'true'
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: cargo nextest
+        if: steps.changes.outputs.rust == 'true'
+        run: cargo nextest run --workspace
+
+      # The test suite regenerates apps/desktop/src/bindings.ts (tauri-specta
+      # export on debug builds). Fail if the committed file drifted: the
+      # generated contract and the Rust code must always match.
+      - name: bindings.ts must be up to date
+        if: steps.changes.outputs.rust == 'true'
+        run: git diff --exit-code -- apps/desktop/src/bindings.ts
+
+      # Fossil is a generic product: no client names or personal paths.
+      # Always runs, also on docs-only PRs.
+      - name: denylist (client names, personal paths)
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check-denylist.ps1

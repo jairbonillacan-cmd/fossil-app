@@ -1,0 +1,18 @@
+# Terms that must never appear in the repo. Checked in CI by scripts/check-denylist.ps1.
+# Fossil is a generic product: no client names, no personal absolute paths.
+# Client and company names go hashed, one word per line, so this file never publishes them:
+#   powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check-denylist.ps1 -Hash <word>
+# and paste the sha256:... line it prints. Plain lines are fixed strings (paths).
+# Hashed words also cover names of other products: Fossil does not name or compare itself with them.
+sha256:2fba44e0d0ce52c891f54ba5ec4dc0f9601af2af91ff898b4ecfecfa37e03a7a
+sha256:4e2295dd929e424aa1afde7049924cb231f451c9884d7915ae33690b73b227ec
+sha256:31f61ed3e6e210c5f3f729345968bdbcf267cf0fbfec31eac02ed9966ba1d067
+sha256:752ae8b3c213e675c07557b52f75ac9997827add6d683fae865b3c1bb7d923e9
+sha256:9c00698ac74e7a92334ccb98edd66de201b70df839727c1ef19b6d98fabf5dac
+sha256:e5b9cb864d2243b76c128f9f269cbfde2a307f7f30448c66c53d97257af56ab5
+sha256:87f2bd8e8d1cbb83cec113aaca886063536b61e5d058b5730d539c8b1dacb96e
+sha256:7f909b6b8f9ca6cd7a593574d01578981c6ed32a21493730cf013d5a5cfe6334
+sha256:fc77fdb4254b580ea062fcda7ab888125707a97331a86b4302298730aacf8762
+sha256:079f912e7f330a1bebb8f346ce65568201cec4bf4d2f7eeb69583578542bf91b
+sha256:bbbca67f219ac261df0876c4b6264e2daa329e0b453493db791404e6576a75a7
+C:\Users\

@@ -1,0 +1,23 @@
+{
+  "name": "fossil",
+  "private": true,
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "packageManager": "pnpm@12.11.2",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @fossil/desktop tauri dev",
+    "build": "pnpm --filter @fossil/desktop tauri build",
+    "check": "biome check . && pnpm -r --if-present run typecheck && pnpm -r --if-present run test",
+    "fmt": "biome check --write . && cargo fmt --all",
+    "lint:rust": "cargo clippy --workspace --all-targets -- -D warnings",
+    "test:rust": "cargo nextest run --workspace"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.15",
+    "typescript": "7.0.2",
+    "vitest": "5.0.4"
+  }
+}

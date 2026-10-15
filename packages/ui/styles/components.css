@@ -1,0 +1,118 @@
+/*
+ * Base styles for @fossil/ui components. Only semantic tokens are referenced;
+ * never a raw color. Sizes follow the 4 px scale, transitions 120-200 ms
+ * ease-out, focus is always visible (docs/DESIGN.md).
+ */
+
+.fui-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-sizing: border-box;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-family: var(--font-ui);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background-color 150ms ease-out,
+    border-color 150ms ease-out,
+    color 150ms ease-out;
+}
+.fui-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Variant "primary": the monochrome accent fills the control. */
+.fui-button--primary {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+.fui-button--primary:hover:not(:disabled) {
+  background: var(--fg-muted);
+}
+
+/* Variant "secondary": quiet outline on the current surface. */
+.fui-button--secondary {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--fg);
+}
+.fui-button--secondary:hover:not(:disabled) {
+  border-color: var(--fg-muted);
+  background: var(--bg-elevated);
+}
+
+.fui-input {
+  box-sizing: border-box;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  line-height: 1;
+}
+.fui-input::placeholder {
+  color: var(--fg-muted);
+}
+.fui-input:hover:not(:disabled) {
+  border-color: var(--fg-muted);
+}
+.fui-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: var(--bg-elevated);
+}
+.fui-input[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+/* Keyboard focus is always visible; the invalid state uses the danger ring. */
+.fui-button:focus-visible,
+.fui-input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.fui-input[aria-invalid="true"]:focus-visible {
+  outline-color: var(--danger);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fui-button,
+  .fui-input {
+    transition: none;
+  }
+}
+
+/* ---- Brand (provisional until the real logo lands; docs/DESIGN.md) ---- */
+
+.fui-wordmark {
+  font-family: var(--font-ui);
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--fg);
+}
+
+.fui-app-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+}

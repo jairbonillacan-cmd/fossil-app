@@ -1,0 +1,34 @@
+@import "tailwindcss";
+@import "@fossil/ui/tokens.css";
+@import "@fossil/ui/fonts.css";
+@import "@fossil/ui/components.css";
+
+:root {
+  color-scheme: light dark;
+}
+
+body {
+  font-family: var(--font-ui);
+  font-size: 14px;
+  color: var(--fg);
+}
+
+/*
+ * The window is transparent so the Mica effect (windowEffects in
+ * tauri.conf.json) shows through. Solid fallback when transparency is
+ * unavailable (transparent: true without a working backdrop would render
+ * nothing behind the page).
+ */
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  background: transparent;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  html {
+    background-color: var(--bg);
+  }
+}

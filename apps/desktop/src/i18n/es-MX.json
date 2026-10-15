@@ -1,0 +1,70 @@
+{
+  "app": {
+    "loading": "Cargando…",
+    "info": "Versión {{version}} · Datos: {{dataDir}}",
+    "error": "Error: {{error}}"
+  },
+  "vault": {
+    "subtitle": "Elige una bóveda para empezar",
+    "loading": "Cargando…",
+    "create": "Crear bóveda",
+    "createHint": "Crea una bóveda nueva en una carpeta de tu equipo",
+    "open": "Abrir bóveda",
+    "openHint": "Abre una bóveda que ya existe",
+    "recents": "Bóvedas recientes",
+    "recentsEmpty": "Todavía no hay bóvedas recientes."
+  },
+  "sidebar": {
+    "label": "Páginas",
+    "newPage": "Nueva página",
+    "today": "Hoy",
+    "settings": "Ajustes",
+    "loading": "Cargando…",
+    "empty": "Todavía no hay páginas. Crea la primera con «Nueva página»."
+  },
+  "editor": {
+    "emptyTitle": "Ninguna página abierta",
+    "emptyBody": "Elige una página de la lista o crea una nueva.",
+    "titleLabel": "Título de la página",
+    "untitled": "Sin título",
+    "exportMarkdown": "Exportar Markdown",
+    "exportFailed": "No se pudo exportar la página. Inténtalo de nuevo.",
+    "placeholder": "Escribe algo o pulsa «/» para insertar un bloque",
+    "slash": {
+      "label": "Comandos de bloque",
+      "empty": "Sin bloques coincidentes",
+      "paragraph": "Texto",
+      "heading1": "Encabezado 1",
+      "heading2": "Encabezado 2",
+      "heading3": "Encabezado 3",
+      "bulletList": "Lista con viñetas",
+      "orderedList": "Lista numerada",
+      "taskList": "Lista de tareas",
+      "blockquote": "Cita",
+      "codeBlock": "Bloque de código"
+    }
+  },
+  "settings": {
+    "title": "Ajustes",
+    "close": "Cerrar",
+    "vault": "Bóveda activa",
+    "theme": "Tema",
+    "themeSystem": "Sistema",
+    "themeLight": "Claro",
+    "themeDark": "Oscuro",
+    "density": "Densidad",
+    "densityComfortable": "Cómoda",
+    "densityCompact": "Compacta",
+    "language": "Idioma",
+    "languageEs": "Español (MX)",
+    "languageEn": "English",
+    "shortcuts": "Atajos de teclado",
+    "shortcutPalette": "Paleta de comandos",
+    "shortcutQuickOpen": "Cambio rápido de página",
+    "shortcutCapture": "Captura rápida global"
+  },
+  "error": {
+    "notImplemented": "Esta función todavía no está disponible.",
+    "generic": "Algo salió mal: {{error}}"
+  }
+}
