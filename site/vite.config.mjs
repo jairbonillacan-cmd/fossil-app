@@ -13,7 +13,7 @@ const pages = ["index.html", "roadmap/index.html", "changelog/index.html"].filte
 
 export default {
   root: site("."),
-  server: { port: 1450, strictPort: true, fs: { allow: [site("..")] } },
+  server: { host: "127.0.0.1", port: 1450, strictPort: true, fs: { allow: [site("..")] } },
   build: {
     outDir: site("dist"),
     emptyOutDir: true,
