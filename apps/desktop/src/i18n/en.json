@@ -82,6 +82,17 @@
     "empty": "No matching results.",
     "toggleBacklinks": "Toggle backlinks panel"
   },
+  "search": {
+    "open": "Search",
+    "title": "Global search",
+    "placeholder": "Search workspace (e.g. \"phrase\", -exclude, tag:x)…",
+    "all": "All",
+    "Journal": "Journal",
+    "tag": "Tag",
+    "from": "From",
+    "to": "To",
+    "findLabel": "Find in page"
+  },
   "error": {
     "notImplemented": "This feature is not available yet.",
     "generic": "Something went wrong: {{error}}"

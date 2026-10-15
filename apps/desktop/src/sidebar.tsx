@@ -5,6 +5,7 @@ import type { ObjectId, ObjectMeta } from "./bindings";
 import { commands, events } from "./bindings";
 import { registerCommand } from "./shell-commands";
 import { ShellPalette } from "./shell-palette";
+import { ShellSearch } from "./shell-search";
 import { ShellSettings } from "./shell-settings";
 import { errorLabel } from "./vault-screen";
 
@@ -37,6 +38,7 @@ export function Sidebar({
   const [objects, setObjects] = useState<ObjectMeta[] | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   workspaceOnSelect = onSelect;
 
   const refresh = useCallback(() => {
@@ -94,6 +96,7 @@ export function Sidebar({
           () => runRef.current(() => commands.objectCreate(newPage)),
         ],
         ["shell.today", t("sidebar.today"), () => runRef.current(() => commands.journalToday())],
+        ["shell.search", t("search.open"), () => setSearchOpen(true)],
         ["shell.settings", t("sidebar.settings"), () => setSettingsOpen(true)],
       ] as const
     ).map(([id, title, run]) => registerCommand({ id, title, run }));
@@ -126,6 +129,9 @@ export function Sidebar({
         </Button>
         <Button variant="secondary" onClick={() => void runAction(() => commands.journalToday())}>
           {t("sidebar.today")}
+        </Button>
+        <Button variant="secondary" onClick={() => setSearchOpen(true)}>
+          {t("search.open")}
         </Button>
       </div>
 
@@ -179,6 +185,7 @@ export function Sidebar({
         vaultName={vaultName}
         onClose={() => setSettingsOpen(false)}
       />
+      <ShellSearch open={searchOpen} onClose={() => setSearchOpen(false)} onSelect={onSelect} />
       <ShellPalette onSelect={onSelect} />
     </aside>
   );

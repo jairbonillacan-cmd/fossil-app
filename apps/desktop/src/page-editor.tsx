@@ -7,6 +7,7 @@ import { PageBody } from "./page-body";
 import { PageBacklinksPanel } from "./page-editor-backlinks";
 import { exportObjectMarkdown } from "./page-export";
 import { registerCommand } from "./shell-commands";
+import { PageFindBar } from "./shell-search";
 import { formatObjectTitle } from "./sidebar";
 
 const TITLE_COMMIT_MS = 400;
@@ -24,6 +25,7 @@ export function PageEditor({ object, onSelect }: PageEditorProps) {
   const [exportFailed, setExportFailed] = useState(false);
   const [backlinksOpen, setBacklinksOpen] = useState(true);
   const exportRef = useRef<() => void>(() => {});
+  const bodyRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setTitle(object?.title ?? "");
@@ -125,8 +127,11 @@ export function PageEditor({ object, onSelect }: PageEditorProps) {
             {t("editor.exportFailed")}
           </p>
         )}
-        {/* key: a new object remounts the body, so its Y.Doc and error state never leak across pages. */}
-        <PageBody key={object.id} objectId={object.id} />
+        <PageFindBar containerRef={bodyRef} />
+        <div ref={bodyRef} className="flex flex-1 flex-col">
+          {/* key: a new object remounts the body, so its Y.Doc and error state never leak across pages. */}
+          <PageBody key={object.id} objectId={object.id} />
+        </div>
       </div>
       {backlinksOpen && <PageBacklinksPanel object={object} onSelect={onSelect} />}
     </div>
