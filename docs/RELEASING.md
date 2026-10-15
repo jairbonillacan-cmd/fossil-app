@@ -46,6 +46,18 @@ Los instaladores aún **no están firmados**: Windows SmartScreen pide confirmac
 firma de código y las actualizaciones automáticas (canales estable y beta) llegan en R7
 ([`MILESTONES.md`](MILESTONES.md)). Hasta entonces, cada versión se instala a mano.
 
+## Checklist de release
+
+Antes de etiquetar y publicar una versión, verifica cada punto:
+
+- [ ] **CI y pruebas en verde en `main`:** `pnpm check`, `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings` y `cargo nextest run --workspace`.
+- [ ] **Flujos de extremo a extremo (`e2e`):** `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/e2e.ps1` en verde (crear página, enlace `[[ ]]`, panel **Enlazada desde** y búsqueda).
+- [ ] **Contrato e higiene:** `git diff --exit-code -- apps/desktop/src/bindings.ts` sin diferencias y `scripts/check-denylist.ps1` en verde.
+- [ ] **Presupuestos de rendimiento (`scripts/perf.ps1`):** instalador NSIS < 30 MB, arranque en frío < 1.5 s, RAM en reposo < 200 MB y búsqueda en 10 000 páginas < 50 ms.
+- [ ] **Versión sincronizada:** `Cargo.toml`, `apps/desktop/package.json`, `apps/desktop/src-tauri/tauri.conf.json` y `Cargo.lock` actualizados en el PR `chore(release)`.
+- [ ] **Notas y estado público:** `CHANGELOG.md`, `ROADMAP.md` y `docs/STATUS.md` al día (sin números de issue internos ni nombres de terceros en archivos públicos).
+- [ ] **Prueba en máquina limpia (Windows 11):** instalar el `.exe` generado en CI, crear un Espacio, crear una página, enlazar con `[[ ]]`, revisar **Enlazada desde**, buscar, cerrar y reabrir sin pérdida de datos.
+
 ## Si algo sale mal
 
 - **El build del tag falla:** corrige en `main` con un PR, borra la etiqueta

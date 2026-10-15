@@ -95,6 +95,11 @@ jobs:
         if: steps.changes.outputs.js == 'true'
         run: pnpm check
 
+      - name: e2e flows (tauri-driver)
+        if: steps.changes.outputs.js == 'true'
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/e2e.ps1
+
       - name: cargo fmt
         if: steps.changes.outputs.rust == 'true'
         run: cargo fmt --all --check
