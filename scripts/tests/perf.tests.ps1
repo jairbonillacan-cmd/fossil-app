@@ -1,4 +1,5 @@
-# Regression tests for scripts/perf.ps1 path resolution (#109).
+# Regression tests for scripts/perf.ps1 path resolution (#109) and for the
+# percentile function used by the perf report (#78).
 # Usage: powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/tests/perf.tests.ps1
 $ErrorActionPreference = "Stop"
 $perf = Join-Path $PSScriptRoot "..\perf.ps1"
@@ -41,6 +42,31 @@ try {
 } finally {
     $env:CARGO_TARGET_DIR = $savedTargetDir
 }
+
+# --- 3) Get-Percentile (#78): known cases on the single shared definition ------
+. (Join-Path $PSScriptRoot "..\lib\perf-stats.ps1")
+
+$oneToHundred = [double[]](1..100)
+$empty = [double[]]@()
+$single = [double[]]@([double]7)
+$unsorted = [double[]]@(3, 1, 2)
+Assert-True "p50 of 1..100 is 50" ((Get-Percentile $oneToHundred 50) -eq 50) (
+    "got $(Get-Percentile $oneToHundred 50)")
+Assert-True "p95 of 1..100 is 95" ((Get-Percentile $oneToHundred 95) -eq 95) (
+    "got $(Get-Percentile $oneToHundred 95)")
+Assert-True "empty series yields null" ($null -eq (Get-Percentile $empty 50)) "expected null"
+Assert-True "single value is its own percentile" ((Get-Percentile $single 95) -eq 7) (
+    "got $(Get-Percentile $single 95)")
+Assert-True "unsorted input is sorted first" ((Get-Percentile $unsorted 50) -eq 2) (
+    "got $(Get-Percentile $unsorted 50)")
+Assert-True "percentile above 100 clamps to the max" ((Get-Percentile $oneToHundred 150) -eq 100) (
+    "got $(Get-Percentile $oneToHundred 150)")
+
+# --- 4) scripts/perf.ps1 must keep its UTF-8 BOM for Windows PowerShell 5.1 ---
+$perfBytes = [System.IO.File]::ReadAllBytes($perf)
+$hasBom = ($perfBytes.Length -ge 3) -and ($perfBytes[0] -eq 0xEF) -and ($perfBytes[1] -eq 0xBB) -and ($perfBytes[2] -eq 0xBF)
+Assert-True "scripts/perf.ps1 starts with UTF-8 BOM (0xEF,0xBB,0xBF)" $hasBom (
+    "first bytes: $($perfBytes[0..2] -join ',')")
 
 if ($failures -gt 0) {
     Write-Output "$failures test(s) failed"
