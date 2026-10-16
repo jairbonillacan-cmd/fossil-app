@@ -2,7 +2,10 @@
 
 <!--
 Cómo escribir aquí:
-- "## <versión> · <AAAA-MM-DD>", la más nueva arriba. "## Sin publicar" para lo que ya está en main.
+- "## <versión> · <AAAA-MM-DD>", la más nueva arriba. "## Sin publicar" va siempre primero, arriba de las versiones.
+- Una línea entra en "Sin publicar" cuando el cambio ya está en main y se ve en la app. Mientras se revisa, no entra.
+- Una línea sale de "Sin publicar" solo al publicar una versión: se mueve entera a la sección de esa versión.
+- Una versión publicada no se edita: lo que falte o falle se corrige en la siguiente.
 - Grupos, solo los que apliquen: ### Novedades · ### Mejoras · ### Ya no falla
 - Una línea por cambio, desde el punto de vista de quien usa Fossil. Qué cambia, no cómo se hizo.
 - Nada interno: sin números de issue o PR, nombres de crates, CI, agentes ni métricas.
@@ -22,9 +25,14 @@ Cómo escribir aquí:
 - **Avisos, tablas y separadores**: nuevos bloques desde el menú `/` o con atajos de Markdown (`>!`, `| col |`, `---`).
 - **Arrastrar bloques y conteo en vivo**: reordena cualquier bloque desde su asa lateral y consulta el total de palabras y caracteres al pie de la página.
 - **Imágenes en páginas**: pega o arrastra imágenes al editor (`PNG`, `JPG`, `GIF`, `WebP`); se guardan en la carpeta `attachments/` del Espacio y se muestran al volver a abrir la página.
-- **Exportar Markdown** en la cabecera de cada página: descarga la página completa como `.md`.
-- **Exportar PDF** en la cabecera de cada página: abre la impresión para guardarla como PDF, siempre en tema claro y sin la barra lateral.
+- **Menú de acciones (`⋯`)** en la cabecera de cada página: reúne **Exportar Markdown**, **Exportar PDF** y **Copiar enlace**, y los títulos largos se muestran completos en varias líneas sin cortarse.
+- **Pestañas de páginas**: abre varias páginas a la vez (`Ctrl+clic` o clic central), fíjalas, ciérralas con `Ctrl+W` y cambia entre ellas con `Ctrl+Tab` sin perder la posición de lectura.
+- **Árbol de páginas y carpetas** en la barra lateral: organiza páginas dentro de carpetas arrastrándolas, pliega o despliega cada nivel y salta a cualquier página desde **Ir a página… (`Ctrl+P`)**.
+- **Captura rápida y bandeja del sistema** (`Win+Shift+F`): abre una ventana flotante en cualquier momento para pegar del portapapeles o anotar una idea directo en la Bitácora de hoy; al cerrar la ventana principal, Fossil sigue activo en la bandeja del sistema.
 - **Asistente de IA**: chat en un panel con el contexto de tu página y acciones sobre el texto seleccionado. Antes de enviar puedes ver la vista previa del contexto, y funciona con modelos locales o con tu suscripción existente.
+
+### Mejoras
+- **Barras de desplazamiento discretas**: en el editor, la barra lateral y los paneles aparecen solo al desplazarse o pasar el cursor, respetando el tema claro y oscuro.
 
 ### Ya no falla
 - Al abrir la app con el tema oscuro ya no aparece un destello blanco antes de cargar la ventana.
