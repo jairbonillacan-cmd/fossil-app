@@ -106,7 +106,7 @@ pub(crate) mod tests {
         ] {
             assert!(require_local_absolute(Path::new(path)).is_err(), "{path}");
         }
-        for path in [r"C:\Users\Acme\Mi equipo", r"\\?\C:\Users\Acme"] {
+        for path in [r"D:\Acme\Mi equipo", r"\\?\D:\Acme"] {
             assert!(require_local_absolute(Path::new(path)).is_ok(), "{path}");
         }
     }
