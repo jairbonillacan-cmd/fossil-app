@@ -54,6 +54,7 @@ Una apertura fallida conserva la conexión anterior. Mutaciones emiten `object:c
 
 ## Espejo Markdown: escritura (#21, #57)
 `mirror::export` / `export_tree` escribe con un archivo temporal y `rename`, y guarda en `.fossil/mirror.json` la ruta de cada objeto (leyendo y escribiendo `mirror.json` una sola vez por árbol). Al renombrar o archivar borra el `.md` anterior **antes** de escribir solo si ningún otro objeto apunta a esa ruta. Rechaza rutas que salgan de la bóveda. La app exporta 2 s después del último cambio (`MirrorDebounce`): `export_tree` al cambiar metadatos y `export` al editar el cuerpo (`object_apply_update`).
+**Trampa:** `mirror::inside` es la única puerta de `remove`/`export`: solo acepta rutas relativas de componentes normales **con extensión `.md`**, nunca bajo `.fossil` ni `attachments` (incluso con puntos o espacios finales), y aplica `fs_guard::reject_link` a cada prefijo — una entrada manipulada del índice no debe tocar internos ni seguir enlaces. `safe_name` reserva `.fossil` y `attachments` (con `_`) para que ningún título de página raíz choque con esas carpetas.
 
 `mirror::render_object` devuelve el mismo contenido que escribe `export`, sin tocar la bóveda. Lo usa el comando `object_export_markdown` (#126, botón **Exportar Markdown**). Si el objeto no existe, devuelve `ObjectNotFound`.
 
@@ -62,6 +63,6 @@ Una apertura fallida conserva la conexión anterior. Mutaciones emiten `object:c
 - **Formatos:** png, jpg/jpeg, gif y webp. Se valida la extensión **y** los bytes mágicos.
 - **Tamaño:** máximo 20 MB.
 - **Escritura:** atómica, por temporal y rename. Pegar el mismo nombre dos veces nunca sobrescribe.
-- **Lectura:** `load` solo acepta `attachments/<nombre>` sin `..`, subcarpetas ni separadores `\`, así que el webview no puede leer otros archivos de la bóveda.
+- **Lectura:** `load` solo acepta `attachments/<nombre>` sin `..`, subcarpetas ni separadores `\`, así que el webview no puede leer otros archivos de la bóveda. Antes de leer o escribir se verifica con `fs_guard::reject_link` que ni `attachments/` ni el archivo sean un enlace (junction/symlink).
 - **IPC:** `attachment_save(fileName, bytes) -> string` y `attachment_load(path) -> number[]`. La E/S de archivos va fuera del lock de la sesión.
 - **Gotcha:** los bytes viajan como arreglo JSON (igual que `object_load_doc`). Sirve para la alpha; si las imágenes grandes se notan lentas, migrar a `tauri::ipc::Response` o al protocolo `asset`.

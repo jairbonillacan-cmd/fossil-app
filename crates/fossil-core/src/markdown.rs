@@ -2,6 +2,7 @@
 //! Yjs `body` (TipTap / y-prosemirror node names) into Markdown that common
 //! Markdown editors can read, with YAML frontmatter, and computes Windows-safe
 //! vault paths.
+use crate::fs_guard;
 use crate::ids::ObjectId;
 use crate::object_store::{self, storage_error};
 use crate::objects::{CoreError, ObjectMeta, TypeKey};
@@ -14,11 +15,6 @@ use yrs::{
     XmlTextRef,
 };
 
-/// Device names Windows refuses as file names, with or without extension.
-const RESERVED: [&str; 22] = [
-    "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8",
-    "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
-];
 const MAX_NAME_CHARS: usize = 120;
 const MAX_DEPTH: usize = 32;
 
@@ -39,13 +35,10 @@ pub fn safe_name(title: &str, fallback: &str) -> String {
     if name.is_empty() {
         name = fallback.to_string();
     }
-    let stem = name
-        .split('.')
-        .next()
-        .unwrap_or_default()
-        .trim_end()
-        .to_ascii_uppercase();
-    if RESERVED.contains(&stem.as_str()) {
+    if fs_guard::is_reserved_device(&name)
+        || name.eq_ignore_ascii_case(".fossil")
+        || name.eq_ignore_ascii_case("attachments")
+    {
         name.insert(0, '_');
     }
     name
@@ -422,6 +415,11 @@ mod tests {
             MAX_NAME_CHARS
         );
         assert_eq!(safe_name("Plan 2026 🚀", "x"), "Plan 2026 🚀");
+        // Internal vault folders are never shadowed by a page or folder title.
+        assert_eq!(safe_name(".fossil", "x"), "_.fossil");
+        assert_eq!(safe_name("Attachments", "x"), "_Attachments");
+        assert_eq!(safe_name("ATTACHMENTS", "x"), "_ATTACHMENTS");
+        assert_eq!(safe_name("attachment", "x"), "attachment");
     }
 
     #[test]

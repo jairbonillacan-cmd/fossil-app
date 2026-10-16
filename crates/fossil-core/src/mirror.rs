@@ -3,6 +3,7 @@
 //! truth. `.fossil/mirror.json` remembers where each object was written, so
 //! renames and archives remove the stale file.
 use crate::doc_store;
+use crate::fs_guard;
 use crate::ids::ObjectId;
 use crate::markdown;
 use crate::object_store::{self, storage_error};
@@ -39,14 +40,38 @@ fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), CoreError> {
     })
 }
 
-/// Only plain relative paths inside the vault (no `..`, no drive, no root).
+/// Only plain relative `.md` paths inside the vault's content: no `..`, no
+/// drive, no root, never the internal `.fossil`/`attachments` folders, and no
+/// link on any prefix of the way (index entries are hostile input).
 fn inside(root: &Path, rel: &str) -> Result<PathBuf, CoreError> {
     let rel = Path::new(rel);
-    if rel.components().all(|c| matches!(c, Component::Normal(_))) {
-        Ok(root.join(rel))
-    } else {
-        Err(storage_error("mirror path escapes the vault"))
+    let mut components = rel.components();
+    let Some(Component::Normal(first)) = components.next() else {
+        return Err(storage_error("mirror path escapes the vault"));
+    };
+    let first_name = first.to_string_lossy().to_ascii_lowercase();
+    let first_clean = first_name.trim_end_matches(['.', ' ']);
+    if first_clean == ".fossil" || first_clean == "attachments" {
+        return Err(storage_error(
+            "mirror path points at internal vault folders",
+        ));
     }
+    if rel
+        .extension()
+        .is_none_or(|ext| !ext.eq_ignore_ascii_case("md"))
+    {
+        return Err(storage_error("mirror path must be a .md file"));
+    }
+    let mut path = root.join(first);
+    fs_guard::reject_link(&path)?;
+    for component in components {
+        let Component::Normal(part) = component else {
+            return Err(storage_error("mirror path escapes the vault"));
+        };
+        path.push(part);
+        fs_guard::reject_link(&path)?;
+    }
+    Ok(path)
 }
 
 fn remove(root: &Path, rel: &str) -> Result<(), CoreError> {
@@ -455,5 +480,64 @@ mod tests {
         );
         assert!(rel_ms < 50.0, "relative_path took {rel_ms:.2}ms");
         assert!(list_ms < 10.0, "list(parent) took {list_ms:.3}ms");
+    }
+
+    #[test]
+    fn tampered_index_entries_never_touch_internal_files() {
+        for (victim, bytes) in [
+            (".fossil/vault.json", b"{\"name\":\"Acme\"}" as &[u8]),
+            (".fossil/diario.md", b"# diario"),
+            (".fossil./x.md", b"# x"),
+            ("attachments/a.png", b"png-bytes"),
+            ("attachments /x.md", b"# x"),
+            ("data.txt", b"plain"),
+        ] {
+            let dir = tempfile::tempdir().unwrap();
+            let root = dir.path();
+            let mut conn = open_vault(":memory:").unwrap();
+            let id = page(&conn, "Nota", None);
+            let on_disk = root.join(
+                victim
+                    .replace(".fossil./", ".fossil/")
+                    .replace("attachments /", "attachments/"),
+            );
+            fs::create_dir_all(on_disk.parent().unwrap()).unwrap();
+            fs::write(&on_disk, bytes).unwrap();
+            fs::create_dir_all(root.join(".fossil")).unwrap();
+            fs::write(root.join(INDEX), format!("{{\"{}\":\"{victim}\"}}", id.0)).unwrap();
+            rename(&mut conn, &id, "Otro");
+            assert!(
+                export(&conn, root, &id).is_err(),
+                "{victim} must be refused"
+            );
+            assert_eq!(
+                fs::read(&on_disk).unwrap().as_slice(),
+                bytes,
+                "{victim} must stay intact"
+            );
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn export_refuses_writing_through_a_linked_folder() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        let outside = tempfile::tempdir().unwrap();
+        let conn = open_vault(":memory:").unwrap();
+        let area = page(&conn, "Area", None);
+        let parent = page(&conn, "Seccion", Some(area.clone()));
+        page(&conn, "Nota", Some(parent.clone()));
+        // Nested on purpose: the first path prefix (`Area`) is a real folder,
+        // so only the per-prefix link check deeper down can catch the link.
+        fs::create_dir_all(root.join("Area")).unwrap();
+        // `join` with a single segment: a `/` inside the argument makes
+        // `mklink` treat the rest of the path as a switch.
+        crate::fs_guard::tests::make_junction(&root.join("Area").join("Seccion"), outside.path());
+        assert!(export_tree(&conn, root, &area).is_err());
+        assert!(
+            !outside.path().join("Nota.md").exists(),
+            "nothing may be written outside the vault"
+        );
     }
 }
