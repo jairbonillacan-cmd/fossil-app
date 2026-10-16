@@ -4,6 +4,7 @@
 pub mod attachments;
 pub mod capture;
 pub mod doc_store;
+pub mod fs_guard;
 pub mod ids;
 pub mod indexer;
 pub mod journal;
