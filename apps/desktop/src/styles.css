@@ -32,3 +32,42 @@ body,
     background-color: var(--bg);
   }
 }
+
+/*
+ * Discreet, theme-aware scrollbars (spec R1.5, r1-scrollbar): every
+ * scrollable region (sidebar, editor, palette, search, panels) shares the
+ * same style, anchored to its container's right edge. Colors come only from
+ * the scrollbar tokens in packages/ui; the thumb is almost invisible at rest
+ * (alpha <= 0.3) and legible on hover/active (alpha >= 0.8).
+ */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border-radius: 9999px;
+  background-color: var(--scrollbar-thumb);
+  transition: background-color 150ms ease-out;
+}
+
+::-webkit-scrollbar-thumb:hover,
+::-webkit-scrollbar-thumb:active {
+  background-color: var(--scrollbar-thumb-strong);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::-webkit-scrollbar-thumb {
+    transition: none;
+  }
+}

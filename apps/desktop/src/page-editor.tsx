@@ -175,64 +175,72 @@ export function PageEditor({ object, onSelect, onObjectUpdated }: PageEditorProp
 
   return (
     <div className="flex h-full min-w-0 print:block print:h-auto">
-      <div className="mx-auto flex h-full w-full max-w-2xl flex-1 flex-col gap-4 overflow-y-auto px-6 print:h-auto print:overflow-visible py-8 in-data-[density=compact]:gap-2.5 in-data-[density=compact]:py-5">
-        <div className="flex items-start gap-2">
-          <input
-            type="text"
-            value={displayTitle}
-            aria-label={t("editor.titleLabel")}
-            placeholder={t("editor.untitled")}
-            onChange={(event) => {
-              titleRef.current = event.target.value;
-              setTitle(event.target.value);
-            }}
-            onBlur={() => void flushTitle(titleRef.current)}
-            className="min-w-0 flex-1 rounded border-0 bg-transparent px-0 text-3xl font-semibold text-[color:var(--fg)] placeholder:text-[color:var(--fg-muted)] focus-visible:outline-2 focus-visible:outline-[color:var(--accent)]"
-          />
-          <Button
-            variant="secondary"
-            className="mt-1.5 shrink-0 print:hidden"
-            onClick={() => void exportMarkdown()}
-          >
-            {t("editor.exportMarkdown")}
-          </Button>
-          <Button
-            variant="secondary"
-            className="mt-1.5 shrink-0 print:hidden"
-            onClick={() => printRef.current()}
-          >
-            {t("editor.exportPdf")}
-          </Button>
-          <Button
-            variant="secondary"
-            className="mt-1.5 shrink-0 print:hidden"
-            aria-expanded={backlinksOpen}
-            onClick={() => setBacklinksOpen((open) => !open)}
-          >
-            {t("backlinks.toggle")}
-          </Button>
-          <Button
-            variant="secondary"
-            className="mt-1.5 shrink-0"
-            aria-expanded={aiOpen}
-            onClick={() => setAiOpen((open) => !open)}
-          >
-            {t("ai.toggle")}
-          </Button>
-        </div>
-        {exportFailed && (
-          <p role="alert" className="text-sm text-[color:var(--fg-muted)] print:hidden">
-            {t("editor.exportFailed")}
-          </p>
-        )}
-        <div className="contents print:hidden">
-          <PageFindBar containerRef={bodyRef} />
-        </div>
-        <div ref={bodyRef} className="flex flex-1 flex-col">
-          {/* key: a new object remounts the body, so its Y.Doc and error state never leak across pages. */}
-          <Suspense fallback={null}>
-            <PageBody key={object.id} objectId={object.id} />
-          </Suspense>
+      {/*
+        The scroll lives on this full-width wrapper, so the scrollbar sits at
+        the window's right edge; the reading column below stays centered
+        without scrolling of its own (spec R1.5, r1-scrollbar). The right
+        panels stay outside, as siblings of this wrapper.
+      */}
+      <div className="flex h-full min-w-0 flex-1 flex-col overflow-y-auto [scrollbar-gutter:stable] print:h-auto print:overflow-visible">
+        <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-6 py-8 in-data-[density=compact]:gap-2.5 in-data-[density=compact]:py-5">
+          <div className="flex items-start gap-2">
+            <input
+              type="text"
+              value={displayTitle}
+              aria-label={t("editor.titleLabel")}
+              placeholder={t("editor.untitled")}
+              onChange={(event) => {
+                titleRef.current = event.target.value;
+                setTitle(event.target.value);
+              }}
+              onBlur={() => void flushTitle(titleRef.current)}
+              className="min-w-0 flex-1 rounded border-0 bg-transparent px-0 text-3xl font-semibold text-[color:var(--fg)] placeholder:text-[color:var(--fg-muted)] focus-visible:outline-2 focus-visible:outline-[color:var(--accent)]"
+            />
+            <Button
+              variant="secondary"
+              className="mt-1.5 shrink-0 print:hidden"
+              onClick={() => void exportMarkdown()}
+            >
+              {t("editor.exportMarkdown")}
+            </Button>
+            <Button
+              variant="secondary"
+              className="mt-1.5 shrink-0 print:hidden"
+              onClick={() => printRef.current()}
+            >
+              {t("editor.exportPdf")}
+            </Button>
+            <Button
+              variant="secondary"
+              className="mt-1.5 shrink-0 print:hidden"
+              aria-expanded={backlinksOpen}
+              onClick={() => setBacklinksOpen((open) => !open)}
+            >
+              {t("backlinks.toggle")}
+            </Button>
+            <Button
+              variant="secondary"
+              className="mt-1.5 shrink-0"
+              aria-expanded={aiOpen}
+              onClick={() => setAiOpen((open) => !open)}
+            >
+              {t("ai.toggle")}
+            </Button>
+          </div>
+          {exportFailed && (
+            <p role="alert" className="text-sm text-[color:var(--fg-muted)] print:hidden">
+              {t("editor.exportFailed")}
+            </p>
+          )}
+          <div className="contents print:hidden">
+            <PageFindBar containerRef={bodyRef} />
+          </div>
+          <div ref={bodyRef} className="flex flex-1 flex-col">
+            {/* key: a new object remounts the body, so its Y.Doc and error state never leak across pages. */}
+            <Suspense fallback={null}>
+              <PageBody key={object.id} objectId={object.id} />
+            </Suspense>
+          </div>
         </div>
       </div>
       {backlinksOpen && (
