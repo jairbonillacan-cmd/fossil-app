@@ -208,6 +208,7 @@ export function Sidebar({
         ],
         ["shell.today", t("sidebar.today"), () => runRef.current(() => commands.journalToday())],
         ["shell.search", t("search.open"), () => setSearchOpen(true)],
+        ["shell.capture", t("settings.shortcutCapture"), () => void commands.captureWindowShow()],
         ["shell.settings", t("sidebar.settings"), () => setSettingsOpen(true)],
       ] as const
     ).map(([id, title, run]) => registerCommand({ id, title, run }));
