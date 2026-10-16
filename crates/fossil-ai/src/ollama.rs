@@ -16,7 +16,8 @@ const DEFAULT_MODEL: &str = "llama3.2";
 type Res<T> = Result<T, ProviderError>;
 
 pub struct OllamaProvider {
-    client: reqwest::Client,
+    /// `None` only if the HTTP stack failed to start; every call then fails.
+    client: Option<reqwest::Client>,
     base_url: String,
 }
 
@@ -28,15 +29,48 @@ impl Default for OllamaProvider {
 
 impl OllamaProvider {
     pub fn new() -> Self {
+        // A local server must never bounce the page's text to another host.
+        let client = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+            .ok();
         Self {
-            client: reqwest::Client::new(),
+            client,
             base_url: DEFAULT_BASE_URL.to_owned(),
         }
     }
 
+    /// Checked on every call by [`local_base`], so a non-local URL never gets a request.
     pub fn with_base_url(mut self, url: impl Into<String>) -> Self {
         self.base_url = url.into().trim_end_matches('/').to_owned();
         self
+    }
+
+    fn client(&self) -> Res<(&reqwest::Client, String)> {
+        let base = local_base(&self.base_url)?;
+        let client = self
+            .client
+            .as_ref()
+            .ok_or_else(|| ProviderError::Unavailable("HTTP client unavailable".into()))?;
+        Ok((client, base))
+    }
+}
+
+/// `base_url` if it is plain http(s) on this machine: loopback host, no
+/// credentials. Ollama is the local-only provider; anything else is refused.
+fn local_base(base_url: &str) -> Res<String> {
+    let refused =
+        || ProviderError::Unavailable("Ollama base URL must be a local http address".into());
+    let url = reqwest::Url::parse(base_url).map_err(|_| refused())?;
+    let local_host = matches!(url.host_str(), Some("127.0.0.1" | "localhost" | "[::1]"));
+    if matches!(url.scheme(), "http" | "https")
+        && local_host
+        && url.username().is_empty()
+        && url.password().is_none()
+    {
+        Ok(base_url.to_owned())
+    } else {
+        Err(refused())
     }
 }
 
@@ -72,9 +106,18 @@ impl Provider for OllamaProvider {
     }
 
     async fn health(&self) -> Health {
-        let req = self
-            .client
-            .get(format!("{}/api/version", self.base_url))
+        let (client, base) = match self.client() {
+            Ok(pair) => pair,
+            Err(e) => {
+                return Health {
+                    status: HealthStatus::Error,
+                    version: None,
+                    detail: Some(e.to_string()),
+                };
+            }
+        };
+        let req = client
+            .get(format!("{base}/api/version"))
             .timeout(Duration::from_millis(1_500));
         match req.send().await {
             Ok(resp) if resp.status().is_success() => {
@@ -103,10 +146,8 @@ impl Provider for OllamaProvider {
         let model = m.to_owned();
         let msg = json!({ "role": "user", "content": build_prompt(&req) });
         let body = json!({ "model": model, "stream": true, "messages": [msg] });
-        let http_req = self
-            .client
-            .post(format!("{}/api/chat", self.base_url))
-            .json(&body);
+        let (client, base) = self.client()?;
+        let http_req = client.post(format!("{base}/api/chat")).json(&body);
         post_sse(http_req, &req, ProviderId::Ollama, model, &tx, parse_ndjson).await
     }
 }
@@ -133,5 +174,53 @@ mod tests {
         assert_eq!((s.usage.input_tokens, s.usage.output_tokens), (34, 7));
         assert_eq!(s.usage.cost_usd, Some(0.0));
         assert_eq!(text, "Hola Ollama");
+    }
+
+    /// Answers once with a redirect to `location`.
+    async fn spawn_redirect(location: &str) -> String {
+        let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = l.local_addr().unwrap();
+        let resp = format!(
+            "HTTP/1.1 302 Found\r\nLocation: {location}/api/chat\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+        );
+        tokio::spawn(async move {
+            use tokio::io::{AsyncReadExt, AsyncWriteExt};
+            if let Ok((mut s, _)) = l.accept().await {
+                let _ = s.read(&mut [0u8; 1024]).await;
+                let _ = s.write_all(resp.as_bytes()).await;
+            }
+        });
+        format!("http://{addr}")
+    }
+
+    #[tokio::test]
+    async fn redirects_are_never_followed() {
+        let ndjson = "{\"message\":{\"content\":\"elsewhere\"},\"done\":true}\n";
+        let target = spawn_mock_http(200, ndjson).await;
+        let p = OllamaProvider::new().with_base_url(spawn_redirect(&target).await);
+        assert!(collect_chat(&p).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn only_local_base_urls_are_used() {
+        for url in [
+            "http://127.0.0.1@acme.invalid",
+            "http://acme.invalid:11434",
+            "http://user:secret@127.0.0.1:11434",
+            "ftp://127.0.0.1:11434",
+            "not a url",
+        ] {
+            let p = OllamaProvider::new().with_base_url(url);
+            let err = collect_chat(&p).await.unwrap_err().to_string();
+            assert!(err.contains("local"), "{url}: {err}");
+            assert_eq!(p.health().await.status, HealthStatus::Error, "{url}");
+        }
+        for url in [
+            "http://localhost:11434",
+            "http://[::1]:11434",
+            "https://127.0.0.1",
+        ] {
+            assert!(local_base(url).is_ok(), "{url}");
+        }
     }
 }

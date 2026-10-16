@@ -74,6 +74,14 @@ impl Provider for GeminiProvider {
     async fn chat(&self, req: ChatRequest, tx: Sender<ChatEvent>) -> Res<ChatSummary> {
         let key = self.keys.require_key(ProviderId::Gemini)?;
         let m = req.options.model.as_deref().unwrap_or(DEFAULT_MODEL);
+        // The model name goes into the URL path: only plain name characters.
+        let safe = !m.is_empty()
+            && m.len() <= 128
+            && m.chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'));
+        if !safe {
+            return Err(ProviderError::Failed("invalid Gemini model name".into()));
+        }
         let model = m.to_owned();
         let url = format!(
             "{}/v1beta/models/{model}:streamGenerateContent?alt=sse",
@@ -115,5 +123,21 @@ mod tests {
         let (s, text) = collect_chat(&p_ok).await.unwrap();
         assert_eq!((s.usage.input_tokens, s.usage.output_tokens), (50, 8));
         assert_eq!(text, "Hola Gemini");
+    }
+
+    #[tokio::test]
+    async fn model_names_cannot_change_the_request_path() {
+        let keys = Arc::new(MemoryKeyring::default());
+        keys.set_key(ProviderId::Gemini, "FAKE_GEMINI_KEY_DO_NOT_USE")
+            .unwrap();
+        let sse = "data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"x\"}]}}]}\n\n";
+        for model in ["../../other", "gemini?alt=x", "a#b", "a/b", "", "a b"] {
+            let p =
+                GeminiProvider::new(keys.clone()).with_base_url(spawn_mock_http(200, sse).await);
+            let mut req = ChatRequest::default();
+            req.options.model = Some(model.into());
+            let (tx, _rx) = tokio::sync::mpsc::channel(16);
+            assert!(p.chat(req, tx).await.is_err(), "{model:?} must be rejected");
+        }
     }
 }
