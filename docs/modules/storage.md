@@ -24,7 +24,16 @@
 Los filtros de tipo comparan el enum completo en JSON; la búsqueda de título es
 literal (ASCII sin distinguir mayúsculas). `parent: None` no filtra; cuando `parent` es `Some`, `list` usa una consulta dedicada (`WHERE parent=?1`) para aprovechar `idx_objects_parent`.
 `MetaPatch` conserva campos `None` (incluido icon); archivar es un soft delete.
-`move_object(conn, id, parent)` (`object_move` en IPC) reparenta un objeto a otro padre o a la raíz (`None`), rechazando ciclos (hacia sí mismo o un descendiente) y padres inexistentes o archivados; es idempotente si el padre no cambia.
+`move_object(conn, id, parent)` (IPC `objectMove(id: ObjectId, parent: string | null) -> ObjectMeta`,
+`null` = raíz) reparenta en una transacción y no escribe nada si falla. Errores tipados:
+`ObjectNotFound` (el objeto), `ParentNotFound` (padre o ancestro inexistente; un id de otro
+Espacio cae aquí, cada Espacio es su propia base), `ParentArchived` (padre o ancestro archivado),
+`MoveCycle` (dentro de sí mismo, de un descendiente o de un ciclo previo; acota el recorrido).
+Idempotente si el padre no cambia. **Orden entre hermanos:** no hay columna de posición (orden
+manual fuera de alcance); el orden es el derivado `updated_at DESC, id`, total y sin huecos. Mover
+sube `updated_at` por encima del hermano más reciente, así que el movido queda primero y los demás
+conservan su orden. El IPC emite `object:changed` y programa `export_tree`: el `.md` y su subárbol
+pasan a la carpeta del nuevo padre. Enlaces y backlinks van por id, así que no cambian.
 Los timestamps INTEGER ms se convierten a ISO-8601 UTC con milisegundos mediante
 chrono. Las actualizaciones de metadatos son transaccionales. Los IDs se validan
 como Ulid en el límite; SQLite rechaza padres inexistentes mediante foreign keys.

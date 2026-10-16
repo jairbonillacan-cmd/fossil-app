@@ -176,7 +176,16 @@ export type ChatSummary = {
 /**  Typed errors shared by every IPC command in R1. */
 export type CoreError = 
 /**  The command is part of the fixed contract but not implemented yet. */
-"NotImplemented" | "VaultNotOpen" | ({ ObjectNotFound: string }) & { Storage?: never } | ({ Storage: string }) & { ObjectNotFound?: never };
+"NotImplemented" | "VaultNotOpen" | ({ ObjectNotFound: string }) & { MoveCycle?: never; ParentArchived?: never; ParentNotFound?: never; Storage?: never } | ({ Storage: string }) & { MoveCycle?: never; ObjectNotFound?: never; ParentArchived?: never; ParentNotFound?: never } | 
+/**
+ *  `object_move`: the target parent (or one of its ancestors) does not
+ *  exist in the open vault. Ids from another Espacio land here too.
+ */
+({ ParentNotFound: string }) & { MoveCycle?: never; ObjectNotFound?: never; ParentArchived?: never; Storage?: never } | 
+/**  `object_move`: the target parent or one of its ancestors is archived. */
+({ ParentArchived: string }) & { MoveCycle?: never; ObjectNotFound?: never; ParentNotFound?: never; Storage?: never } | 
+/**  `object_move`: the moved object would end up inside itself or a descendant. */
+({ MoveCycle: string }) & { ObjectNotFound?: never; ParentArchived?: never; ParentNotFound?: never; Storage?: never };
 
 /**  Result of a provider probe. */
 export type Health = {
