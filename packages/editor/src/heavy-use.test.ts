@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { redo, undo, yUndoPluginKey } from "y-prosemirror";
 import * as Y from "yjs";
 import { BlockId } from "./block-id";
-import { DragHandle, moveCurrentTopBlock } from "./controls";
+import { DragHandle, moveCurrentTopBlock, moveTopBranch } from "./controls";
 import { getBodyFragment } from "./editor";
 import { Outliner } from "./outliner";
 import { YSync } from "./y-sync";
@@ -203,6 +203,71 @@ describe("heavy use: multi-block selection", () => {
     editor.view.dispatch(editor.state.tr.replaceSelection(slice));
     const all = ids(editor);
     expect(new Set(all).size).toBe(all.length);
+    editor.destroy();
+  });
+});
+
+describe("heavy use: moving a branch", () => {
+  // P0 (root) → P1, P2 (children, indent 1) → P3 (root) → P4 (child)
+  const indents = [0, 1, 1, 0, 1];
+
+  it("moves a block together with its indented children, preserving IDs and order", () => {
+    const editor = createEditor(new Y.Doc());
+    seed(editor, 5, indents);
+    const before = new Map(blocks(editor).map((b) => [b.text, b.id]));
+    cursorInBlock(editor, 0);
+    editor.commands.focus();
+    editor.view.dom.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "ArrowDown", altKey: true, bubbles: true }),
+    );
+    expect(texts(editor)).toEqual(["P3", "P4", "P0", "P1", "P2"]);
+    for (const b of blocks(editor)) expect(b.id).toBe(before.get(b.text));
+    editor.destroy();
+  });
+
+  it("moves a branch up past the previous branch", () => {
+    const editor = createEditor(new Y.Doc());
+    seed(editor, 5, indents);
+    const before = new Map(blocks(editor).map((b) => [b.text, b.id]));
+    cursorInBlock(editor, 3);
+    editor.commands.focus();
+    editor.view.dom.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "ArrowUp", altKey: true, bubbles: true }),
+    );
+    expect(texts(editor)).toEqual(["P3", "P4", "P0", "P1", "P2"]);
+    for (const b of blocks(editor)) expect(b.id).toBe(before.get(b.text));
+    editor.destroy();
+  });
+
+  it("rejects drops inside the branch or out of bounds, and moves to arbitrary index", () => {
+    const editor = createEditor(new Y.Doc());
+    seed(editor, 5, indents);
+    const before = ids(editor);
+    // Dropping inside the branch (P0's branch spans 0..2) returns false without mutating doc
+    expect(moveTopBranch(editor.state, editor.view.dispatch, 0, 1)).toBe(false);
+    expect(moveTopBranch(editor.state, editor.view.dispatch, 0, 2)).toBe(false);
+    // Out of bounds returns false
+    expect(moveTopBranch(editor.state, editor.view.dispatch, -1, 3)).toBe(false);
+    expect(moveTopBranch(editor.state, editor.view.dispatch, 0, 10)).toBe(false);
+    expect(ids(editor)).toEqual(before);
+
+    // Moving P0's branch directly to the last block (4) carries children to the end
+    expect(moveTopBranch(editor.state, editor.view.dispatch, 0, 4)).toBe(true);
+    expect(texts(editor)).toEqual(["P3", "P4", "P0", "P1", "P2"]);
+    editor.destroy();
+  });
+
+  it("moves a branch via the drag handle arrow keys", () => {
+    const editor = createEditor(new Y.Doc());
+    seed(editor, 5, indents);
+    const before = new Map(blocks(editor).map((b) => [b.text, b.id]));
+    const handle = editor.view.dom.querySelector<HTMLButtonElement>(
+      '.fossil-drag-handle[data-block-index="0"]',
+    );
+    expect(handle).not.toBeNull();
+    handle?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+    expect(texts(editor)).toEqual(["P3", "P4", "P0", "P1", "P2"]);
+    for (const b of blocks(editor)) expect(b.id).toBe(before.get(b.text));
     editor.destroy();
   });
 });

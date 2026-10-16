@@ -10,6 +10,7 @@ import {
 import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view";
 import { useEffect, useState } from "react";
 import { defaultEditorTranslator, type EditorTranslator } from "./i18n";
+import { getIndent } from "./outliner";
 
 const dragPluginKey = new PluginKey<DecorationSet>("fossilDragHandle");
 export const DRAG_MIME = "application/x-fossil-block-index";
@@ -48,15 +49,81 @@ export function moveTopBlock(
   return true;
 }
 
-/** Moves the top-level block containing the current selection by `delta` (`-1` up, `+1` down). */
+/** Index just past the branch rooted at `index`: the following blocks with a deeper `indent`. */
+export function branchEnd(doc: ProseMirrorNode, index: number): number {
+  const root = getIndent(doc.child(index));
+  let end = index + 1;
+  while (end < doc.childCount && getIndent(doc.child(end)) > root) end += 1;
+  return end;
+}
+
+/**
+ * Moves the branch rooted at `fromIndex` (the block plus its deeper-indented descendants) so it
+ * lands where block `toIndex` is: before it when moving up, after `toIndex`'s own branch when
+ * moving down. Nodes are reused as-is, so every `blockId` is preserved.
+ */
+export function moveTopBranch(
+  state: EditorState,
+  dispatch: Dispatch,
+  fromIndex: number,
+  toIndex: number,
+): boolean {
+  const { doc } = state;
+  const count = doc.childCount;
+  if (fromIndex < 0 || fromIndex >= count || toIndex < 0 || toIndex >= count) return false;
+  const end = branchEnd(doc, fromIndex);
+  if (toIndex >= fromIndex && toIndex < end) return false;
+  const posOf = (index: number): number => {
+    let pos = 0;
+    for (let i = 0; i < index; i++) pos += doc.child(i).nodeSize;
+    return pos;
+  };
+  const from = posOf(fromIndex);
+  const to = posOf(end);
+  const branch = doc.slice(from, to).content;
+  // Position of the drop point in the original doc, mapped past the removed range if it follows it.
+  const dropIndex = toIndex < fromIndex ? toIndex : branchEnd(doc, toIndex);
+  const drop = posOf(dropIndex);
+  const insertAt = drop > from ? drop - (to - from) : drop;
+  const tr = state.tr.delete(from, to).insert(insertAt, branch).setMeta(dragPluginKey, true);
+  const sel = Math.min(insertAt + 1, tr.doc.content.size);
+  dispatch?.(tr.setSelection(TextSelection.near(tr.doc.resolve(sel))));
+  return true;
+}
+
+/** Moves the branch rooted at `idx` one step (`-1` up, `+1` down), children included (#77). */
+export function stepTopBranch(
+  state: EditorState,
+  dispatch: Dispatch,
+  idx: number,
+  delta: -1 | 1,
+): boolean {
+  const { doc } = state;
+  if (delta === 1) {
+    const end = branchEnd(doc, idx);
+    return end < doc.childCount && moveTopBranch(state, dispatch, idx, end);
+  }
+  if (idx === 0) return false;
+  // A deeper previous block is the tail of a previous sibling branch: jump to that branch's root.
+  const level = getIndent(doc.child(idx));
+  let target = idx - 1;
+  if (getIndent(doc.child(target)) > level) {
+    let k = idx - 1;
+    while (k > 0 && getIndent(doc.child(k)) > level) k -= 1;
+    if (getIndent(doc.child(k)) === level) target = k;
+    // If previous blocks are deeper without a matching sibling level (e.g. [0, 2, 1]), target falls back to idx - 1.
+  }
+  return moveTopBranch(state, dispatch, idx, target);
+}
+
+/** Moves the branch containing the current selection by `delta` (`-1` up, `+1` down). */
 export function moveCurrentTopBlock(
   state: EditorState,
   dispatch: Dispatch,
   delta: -1 | 1,
 ): boolean {
   if (state.selection.$from.depth < 1) return false;
-  const idx = state.selection.$from.index(0);
-  return moveTopBlock(state, dispatch, idx, idx + delta);
+  return stepTopBranch(state, dispatch, state.selection.$from.index(0), delta);
 }
 
 function buildDragDecorations(doc: ProseMirrorNode, t: EditorTranslator): DecorationSet {
@@ -87,8 +154,10 @@ function buildDragDecorations(doc: ProseMirrorNode, t: EditorTranslator): Decora
           btn.onkeydown = (e) => {
             if (e.key === "ArrowUp" || e.key === "ArrowDown") {
               e.preventDefault();
-              const target = blockIdx + (e.key === "ArrowUp" ? -1 : 1);
-              if (moveTopBlock(view.state, view.dispatch, blockIdx, target)) {
+              const delta = e.key === "ArrowUp" ? -1 : 1;
+              if (stepTopBranch(view.state, view.dispatch, blockIdx, delta)) {
+                // The moved root's new index: the selection was placed on it by the move.
+                const target = view.state.selection.$from.index(0);
                 const nextBtn = view.dom.querySelector<HTMLButtonElement>(
                   `.fossil-drag-handle[data-block-index="${target}"]`,
                 );
@@ -191,7 +260,7 @@ export const DragHandle = Extension.create<{ t: EditorTranslator }>({
               });
               if (toIdx === -1) return false;
               e.preventDefault();
-              return moveTopBlock(view.state, view.dispatch, fromIdx, toIdx);
+              return moveTopBranch(view.state, view.dispatch, fromIdx, toIdx);
             },
           },
         },

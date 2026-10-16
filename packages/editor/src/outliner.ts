@@ -13,7 +13,7 @@ type Dispatch = ((tr: Transaction) => void) | undefined;
 
 const clampIndent = (v: unknown): number =>
   Math.max(0, Math.min(MAX_OUTLINER_INDENT, Number.parseInt(String(v ?? 0), 10) || 0));
-const getIndent = (n: ProseMirrorNode): number => clampIndent(n.attrs.indent);
+export const getIndent = (n: ProseMirrorNode): number => clampIndent(n.attrs.indent);
 const getLevel = (n: ProseMirrorNode): number =>
   n.type.name === "heading" ? Number(n.attrs.level) || 0 : 0;
 

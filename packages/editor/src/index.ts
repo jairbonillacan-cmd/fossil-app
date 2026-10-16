@@ -17,6 +17,8 @@ export {
   EditorWordCount,
   moveCurrentTopBlock,
   moveTopBlock,
+  moveTopBranch,
+  stepTopBranch,
 } from "./controls";
 export type { FossilEditorProps } from "./editor";
 export { BODY_FRAGMENT_KEY, FossilEditor, getBodyFragment } from "./editor";
