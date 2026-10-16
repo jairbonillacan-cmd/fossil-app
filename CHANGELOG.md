@@ -24,6 +24,7 @@ Cómo escribir aquí:
 - **Imágenes en páginas**: pega o arrastra imágenes al editor (`PNG`, `JPG`, `GIF`, `WebP`); se guardan en la carpeta `attachments/` del Espacio y se muestran al volver a abrir la página.
 - **Exportar Markdown** en la cabecera de cada página: descarga la página completa como `.md`.
 - **Exportar PDF** en la cabecera de cada página: abre la impresión para guardarla como PDF, siempre en tema claro y sin la barra lateral.
+- **Asistente de IA**: chat en un panel con el contexto de tu página y acciones sobre el texto seleccionado. Antes de enviar puedes ver la vista previa del contexto, y funciona con tus propias claves de API, con modelos locales o con tu suscripción existente.
 
 ### Ya no falla
 - Al abrir la app con el tema oscuro ya no aparece un destello blanco antes de cargar la ventana.
