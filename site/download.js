@@ -23,9 +23,12 @@ const applyFallback = () => {
     link.textContent = "Ver versiones";
     link.removeAttribute("aria-label");
   }
-  for (const el of document.querySelectorAll("[data-download-meta], [data-download-note]")) {
+  for (const el of document.querySelectorAll("[data-download-meta]")) {
     el.hidden = true;
     el.textContent = "";
+  }
+  for (const el of document.querySelectorAll("[data-download-note]")) {
+    el.hidden = true;
   }
 };
 
