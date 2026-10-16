@@ -2,12 +2,12 @@ import { fireEvent } from "@testing-library/dom";
 import { Editor } from "@tiptap/core";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
 import StarterKit from "@tiptap/starter-kit";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { redo, undo, yUndoPluginKey } from "y-prosemirror";
 import * as Y from "yjs";
 import { BlockId } from "./block-id";
 import { Callout, TABLE_EXTENSIONS } from "./blocks";
-import { DragHandle, moveCurrentTopBlock } from "./controls";
+import { DragHandle, moveCurrentTopBlock, moveTopBlock } from "./controls";
 import { Outliner } from "./outliner";
 import { YSync } from "./y-sync";
 
@@ -78,6 +78,15 @@ const posInsideBlock = (editor: Editor, index: number, offset = 0): number => {
 /** Position right after the last character of top-level block `index`. */
 const posAtEndOfBlock = (editor: Editor, index: number): number =>
   posInsideBlock(editor, index, editor.state.doc.child(index).textContent.length);
+
+/** Index of the first top-level block of the given type, or -1. */
+const firstIndexOfType = (editor: Editor, typeName: string): number => {
+  let found = -1;
+  editor.state.doc.forEach((node, _offset, index) => {
+    if (found === -1 && node.type.name === typeName) found = index;
+  });
+  return found;
+};
 
 /** Selection boundaries spanning top-level blocks `first` through `last` (inclusive). */
 const selectionAcrossBlocks = (editor: Editor, first: number, last: number) => {
@@ -280,6 +289,216 @@ describe("Cut & paste of a whole branch (#77)", () => {
       "Hijo dos",
       "Después de la rama",
     ]);
+    expect(topLevelIds(editor)).toEqual(ids);
+    editor.destroy();
+  });
+});
+
+describe("Pasting HTML from common sources (#77)", () => {
+  interface PasteSource {
+    source: string;
+    html: string;
+    check: (editor: Editor) => void;
+  }
+
+  const SOURCES: PasteSource[] = [
+    {
+      source: "word processor",
+      html:
+        '<p style="margin-top:0;margin-bottom:0"><span style="font-weight:bold">Resumen</span>' +
+        ' de <span style="font-style:italic">Acme</span>&nbsp;Q4</p>' +
+        '<p style="text-align:center">Notas del equipo</p>',
+      check: (editor) => {
+        const html = editor.getHTML();
+        expect(html).toContain("<strong>Resumen</strong>");
+        expect(html).toContain("<em>Acme</em>");
+        expect(editor.state.doc.child(1).textContent).toBe("Resumen de Acme Q4");
+        expect(editor.state.doc.child(2).textContent).toBe("Notas del equipo");
+      },
+    },
+    {
+      source: "spreadsheet",
+      html:
+        "<table><tbody><tr><td>Región</td><td>Ventas</td></tr>" +
+        "<tr><td>Norte</td><td>1200</td></tr></tbody></table>",
+      check: (editor) => {
+        const tableIndex = firstIndexOfType(editor, "table");
+        expect(tableIndex).toBeGreaterThan(0);
+        const table = editor.state.doc.child(tableIndex);
+        expect(table.textContent).toContain("Región");
+        expect(table.textContent).toContain("1200");
+      },
+    },
+    {
+      source: "web page with styles",
+      html:
+        "<style>.promo{color:red}</style>" +
+        '<div class="promo" style="color:red"><h2>Plan Q4</h2>' +
+        '<p>Detalle en <a href="https://acme.example/plan" style="color:blue">el plan</a></p>' +
+        '<script>alert("acme")</script></div>',
+      check: (editor) => {
+        const html = editor.getHTML();
+        expect(html).not.toContain("alert");
+        expect(html).not.toContain("<style");
+        expect(html).not.toContain("style=");
+        expect(html).toContain("acme.example/plan");
+        const headingIndex = firstIndexOfType(editor, "heading");
+        expect(headingIndex).toBeGreaterThan(0);
+        expect(editor.state.doc.child(headingIndex).attrs.level).toBe(2);
+      },
+    },
+    {
+      source: "nested list",
+      html: "<ul><li>Acme<ul><li>Hijo uno</li><li>Hijo dos</li></ul></li></ul>",
+      check: (editor) => {
+        const listIndex = firstIndexOfType(editor, "bulletList");
+        expect(listIndex).toBeGreaterThan(0);
+        const list = editor.state.doc.child(listIndex);
+        expect(list.child(0).childCount).toBe(2);
+        expect(list.child(0).child(1).type.name).toBe("bulletList");
+      },
+    },
+    {
+      source: "table with header",
+      html:
+        "<table><thead><tr><th>Columna</th></tr></thead>" +
+        "<tbody><tr><td>Acme</td></tr></tbody></table>",
+      check: (editor) => {
+        const tableIndex = firstIndexOfType(editor, "table");
+        expect(tableIndex).toBeGreaterThan(0);
+        expect(editor.state.doc.child(tableIndex).child(0).child(0).type.name).toBe("tableHeader");
+      },
+    },
+    {
+      source: "code",
+      html: '<pre><code>const saludo = "Hola Acme";</code></pre>',
+      check: (editor) => {
+        const codeIndex = firstIndexOfType(editor, "codeBlock");
+        expect(codeIndex).toBeGreaterThan(0);
+        expect(editor.state.doc.child(codeIndex).textContent).toContain("Hola Acme");
+      },
+    },
+  ];
+
+  // Every fixture is pasted with the caret on an empty paragraph: that is the
+  // top-level parse context, where block structure must survive. (With the caret
+  // inside a written paragraph, the first pasted block legitimately merges into it
+  // as inline content — standard ProseMirror slice fitting, out of scope here.)
+  for (const { source, html, check } of SOURCES) {
+    it(`pasting from a ${source} leaves existing IDs untouched and creates no duplicates`, () => {
+      const { editor } = createHeavyEditor();
+      editor.commands.setContent("<p>Antes</p><p></p>");
+      const before = expectUniqueIds(editor);
+      editor.commands.setTextSelection(posAtEndOfBlock(editor, 1));
+      pasteHTML(editor, html);
+      expect(topLevelIds(editor)[0]).toBe(before[0]);
+      expectUniqueIds(editor);
+      check(editor);
+      editor.destroy();
+    });
+  }
+});
+
+describe("Multi-block selection (#77)", () => {
+  // The multi-block selection itself is produced here with the same selection range a
+  // Shift+Arrow drag produces in a real browser. Simulating the keystroke is not
+  // possible in jsdom (verified 2026-10-15: the keydown reaches prosemirror-view —
+  // the Tab shortcut fires — but vertical selection extension needs layout metrics,
+  // which jsdom reports as all-zero, so Shift+ArrowDown leaves the selection put).
+  it("deleting a selection spanning several blocks removes exactly them and keeps other IDs", () => {
+    const { editor } = createHeavyEditor();
+    editor.commands.setContent("<p>Uno</p><p>Dos</p><p>Tres</p>");
+    const ids = expectUniqueIds(editor);
+    editor.commands.setTextSelection(selectionAcrossBlocks(editor, 0, 1));
+    editor.commands.deleteSelection();
+    expect(textsOf(editor)).toEqual(["", "Tres"]);
+    expect(topLevelIds(editor)).toEqual([ids[0], ids[2]]);
+    expectUniqueIds(editor);
+    editor.destroy();
+  });
+
+  it("copying a multi-block selection and pasting it duplicates content with fresh IDs", () => {
+    const { editor } = createHeavyEditor();
+    editor.commands.setContent("<p>Uno</p><p>Dos</p><p>Tres</p>");
+    const ids = expectUniqueIds(editor);
+    editor.commands.setTextSelection(selectionAcrossBlocks(editor, 0, 1));
+    const clipboard = clipboardMock();
+    fireClipboardEvent(editor, "copy", clipboard);
+    editor.commands.setTextSelection(posAtEndOfBlock(editor, 2));
+    fireClipboardEvent(editor, "paste", clipboard);
+    expect(textsOf(editor)).toEqual(["Uno", "Dos", "TresUno", "Dos"]);
+    expect(topLevelIds(editor)).toHaveLength(4);
+    expect(topLevelIds(editor).slice(0, 3)).toEqual(ids);
+    expectUniqueIds(editor);
+    editor.destroy();
+  });
+});
+
+describe("5 000-block document (#77)", () => {
+  const BLOCK_COUNT = 5000;
+
+  const buildBigDoc = (): Y.Doc => {
+    const doc = new Y.Doc();
+    const fragment = doc.getXmlFragment("body");
+    doc.transact(() => {
+      for (let i = 0; i < BLOCK_COUNT; i++) {
+        const paragraph = new Y.XmlElement("paragraph");
+        paragraph.setAttribute("blockId", `blk_${i}`);
+        const text = new Y.XmlText();
+        text.insert(0, `Bloque Acme ${i}`);
+        paragraph.insert(0, [text]);
+        fragment.insert(fragment.length, [paragraph]);
+      }
+    });
+    return doc;
+  };
+
+  const mountBigEditor = async () => {
+    const { editor } = createHeavyEditor(buildBigDoc());
+    await vi.waitFor(() => expect(editor.state.doc.childCount).toBe(BLOCK_COUNT), {
+      timeout: 10_000,
+    });
+    return editor;
+  };
+
+  it("keeps every existing block ID unchanged through typing, splitting, moving and pasting", {
+    timeout: 120_000,
+  }, async () => {
+    const editor = await mountBigEditor();
+    const originals = new Set(topLevelIds(editor));
+    expect(originals.size).toBe(BLOCK_COUNT);
+
+    editor.commands.setTextSelection(posAtEndOfBlock(editor, BLOCK_COUNT - 1));
+    pasteHTML(editor, "<p>Pegado Acme uno</p><p>Pegado Acme dos</p>");
+    editor.commands.setTextSelection(posInsideBlock(editor, 2500, 6));
+    editor.commands.splitBlock();
+    moveTopBlock(editor.state, editor.view.dispatch, 100, 99);
+
+    const after = topLevelIds(editor);
+    expect(after).toHaveLength(BLOCK_COUNT + 2);
+    expect(new Set(after).size).toBe(after.length);
+    expect(after.filter((id) => originals.has(id))).toHaveLength(BLOCK_COUNT);
+    for (const id of after) if (!originals.has(id)) expect(id).toMatch(UUID_RE);
+    editor.destroy();
+  });
+
+  it("undoes and redoes an edit without altering any of the 5 000 block IDs", {
+    timeout: 120_000,
+  }, async () => {
+    const editor = await mountBigEditor();
+    const ids = topLevelIds(editor);
+    const firstText = editor.state.doc.child(0).textContent;
+    separateUndoStep(editor);
+    editor.commands.setTextSelection(posInsideBlock(editor, 0, 6));
+    editor.commands.insertContent("Acme ");
+    expect(editor.state.doc.child(0).textContent).toContain("Acme");
+
+    expectUndo(editor);
+    expect(editor.state.doc.child(0).textContent).toBe(firstText);
+    expect(topLevelIds(editor)).toEqual(ids);
+
+    expectRedo(editor);
+    expect(editor.state.doc.child(0).textContent).toContain("Acme");
     expect(topLevelIds(editor)).toEqual(ids);
     editor.destroy();
   });
