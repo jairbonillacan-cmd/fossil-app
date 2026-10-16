@@ -5,7 +5,13 @@ import { commands, events } from "./bindings";
 import { PageEditor } from "./page-editor";
 import "./i18n";
 
-vi.mock("./page-body", () => ({ PageBody: () => null }));
+vi.mock("./page-body", () => ({
+  PageBody: () => (
+    <div contentEditable suppressContentEditableWarning data-testid="page-body">
+      Borrador inicial con Texto clave sin cambios.
+    </div>
+  ),
+}));
 vi.mock("./bindings", () => ({
   commands: {
     objectList: vi.fn(),
@@ -52,11 +58,16 @@ describe("AiChatPanel (#14)", () => {
     });
   });
 
-  it("attaches page/selection/@pages, previews outgoing context, streams chat and runs selection actions", async () => {
+  it("shows provider/model, outgoing context and estimated/actual usage, and only inserts on confirm", async () => {
     vi.mocked(commands.aiChat).mockResolvedValue({ status: "ok", data: "req-1" });
     render(<PageEditor object={pageA} />);
     fireEvent.click(screen.getByRole("button", { name: "IA" }));
     expect(screen.getByRole("complementary", { name: "Panel de IA" })).not.toBeNull();
+    expect(screen.getByTestId("ai-chat-route").textContent).toBe("Agy · gemini-2.5-pro");
+    expect(screen.getByTestId("ai-selection-route").textContent).toBe(
+      "Anthropic · claude-sonnet-4-20250514",
+    );
+
     fireEvent.click(screen.getByRole("button", { name: "@página" }));
     fireEvent.click(await screen.findByRole("button", { name: "@Presupuesto trimestral" }));
     const selBox = screen.getByRole("textbox", { name: "Acciones sobre la selección" });
@@ -64,11 +75,13 @@ describe("AiChatPanel (#14)", () => {
     const msgBox = screen.getByRole("textbox", { name: "Mensaje para la IA" });
     fireEvent.change(msgBox, { target: { value: "Analiza este plan" } });
 
-    fireEvent.click(screen.getByRole("button", { name: "Vista previa del contexto" }));
-    const preview = screen.getByTestId("ai-context-preview").textContent ?? "";
-    expect(preview).toBe(
+    expect(screen.getByTestId("ai-context-preview").textContent).toBe(
       "[Page] Campaña de otoño\n[@Page] Presupuesto trimestral\n[Selection] Texto clave\n[Prompt] Analiza este plan",
     );
+    expect(screen.getByTestId("ai-estimated-usage").textContent).toContain("Estimado: ~27 tokens");
+    fireEvent.click(screen.getByRole("button", { name: "Anthropic" }));
+    expect(screen.getByTestId("ai-estimated-usage").textContent).toContain("USD");
+    fireEvent.click(screen.getByRole("button", { name: "Automática" }));
 
     fireEvent.click(screen.getByRole("button", { name: "Enviar" }));
     await vi.waitFor(() => expect(commands.aiChat).toHaveBeenCalledTimes(1));
@@ -82,22 +95,54 @@ describe("AiChatPanel (#14)", () => {
       options: { provider: null, model: null, timeout_ms: null },
     });
 
+    const pageSurface = await screen.findByTestId("page-body");
+    const originalPage = pageSurface.textContent;
+
     await act(async () => {
       emitAi?.({ request_id: "req-1", event: { Started: { provider: "Agy", model: "g-2.5" } } });
       emitAi?.({ request_id: "req-1", event: { Delta: { text: "Resumen listo." } } });
+      emitAi?.({
+        request_id: "req-1",
+        event: { Usage: { input_tokens: 120, output_tokens: 15, cost_usd: 0.0012 } },
+      });
     });
     expect(screen.getByText("Agy · g-2.5")).not.toBeNull();
     expect(screen.getByText("Resumen listo.")).not.toBeNull();
+    expect(screen.getByTestId("ai-actual-usage").textContent).toContain(
+      "Consumo: 135 tokens (120 entrada · 15 salida · $0.0012 USD)",
+    );
+
+    // Cancel during streaming leaves the page untouched.
     fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
     expect(commands.aiCancel).toHaveBeenCalledWith("req-1");
+    expect(pageSurface.textContent).toBe(originalPage);
 
-    for (const label of ["Reescribir", "Resumir", "Traducir", "Cambiar tono"]) {
-      fireEvent.click(screen.getByRole("button", { name: label }));
-    }
-    await vi.waitFor(() => expect(commands.aiChat).toHaveBeenCalledTimes(5));
-    for (const [req] of vi.mocked(commands.aiChat).mock.calls.slice(1)) {
-      expect(req.prompt).toContain("Texto clave");
-      expect(req.context).toContainEqual({ Selection: { text: "Texto clave" } });
-    }
+    // Rejecting a selection action proposal leaves the page untouched; confirming inserts it.
+    vi.mocked(commands.aiChat).mockResolvedValueOnce({ status: "ok", data: "req-2" });
+    fireEvent.click(screen.getByRole("button", { name: "Resumir" }));
+    await vi.waitFor(() => expect(commands.aiChat).toHaveBeenCalledTimes(2));
+    await act(async () => {
+      emitAi?.({
+        request_id: "req-2",
+        event: { Delta: { text: "Propuesta descartada sk-ant-api03-SECRET123456" } },
+      });
+      emitAi?.({
+        request_id: "req-2",
+        event: { Error: { message: "Fallo con AIzaSECRET0123456789abcdefghij" } },
+      });
+    });
+    expect(screen.queryByText(/SECRET/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Rechazar" }));
+    expect(pageSurface.textContent).toBe(originalPage);
+
+    vi.mocked(commands.aiChat).mockResolvedValueOnce({ status: "ok", data: "req-3" });
+    fireEvent.click(screen.getByRole("button", { name: "Reescribir" }));
+    await vi.waitFor(() => expect(commands.aiChat).toHaveBeenCalledTimes(3));
+    await act(async () => {
+      emitAi?.({ request_id: "req-3", event: { Delta: { text: "Texto confirmado" } } });
+    });
+    expect(pageSurface.textContent).toBe(originalPage);
+    fireEvent.click(screen.getByRole("button", { name: "Insertar en la página" }));
+    expect(pageSurface.textContent).toBe("Borrador inicial con Texto confirmado sin cambios.");
   });
 });

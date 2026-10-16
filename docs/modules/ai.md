@@ -24,8 +24,8 @@ Tipos wire en `crates/fossil-ai/src/contract.rs` (`specta::Type`; sin `i64/u64`:
 ## Proveedores por API y keyring (#32, #55)
 Claves en el Administrador de credenciales de Windows (`com.fossil.ai`, `keyring.rs`, rechazando proveedores sin clave API), streaming SSE/NDJSON (`http.rs`, acumulando `Vec<u8>` hasta `\n` antes de decodificar UTF-8 con cota de 1 MiB por línea y abortando con `tokio::select!` en `tx.closed()`) y proveedores con `health()` perezoso: Anthropic (`anthropic.rs`), OpenAI (`openai.rs`), Gemini API (`gemini.rs`, header `x-goog-api-key`) y Ollama local (`ollama.rs`, `127.0.0.1:11434`, `GET /api/version` y `POST /api/chat`).
 
-## Router y registro de uso (#34, #55)
-`AiRouter` (`router.rs`) recorre la cadena `RouteRule` (`default_routes()`), salta proveedores no listos (`HealthStatus != Ready` o `ProviderError::Unavailable`), valida capacidades y deduplica `prefer` al editar rutas (`ai_routes_get`/`ai_routes_set`), expone `ai_providers` con probe perezoso y persiste rutas (en transacción SQLite) y uso de tokens/costo en una conexión SQLite propia de `fossil-ai` (`ai_routes`, `ai_usage`, sin modificar las migraciones ni el esquema de `fossil-core` y sin guardar prompts).
+## Router, registro de uso y confirmación en UI (#34, #55, #80)
+`AiRouter` (`router.rs`) recorre la cadena `RouteRule` (`default_routes()`), salta proveedores no listos (`HealthStatus != Ready` o `ProviderError::Unavailable`), valida capacidades y deduplica `prefer` al editar rutas (`ai_routes_get`/`ai_routes_set`), expone `ai_providers` con probe perezoso, estima consumo (`estimate_usage`, `default_model`), cancela solicitudes en vuelo (`chat_with_id`/`cancel`), redacta claves en salud y errores, y persiste rutas (en transacción SQLite) y uso de tokens/costo en una conexión SQLite propia de `fossil-ai` (`ai_routes`, `ai_usage`, sin modificar las migraciones ni el esquema de `fossil-core` y sin guardar prompts). En `ai-panel.tsx`, antes de enviar se muestran proveedor, modelo, contexto y tokens estimados; las respuestas se presentan como propuestas con el consumo real y solo se insertan al confirmar.
 
 ## Tabla de CLIs (spike #14)
 
