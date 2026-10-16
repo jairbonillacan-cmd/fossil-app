@@ -24,12 +24,7 @@ const MAX_DEPTH: usize = 32;
 
 #[inline]
 fn clean_char(c: char) -> char {
-    if c.is_control()
-        || matches!(
-            c,
-            '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*'
-        )
-    {
+    if c.is_control() || matches!(c, '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*') {
         '-'
     } else {
         c
