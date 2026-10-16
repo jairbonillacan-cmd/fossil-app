@@ -78,11 +78,13 @@ pruebas visuales de cada ítem.
 
 - **Dado** cualquier zona con desplazamiento, **cuando** se ve en tema claro, **entonces** el
   pulgar es negro; y **cuando** se ve en tema oscuro, **entonces** el pulgar es blanco (deriva de
-  `--accent` o de un token nuevo en `tokens.css` con `light-dark()`; nunca un color literal).
-- **Dado** la app en reposo, **cuando** no hay puntero sobre la barra ni desplazamiento,
-  **entonces** su opacidad es ≤ 0.3 (casi imperceptible); y **cuando** el puntero está sobre ella
-  o hay desplazamiento, **entonces** su opacidad es ≥ 0.8, con transición de 120–200 ms `ease-out`
-  y sin transición si `prefers-reduced-motion: reduce`.
+  los tokens `--scrollbar-thumb` y `--scrollbar-thumb-strong` en `tokens.css` con `light-dark()`;
+  nunca un color literal).
+- **Dado** la app en reposo, **cuando** no hay puntero sobre la barra ni desplazamiento activo
+  (sin `[data-scrolling]` en el contenedor), **entonces** su opacidad efectiva es ≤ 0.3
+  (`--scrollbar-thumb`); y **cuando** el puntero está sobre ella o hay desplazamiento activo
+  (`[data-scrolling]`), **entonces** su opacidad efectiva es ≥ 0.8 (`--scrollbar-thumb-strong`),
+  respetando `prefers-reduced-motion: reduce`.
 - **Dado** la página con más contenido que la ventana, **cuando** se captura la ventana completa
   en claro y en oscuro, **entonces** la barra toca el borde derecho de la ventana, no el borde de
   la columna de lectura centrada (`max-w-2xl`).
@@ -161,8 +163,9 @@ Restauración de sesión al reiniciar (`r1-tabs-restore`) y paneles divididos (#
 ## 5. r1-sidebar-tree — Barra lateral en árbol
 
 **Entregable:** árbol de páginas (las que contienen a otras funcionan como carpetas) con mover por
-arrastre, expandido recordado, página activa resaltada y el campo de la Paleta de comandos
-(`Ctrl+P`) arriba.
+arrastre mediante el contrato IPC `object_move` (#118), estado expandido recordado por Espacio,
+página activa resaltada y acceso a la **Paleta de comandos** (`Ctrl+P`, en modo cambio rápido de
+página) arriba.
 
 ### Criterios de aceptación
 
@@ -170,18 +173,24 @@ arrastre, expandido recordado, página activa resaltada y el campo de la Paleta 
   ve un árbol jerárquico con el set de iconos Lucide por tipo fijado en el mapa de pantallas
   (r1-ui-design) —uno por tipo de página y otro para las carpetas—, legible en claro y en oscuro y
   mostrado en la captura de referencia.
-- **Dado** una página o carpeta, **cuando** se arrastra a otra carpeta o nivel, **entonces** se
-  mueve (reparentado) y el destino se marca visualmente durante el arrastre, en claro y en oscuro.
+- **Dado** una página o carpeta, **cuando** se arrastra a otra carpeta o a la raíz, **entonces** se
+  mueve (reparentado) consumiendo el contrato IPC `object_move` ya entregado en **#118**
+  (`objectMove(id: ObjectId, parent: string | null)`) y el destino se marca visualmente durante el
+  arrastre, en claro y en oscuro.
 - **Dado** un árbol expandido, **cuando** se cierra y se vuelve a abrir la app, **entonces** el
-  estado expandido/contraído de cada nodo se recuerda.
+  estado expandido/contraído de cada nodo se recuerda por Espacio en `localStorage` bajo la clave
+  `fossil.sidebar.expanded:<vaultName>`.
 - **Dado** una página abierta, **cuando** se mira la barra lateral, **entonces** la página activa
   está resaltada de forma inequívoca en claro y en oscuro (no solo por color: también atributo
   accesible).
-- **Dado** la barra lateral, **cuando** se busca una página, **entonces** el campo de la Paleta de
-  comandos (`Ctrl+P`, salto a página; `docs/GLOSSARY.md`) está arriba, siempre accesible —y el
-  atajo global sigue funcionando desde cualquier foco—, y salta a la página elegida.
+- **Dado** la barra lateral, **cuando** se busca una página, **entonces** el disparador de la
+  **Paleta de comandos** (`Ctrl+P`, en modo cambio rápido de página; `docs/GLOSSARY.md` y
+  `docs/specs/r1-shell-ux.md`) está arriba, siempre accesible —y el atajo global `Ctrl+P` sigue
+  abriendo la **Paleta de comandos** en modo cambio rápido de página desde cualquier foco—, y salta
+  a la página elegida.
 - **Dado** los tests del shell, **cuando** se ejecuta `pnpm.cmd check`, **entonces** hay tests de
-  recordar lo expandido, resaltar la activa y mover con arrastre.
+  recordar lo expandido en `localStorage` (`fossil.sidebar.expanded:<vaultName>`), resaltar la
+  activa y mover con arrastre (`objectMove`).
 
 ### Fuera de alcance
 
@@ -189,52 +198,67 @@ Favoritos, recientes y papelera (`r1-favorites-trash`) y ranking de búsqueda (`
 
 ---
 
-## 6. r1-images — Imágenes en el editor
+## 6. r1-image-blocks (`r1-images`) — Imágenes en el editor
 
 **Entregable:** insertar, redimensionar, alinear, pie de foto, `alt`, vista ampliada, carga
-diferida y supervivencia al mover o duplicar la página.
+diferida y supervivencia al mover la página de carpeta.
 
 ### Criterios de aceptación
 
 - **Dado** el editor, **cuando** se pega una imagen, se arrastra un archivo o se elige su entrada
   en el menú `/` (clave `editor.slash.image`), **entonces** se guarda en `attachments/` y el doc
-  conserva solo la ruta relativa (`attachments/<nombre>.<ext>`), nunca bytes ni data URLs.
+  conserva solo la ruta relativa (`attachments/<ulid>.<ext>`), nunca bytes ni data URLs.
 - **Dado** una imagen insertada, **cuando** se edita, **entonces** se puede redimensionar, alinear
   y escribir pie de foto y texto alternativo (`alt`), y el `alt` se conserva al editar y al
-  reabrir la página.
+  reabrir la página. En la **Copia en Markdown** (ADR-0004), el archivo `.md` conserva la sintaxis
+  estándar `![alt](attachments/<ulid>.<ext>)` (y el pie de foto como texto/título estándar si
+  aplica), mientras que el ancho y la alineación visual viven en el documento CRDT (Yjs) en SQLite
+  (fuente de verdad) sin requerir cambios en `fossil-core` en este lote.
 - **Dado** una imagen cargada, **cuando** se activa (clic o `Enter`), **entonces** se abre una
   vista ampliada que se cierra con `Esc` o clic fuera.
 - **Dado** una página con más de 10 imágenes, **cuando** se abre, **entonces** solo cargan las
-  visibles (carga diferida) sin bloquear la escritura.
-- **Dado** una página con imágenes, **cuando** se mueve de carpeta o se duplica, **entonces** las
+  visibles (carga diferida) manteniendo una **latencia de entrada de teclado < 16 ms p95 con 10
+  imágenes cargando**.
+- **Dado** una página con imágenes, **cuando** se mueve de carpeta (vía `object_move` de #118, ya
+  que los adjuntos viven por ULID en `attachments/` sin depender del padre), **entonces** las
   imágenes siguen cargando (el adjunto referenciado no se pierde).
 - **Dado** los tests del editor, **cuando** se ejecuta `pnpm.cmd check`, **entonces** hay tests de
-  insertar, conservar el `alt` y sobrevivir a duplicar la página.
+  insertar, conservar el `alt` y sobrevivir al mover la página de carpeta.
 
 ### Fuera de alcance
 
-Explorador de adjuntos (`r1-attachments`), subida a la nube y edición de píxeles.
+Duplicar página (hasta que exista un contrato `object_duplicate`), explorador de adjuntos
+(`r1-attachments`), subida a la nube, edición de píxeles y cambios en el exportador Markdown de
+`fossil-core`.
 
 ---
 
 ## Fuera de alcance global
 
-Restauración de sesión, paneles divididos, tipografía configurable (`r1-typography`), accesibilidad
-general (`r1-a11y`), contratos IPC nuevos y cualquier cambio en `bindings.ts` o en `fossil-core`.
+Restauración de sesión, paneles divididos, duplicar página (hasta que exista un contrato
+`object_duplicate`), tipografía configurable (`r1-typography`), accesibilidad general (`r1-a11y`),
+contratos IPC nuevos (el reparentado del árbol en §5 y el movimiento de página en §6 consumen el
+contrato IPC `object_move` —`objectMove(id: ObjectId, parent: string | null)`— ya entregado en
+**#118**) y cualquier cambio nuevo en `bindings.ts` o en `fossil-core`.
 
 ## Riesgos
 
 - **Scroll vs. layout:** mover el scroll de la columna centrada al contenedor ancho puede romper
   el anclaje de la barra Ctrl+F y del panel derecho; hay que verificarlos tras el cambio.
+- **WebView2 y `::-webkit-scrollbar-thumb`:** dado que Chromium/WebView2 no interpola `transition`
+  directamente sobre pseudo-elementos de scrollbar, el resaltado activo se apoya en el atributo
+  `[data-scrolling]` en el contenedor y los tokens `--scrollbar-thumb` / `--scrollbar-thumb-strong`.
 - **Pestañas desde cero:** no hay estado de navegación que heredar (solo `selected`); introducir
   historial atrás/adelante toca el estado compartido de `App`, y el singleton `workspaceOnSelect`
   de la barra lateral es un canal oculto fácil de romper.
-- **Árbol sin contrato nuevo:** `object_list` hoy devuelve una lista plana; el árbol debe
-  construirse con el modelo de objetos existente (padre/hijos) sin tocar contratos. Si el modelo
-  actual no da la jerarquía, se detiene el ítem y se comenta en el issue en vez de inventar un
-  comando.
-- **Imágenes:** `renderHTML` no emite `<img src>` y el nodo solo guarda `src`/`alt`; ampliar
-  atributos (ancho, alineación, pie) toca el schema del editor y su ida y vuelta Yjs ↔ documento,
-  con riesgo de perder contenido si el content model no calza (ADR-0003 / `docs/modules/editor.md`).
+- **Árbol con contrato existente (#118):** `object_list` devuelve los objetos con su `parent` y el
+  reparentado por arrastre consume `object_move` (`objectMove(id: ObjectId, parent: string | null)`),
+  ya fusionado en #118, sin abrir contratos nuevos.
+- **Imágenes y Copia en Markdown:** `renderHTML` no emite `<img src>` y el nodo solo guarda
+  `src`/`alt`; ampliar atributos (ancho, alineación, pie) toca el schema del editor y su ida y
+  vuelta Yjs ↔ documento, con riesgo de perder contenido si el content model no calza (ADR-0003 /
+  `docs/modules/editor.md`). El ancho y la alineación visual persisten en el CRDT Yjs en SQLite
+  (fuente de verdad) mientras que la Copia en Markdown conserva `![alt](attachments/<ulid>.<ext>)`
+  sin tocar `fossil-core`.
 - **Rendimiento:** cada zona con scroll y cada pestaña nueva suma trabajo por frame; los
   presupuestos de `docs/DOD.md` (arranque < 1.5 s, RAM < 200 MB) siguen aplicando.
