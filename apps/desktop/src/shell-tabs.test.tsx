@@ -1,0 +1,65 @@
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
+import type { ObjectMeta } from "./bindings";
+import { ShellTabs, useWorkspaceTabs, type WorkspaceTab } from "./shell-tabs";
+import "./i18n";
+
+afterEach(cleanup);
+
+const baseObj = JSON.parse(
+  '{"types":["Page"],"icon":null,"parent":null,"created_at":"","updated_at":"","archived":false}',
+) as Omit<ObjectMeta, "id" | "title">;
+const makeTabs = (n: number): WorkspaceTab[] =>
+  Array.from({ length: n }, (_, i) => ({
+    id: `t${i + 1}`,
+    pinned: false,
+    object: { ...baseObj, id: `obj-${i + 1}`, title: `Página ${i + 1}` },
+  }));
+
+function Harness({ count }: { count: number }) {
+  const t = useWorkspaceTabs(makeTabs(count));
+  return (
+    <div data-testid="sel" data-val={t.selectedObject?.id ?? "none"}>
+      <ShellTabs {...t} />
+    </div>
+  );
+}
+
+describe("ShellTabs (#106)", () => {
+  it("pins, closes, reorders by drag/keyboard/Ctrl+Tab, scrolls 15+ tabs, and steps history", () => {
+    const { container, unmount } = render(<Harness count={3} />);
+    fireEvent.click(screen.getAllByRole("button", { name: "Fijar pestaña" })[0] as HTMLElement);
+    const unpinBtn = screen.getByRole("button", { name: "Desfijar pestaña" });
+    expect(unpinBtn.closest("[data-tab-id='t1']")?.getAttribute("data-pinned")).toBe("true");
+    fireEvent.keyDown(window, { key: "w", ctrlKey: true });
+    expect(screen.getAllByRole("tab")).toHaveLength(3);
+    const items = container.querySelectorAll("[data-tab-id]");
+    fireEvent.dragStart(items[0] as Element);
+    fireEvent.dragOver(items[2] as Element);
+    expect(items[2]?.getAttribute("data-drop-target")).toBe("true");
+    fireEvent.drop(items[2] as Element);
+    fireEvent.keyDown(screen.getByRole("tab", { name: "Página 1" }), {
+      key: "ArrowLeft",
+      ctrlKey: true,
+      shiftKey: true,
+    });
+    expect(screen.getAllByRole("tab")[1]?.getAttribute("aria-label")).toBe("Página 1");
+    fireEvent.keyDown(window, { key: "Tab", ctrlKey: true });
+    expect(screen.getByTestId("sel").getAttribute("data-val")).toBe("obj-3");
+    fireEvent.click(unpinBtn);
+    fireEvent.click(screen.getByRole("tab", { name: "Página 1" }));
+    fireEvent.keyDown(window, { key: "w", ctrlKey: true });
+    expect(screen.getAllByRole("tab")).toHaveLength(2);
+    unmount();
+    render(<Harness count={15} />);
+    expect(screen.getByRole("tablist").className).toContain("overflow-x-auto");
+    fireEvent.click(screen.getByRole("button", { name: "Nueva pestaña" }));
+    expect(screen.getAllByRole("tab")).toHaveLength(16);
+    fireEvent.click(screen.getByRole("tab", { name: "Página 2" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Página 3" }));
+    fireEvent.click(screen.getByRole("button", { name: "Atrás" }));
+    expect(screen.getByTestId("sel").getAttribute("data-val")).toBe("obj-2");
+    fireEvent.click(screen.getByRole("button", { name: "Adelante" }));
+    expect(screen.getByTestId("sel").getAttribute("data-val")).toBe("obj-3");
+  });
+});
