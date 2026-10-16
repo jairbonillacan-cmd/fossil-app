@@ -29,6 +29,23 @@ const textEl = (tag: string, id: string, text: string, attrs: Record<string, Att
   return el;
 };
 
+/** Outline sample for branch-move captures (`?plan=1`): two roots, each with indented children. */
+const buildPlanUpdate = (): Uint8Array => {
+  const doc = new Y.Doc();
+  const plan: [string, number][] = [
+    ["Campaña Acme", 0],
+    ["Definir público", 1],
+    ["Elegir canales", 1],
+    ["Presupuesto", 0],
+    ["Aprobar gasto", 1],
+  ];
+  getBodyFragment(doc).insert(
+    0,
+    plan.map(([text, indent], i) => textEl("paragraph", `blk_plan${i}`, text, { indent })),
+  );
+  return Y.encodeStateAsUpdate(doc);
+};
+
 /** Builds a deterministic, neutral sample Yjs document showcasing all alpha block types. */
 const buildSampleUpdate = (openLinks = false): Uint8Array => {
   const doc = new Y.Doc();
@@ -127,16 +144,21 @@ function PlaygroundApp() {
     params.get("theme") === "dark" ? "dark" : "light",
   );
   const openLinks = params.get("links") === "1";
-  const openMenu = openLinks || params.get("slash") !== "0";
+  const plan = params.get("plan") === "1";
+  const openMenu = !plan && (openLinks || params.get("slash") !== "0");
 
   const doc = useMemo(() => new Y.Doc(), []);
   const transport = useMemo<DocTransport>(
-    () => ({ load: async () => buildSampleUpdate(openLinks), apply: async () => {} }),
-    [openLinks],
+    () => ({
+      load: async () => (plan ? buildPlanUpdate() : buildSampleUpdate(openLinks)),
+      apply: async () => {},
+    }),
+    [openLinks, plan],
   );
 
   const handleReady = (editor: Editor) => {
-    if (openMenu) editor.commands.setTextSelection(editor.state.doc.content.size - 1);
+    if (plan) editor.commands.focus("start");
+    else if (openMenu) editor.commands.setTextSelection(editor.state.doc.content.size - 1);
   };
 
   return (

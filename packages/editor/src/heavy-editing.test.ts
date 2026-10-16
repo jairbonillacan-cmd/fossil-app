@@ -212,18 +212,18 @@ describe("Undo/redo (#77)", () => {
     expect(moveCurrentTopBlock(editor.state, editor.view.dispatch, 1)).toBe(true);
     expect(textsOf(editor)).toEqual([
       "Antes de la rama",
-      "Hijo uno",
-      "Rama Acme",
-      "Hijo dos",
       "Después de la rama",
+      "Rama Acme",
+      "Hijo uno",
+      "Hijo dos",
     ]);
-    expect(topLevelIds(editor)).toEqual([ids[0], ids[2], ids[1], ids[3], ids[4]]);
+    expect(topLevelIds(editor)).toEqual([ids[0], ids[4], ids[1], ids[2], ids[3]]);
 
     expectUndo(editor);
     expect(topLevelIds(editor)).toEqual(ids);
 
     expectRedo(editor);
-    expect(topLevelIds(editor)).toEqual([ids[0], ids[2], ids[1], ids[3], ids[4]]);
+    expect(topLevelIds(editor)).toEqual([ids[0], ids[4], ids[1], ids[2], ids[3]]);
     editor.destroy();
   });
 
@@ -231,7 +231,7 @@ describe("Undo/redo (#77)", () => {
   // arrow keys — both funnel through `moveTopBlock`) relocates only the one top-level
   // block under the cursor; its indented children stay behind. Moving a branch must
   // carry the children along, preserving relative order and IDs.
-  it.fails("moving a complete branch by keyboard carries its indented children along", () => {
+  it("moving a complete branch by keyboard carries its indented children along", () => {
     const { editor } = createHeavyEditor();
     editor.commands.setContent(BRANCH_HTML);
     const ids = expectUniqueIds(editor);
