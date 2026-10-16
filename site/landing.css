@@ -45,6 +45,92 @@
   color: var(--fg-faint);
 }
 
+/* Download & coming-soon badges */
+
+.soon {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font: 600 11px / 1.6 var(--font);
+  letter-spacing: 0.02em;
+  color: var(--fg-muted);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.download-meta {
+  margin: 14px 0 0;
+  font-size: 13px;
+  color: var(--fg-muted);
+}
+
+.download-meta strong {
+  color: var(--fg);
+}
+
+.dl-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 9px;
+  border: 1px solid var(--fg);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg);
+  white-space: nowrap;
+}
+
+.download-note {
+  margin: 10px auto 0;
+  max-width: 460px;
+  font-size: 13px;
+  color: var(--fg-muted);
+  text-wrap: pretty;
+}
+
+.download-box {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin: 24px 0;
+  padding: 24px 28px;
+  border: 1px solid var(--fg);
+  border-radius: 10px;
+}
+
+.download-copy {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+
+.download-copy h3 {
+  margin: 0;
+  font: 700 20px / 1.2 var(--display);
+  letter-spacing: -0.02em;
+}
+
+.download-copy p {
+  margin: 8px 0 0;
+  font-size: 14px;
+  color: var(--fg-muted);
+  text-wrap: pretty;
+}
+
+.download-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+}
+
+.download-actions .download-note {
+  margin-top: 10px;
+}
+
 /* App window mockup & tabs */
 
 .shot {
@@ -250,7 +336,7 @@
   gap: 6px;
 }
 
-.mock-tags span {
+.mock-tags span:not(.soon) {
   padding: 2px 7px;
   border: 1px solid var(--border);
   border-radius: 999px;
@@ -328,6 +414,15 @@
   margin-top: 14px;
   border-collapse: collapse;
   font-size: 12px;
+}
+
+.mock-table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.mock-table-scroll .mock-table {
+  min-width: 460px;
 }
 
 .mock-table th,
@@ -775,7 +870,7 @@
   font: 600 15px / 1.35 var(--display);
 }
 
-.shortcut-card span {
+.shortcut-card > span {
   font-size: 13.5px;
   color: var(--fg-muted);
 }

@@ -61,7 +61,7 @@ function render(md) {
         : `<time datetime="${v.date}">${formatDate(v.date)}</time>`;
       const id = escapeHtml(v.name.toLowerCase().replace(/[^a-z0-9.-]+/g, "-"));
       return `<article class="entry" id="${id}">
-  <div class="entry-meta"><h2><a href="#${id}">${title}</a></h2>${meta}<span class="platform">Escritorio · Windows</span></div>
+  <div class="entry-meta"><h2><a href="#${id}">${title}</a></h2>${meta}<span class="platform">Escritorio · Windows 10/11 (64 bits)</span></div>
   <div class="entry-body">${body(v.lines)}</div>
 </article>`;
     })

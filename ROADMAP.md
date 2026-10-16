@@ -47,6 +47,9 @@ Un atajo global (`Win+Shift+F`) y acceso desde la bandeja del sistema para anota
 ### Pestañas y paneles divididos
 Abre varias páginas en pestañas o trabaja con dos páginas lado a lado. Al reiniciar, todo vuelve como lo dejaste.
 
+### Rediseño de la interfaz
+Barra de desplazamiento discreta pegada al borde de la ventana, encabezado de página con menú `⋯`, pestañas, árbol lateral en carpetas e imágenes integradas en la página.
+
 ### Bloques de código avanzados
 Resaltado de sintaxis por lenguaje, título de archivo, botón de copiar, números y resaltado de línea, vista de diferencias, formateo de JSON o SQL y atajos de edición de código.
 
@@ -124,21 +127,21 @@ Fossil se actualiza solo, con canal estable y beta, instalador firmado y espacio
 ## Lanzado
 
 ### Ajustes
-0.1.1 · 2026-10
+0.1.1-alpha.2 · 2026-10
 Tema claro, oscuro o del sistema, densidad e idioma.
 
 ### Editor de bloques
-0.1.0 · 2026-10
+0.1.0-alpha.1 · 2026-10
 Encabezados, listas, tareas, citas y código, con menú `/` y atajos de Markdown.
 
 ### Bitácora
-0.1.0 · 2026-10
+0.1.0-alpha.1 · 2026-10
 Una nota por día, a un clic desde la barra lateral.
 
 ### Espacios locales
-0.1.0 · 2026-10
+0.1.0-alpha.1 · 2026-10
 Tus páginas viven en una carpeta de tu computadora y funcionan sin conexión.
 
 ### Copia en Markdown
-0.1.0 · 2026-10
+0.1.0-alpha.1 · 2026-10
 Cada página se guarda también como `.md`, legible por cualquier editor.

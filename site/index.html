@@ -6,7 +6,7 @@
     <meta name="color-scheme" content="light dark" />
     <meta
       name="description"
-      content="Fossil: notas, tareas, contenido con aprobaciones y datos de comercio conectados en una app de escritorio local y rápida para Windows 11."
+      content="Fossil: notas, tareas y contenido conectados entre sí en una app de escritorio local y rápida para Windows 10 y 11 de 64 bits."
     />
     <title>Fossil</title>
     <link rel="stylesheet" href="./base.css" />
@@ -31,19 +31,29 @@
 
     <main>
       <section class="hero">
-        <p class="eyebrow">Alpha para Windows 11</p>
+        <p class="eyebrow">Alpha para Windows 10 y 11 de 64 bits</p>
         <h1>El trabajo de tu equipo, en un solo grafo.</h1>
         <p class="lede">
-          Notas, tareas, contenido con aprobaciones y datos de tu tienda y tus anuncios conectados
-          entre sí. Fossil guarda todo en tu computadora, abre en menos de un segundo y funciona sin
-          conexión.
+          Notas, tareas y contenido conectados entre sí. Fossil guarda todo en tu computadora, abre en
+          menos de un segundo y funciona sin conexión. Pronto podrás gestionar aprobaciones y ver los
+          datos de tu tienda y tus anuncios.
         </p>
         <div class="actions">
-          <a class="button primary" href="/changelog/">Qué hay de nuevo</a>
+          <a
+            class="button primary"
+            data-download
+            href="https://github.com/jairbonillacan-cmd/fossil-app/releases"
+            >Descargar para Windows</a
+          >
+          <a class="button" href="/changelog/">Qué hay de nuevo</a>
           <a class="button" href="/roadmap/">Ver el roadmap</a>
         </div>
+        <p class="download-meta" data-download-meta hidden></p>
+        <p class="download-note" data-download-note hidden>
+          Versión de prueba: puede tener errores. Conviene respaldar tu Espacio antes de instalarla.
+        </p>
         <p class="fineprint">
-          Windows 11 · Acceso por invitación durante la alpha · Tus archivos siempre en Markdown
+          Windows 10 y 11 de 64 bits · Tus archivos siempre en Markdown
         </p>
       </section>
 
@@ -80,7 +90,7 @@
             id="tab-content"
             data-pane="pane-content"
           >
-            Parrilla y aprobaciones
+            Parrilla y aprobaciones <span class="soon">Próximamente</span>
           </button>
           <button
             type="button"
@@ -91,7 +101,7 @@
             id="tab-commerce"
             data-pane="pane-commerce"
           >
-            Rentabilidad y creativos
+            Rentabilidad y creativos <span class="soon">Próximamente</span>
           </button>
         </div>
 
@@ -112,7 +122,7 @@
             <aside class="mock-side">
               <strong>Mi equipo</strong>
               <span class="mock-today">Hoy · 15 oct</span>
-              <span class="mock-search">Buscar… <code>Ctrl+P</code></span>
+              <span class="mock-search">Buscar en el Espacio…</span>
               <p class="mock-group">Páginas</p>
               <span class="is-active">Plan Q4</span>
               <span>Campaña Acme Verano</span>
@@ -150,10 +160,11 @@
               <p class="mock-h">Tareas de la semana</p>
               <ul class="mock-tasks">
                 <li class="done">Definir pilares y voz de marca de Acme</li>
-                <li class="done">Subir creativos de lanzamiento al espacio</li>
+                <li class="done">Subir creativos de lanzamiento al Espacio</li>
                 <li>Enviar enlace de aprobación de la primera quincena</li>
                 <li>Revisar resultados de la primera semana</li>
               </ul>
+              <div class="mock-table-scroll">
               <table class="mock-table">
                 <thead>
                   <tr>
@@ -175,6 +186,7 @@
                   </tr>
                 </tbody>
               </table>
+              </div>
               <div class="mock-foot">
                 <span><code>/</code> bloques · <code>[[</code> enlaces · <code>#</code> etiquetas · <code>Tab</code> sangría</span>
                 <span>148 palabras · 912 caracteres</span>
@@ -246,16 +258,13 @@
                 </div>
                 <ul class="mock-palette-list">
                   <li class="is-selected">
-                    <span>Crear nueva página</span>
-                    <code>Ctrl+N</code>
+                    <span>Nueva página</span>
                   </li>
                   <li>
-                    <span>Abrir nota de Hoy en la Bitácora</span>
-                    <code>Alt+H</code>
+                    <span>Hoy · nota de la Bitácora</span>
                   </li>
                   <li>
-                    <span>Exportar página actual como PDF</span>
-                    <code>Ctrl+P</code>
+                    <span>Exportar PDF</span>
                   </li>
                 </ul>
               </div>
@@ -277,7 +286,7 @@
             </aside>
           </div>
 
-          <!-- Vista 3: Parrilla y aprobaciones (Planeado R4) -->
+          <!-- Vista 3: Parrilla y aprobaciones (futuro) -->
           <div class="window-body shot-pane" id="pane-content" role="tabpanel" aria-labelledby="tab-content" hidden>
             <aside class="mock-side">
               <strong>Marca: Acme</strong>
@@ -293,14 +302,15 @@
               <div class="mock-page-head">
                 <p class="mock-title">Parrilla noviembre · Acme</p>
                 <div class="mock-tags">
-                  <span>Vista previa R4</span>
+                  <span class="soon">Próximamente</span>
                   <span>Enlace de aprobación activo</span>
                 </div>
               </div>
               <div class="mock-callout">
-                <strong>Regla del espacio:</strong> solo las publicaciones con las dos rondas aprobadas
+                <strong>Regla del Espacio:</strong> solo las publicaciones con las dos rondas aprobadas
                 pueden pasar a programación automática.
               </div>
+              <div class="mock-table-scroll">
               <table class="mock-table">
                 <thead>
                   <tr>
@@ -335,6 +345,7 @@
                   </tr>
                 </tbody>
               </table>
+              </div>
               <div class="mock-foot">
                 <span>El cliente revisa y aprueba desde su navegador sin crear cuenta</span>
                 <span>Exportable a PDF con estilo de marca</span>
@@ -353,7 +364,7 @@
             </aside>
           </div>
 
-          <!-- Vista 4: Rentabilidad y creativos (Planeado R5) -->
+          <!-- Vista 4: Rentabilidad y creativos (futuro) -->
           <div class="window-body shot-pane" id="pane-commerce" role="tabpanel" aria-labelledby="tab-commerce" hidden>
             <aside class="mock-side">
               <strong>Comercio · Acme</strong>
@@ -372,7 +383,7 @@
               <div class="mock-page-head">
                 <p class="mock-title">Rentabilidad y creativos</p>
                 <div class="mock-tags">
-                  <span>Vista previa R5</span>
+                  <span class="soon">Próximamente</span>
                   <span>Últimos 30 días</span>
                 </div>
               </div>
@@ -395,6 +406,7 @@
                 </div>
               </div>
               <p class="mock-h">Rendimiento por pieza creativa</p>
+              <div class="mock-table-scroll">
               <table class="mock-table">
                 <thead>
                   <tr>
@@ -422,6 +434,7 @@
                   </tr>
                 </tbody>
               </table>
+              </div>
               <div class="mock-foot">
                 <span>Ventas − costo de producto − envío − comisiones − anuncios = margen de contribución</span>
                 <span>Conectado con cada campaña</span>
@@ -478,7 +491,7 @@
           <div class="card-block">
             <h3>Búsqueda instantánea y paleta</h3>
             <p>
-              Busca en todo el espacio por texto (con o sin acentos), etiqueta, tipo o fecha con el
+              Busca en todo el Espacio por texto (con o sin acentos), etiqueta, tipo o fecha con el
               fragmento resaltado. Salta con <code>Ctrl+P</code>, ejecuta acciones con
               <code>Ctrl+K</code> o busca en la página con <code>Ctrl+F</code>.
             </p>
@@ -535,12 +548,13 @@
           <div class="concept-row">
             <div class="concept-term">
               <span class="step-num">03</span>
-              <h3>Tipo y Campo</h3>
+              <h3>Tipo y Campo <span class="soon">Próximamente</span></h3>
             </div>
             <p>
-              Un <strong>Tipo</strong> (*Tarea*, *Campaña*, *Publicación*, *Marca*, *Producto* o los que
-              tú definas) le da a una página sus propios <strong>Campos</strong> (fecha, estado,
-              presupuesto, relación con otra página, fórmula) y su plantilla inicial.
+              Un <strong>Tipo</strong> (<em>Tarea</em>, <em>Campaña</em>, <em>Publicación</em>,
+              <em>Marca</em>, <em>Producto</em> o los que tú definas) le da a una página sus propios
+              <strong>Campos</strong> (fecha, estado, presupuesto, relación con otra página, fórmula) y su
+              plantilla inicial.
             </p>
           </div>
           <div class="concept-row">
@@ -550,14 +564,13 @@
             </div>
             <p>
               Cada párrafo, elemento de lista, aviso o tabla dentro de una página tiene su propio
-              identificador estable. Puedes moverlo sin perder su identidad, plegarlo con sus hijos o
-              referenciarlo desde otra página.
+              identificador estable. Puedes moverlo sin perder su identidad o plegarlo con sus hijos.
             </p>
           </div>
           <div class="concept-row">
             <div class="concept-term">
               <span class="step-num">05</span>
-              <h3>Vista y Lista guardada</h3>
+              <h3>Vista y Lista guardada <span class="soon">Próximamente</span></h3>
             </div>
             <p>
               Cualquier conjunto de páginas o búsqueda viva se puede ver como tabla, tablero de estados,
@@ -582,32 +595,32 @@
           <li>
             <span class="step-num">01</span>
             <strong>Idea y brief</strong>
-            <p>Defines objetivos, presupuesto y productos enlazados desde la bitácora o la campaña.</p>
+            <p>Defines objetivos y presupuesto, y enlazas las notas y páginas relacionadas desde la bitácora o la campaña.</p>
           </li>
           <li>
             <span class="step-num">02</span>
-            <strong>Marca y contenido</strong>
+            <strong>Marca y contenido <span class="soon">Próximamente</span></strong>
             <p>Creas publicaciones con versiones por red, voz de marca y previsualización fiel.</p>
           </li>
           <li>
             <span class="step-num">03</span>
-            <strong>Aprobación</strong>
+            <strong>Aprobación <span class="soon">Próximamente</span></strong>
             <p>El cliente comenta y aprueba desde un enlace web seguro, sin crear cuenta.</p>
           </li>
           <li>
             <span class="step-num">04</span>
-            <strong>Publicación y anuncios</strong>
+            <strong>Publicación y anuncios <span class="soon">Próximamente</span></strong>
             <p>Lo aprobado sale a la hora elegida y se conecta con tus campañas por UTM.</p>
           </li>
           <li>
             <span class="step-num">05</span>
-            <strong>Ventas y margen</strong>
+            <strong>Ventas y margen <span class="soon">Próximamente</span></strong>
             <p>Cruza Shopify, Meta Ads, Google Ads, TikTok Ads y GA4 para ver qué creativo vendió más.</p>
           </li>
         </ol>
 
         <div class="questions-box">
-          <p class="questions-title">Preguntas que se responden con una consulta, no con una tarde de hojas de cálculo:</p>
+          <p class="questions-title">Preguntas que pronto se responderán con una consulta, no con una tarde de hojas de cálculo:</p>
           <div class="grid-2">
             <div class="q-item">¿Qué creativo vendió más este mes, y en qué publicaciones y anuncios se usó?</div>
             <div class="q-item">¿Qué ideas del brief llegaron a publicarse y cuáles siguen en borrador?</div>
@@ -617,14 +630,14 @@
         </div>
 
         <div class="day-story">
-          <h3 class="subhead">Cómo se ve una campaña real con Acme</h3>
+          <h3 class="subhead">Cómo se verá una campaña real con Acme</h3>
           <div class="grid-3">
             <div class="story-step">
               <span class="story-time">Lunes · 09:00</span>
               <strong>1. Empiezas en Hoy</strong>
               <p>
-                Abres Fossil y presionas <strong>Hoy</strong>. Tu nota del día reúne las tareas que
-                vencen y las publicaciones programadas para la semana.
+                Abres Fossil y presionas <strong>Hoy</strong>. Tu nota del día es el punto de partida:
+                ahí anotas tus pendientes y enlazas las páginas del lanzamiento.
               </p>
             </div>
             <div class="story-step">
@@ -632,12 +645,12 @@
               <strong>2. Escribes el brief</strong>
               <p>
                 Creas la página <em>Campaña Acme Verano</em> con su objetivo y presupuesto. Escribes
-                <code>[[</code> y enlazas los productos de la tienda que vas a impulsar.
+                <code>[[</code> y enlazas las notas y páginas relacionadas con el lanzamiento.
               </p>
             </div>
             <div class="story-step">
               <span class="story-time">Martes · 11:00</span>
-              <strong>3. Armas la parrilla</strong>
+              <strong>3. Armas la parrilla <span class="soon">Próximamente</span></strong>
               <p>
                 Desde la campaña generas las publicaciones con sus versiones para Instagram y TikTok.
                 El asistente propone textos respetando las palabras prohibidas y el tono de Acme.
@@ -645,7 +658,7 @@
             </div>
             <div class="story-step">
               <span class="story-time">Miércoles · 16:00</span>
-              <strong>4. El cliente aprueba sin cuenta</strong>
+              <strong>4. El cliente aprueba sin cuenta <span class="soon">Próximamente</span></strong>
               <p>
                 Compartes el <strong>Enlace de aprobación</strong>. El cliente revisa cómo se verá cada
                 pieza, deja comentarios puntuales y aprueba desde su navegador.
@@ -653,7 +666,7 @@
             </div>
             <div class="story-step">
               <span class="story-time">Jueves · 09:00</span>
-              <strong>5. Sale a tiempo y con UTM</strong>
+              <strong>5. Sale a tiempo y con UTM <span class="soon">Próximamente</span></strong>
               <p>
                 Solo lo aprobado entra en la cola de publicación programada. Los anuncios que usan esos
                 mismos creativos quedan ligados automáticamente por UTM.
@@ -661,7 +674,7 @@
             </div>
             <div class="story-step">
               <span class="story-time">Cierre de mes</span>
-              <strong>6. Aprendes con margen real</strong>
+              <strong>6. Aprendes con margen real <span class="soon">Próximamente</span></strong>
               <p>
                 La página de cada creativo muestra en qué publicaciones y anuncios salió, cuánto gastó
                 y cuánto margen neto dejó después de costos, envío y comisiones.
@@ -677,7 +690,7 @@
           <h2>Escribe, enlaza y navega sin soltar el teclado.</h2>
           <p>
             Cada comando de escritura y navegación tiene un atajo directo. Las acciones de la paleta son
-            las mismas herramientas que usan el asistente y el servidor MCP.
+            las mismas herramientas que usará el asistente de IA sobre tus páginas.
           </p>
         </div>
 
@@ -699,7 +712,7 @@
           </div>
           <div class="shortcut-card">
             <code>Win + Shift + F</code>
-            <strong>Captura rápida</strong>
+            <strong>Captura rápida <span class="soon">Próximamente</span></strong>
             <span>Anota una idea o tarea al vuelo desde cualquier otra ventana</span>
           </div>
           <div class="shortcut-card">
@@ -740,33 +753,33 @@
           <div class="card-block">
             <h3>Estrategia y dirección</h3>
             <p>
-              Escribe briefs y planes trimestrales, define la ficha de cada marca y revisa resultados
-              por campaña sin perseguir enlaces sueltos.
+              Escribe briefs y planes trimestrales desde hoy; más adelante define la ficha de cada marca
+              y revisa resultados por campaña sin perseguir enlaces sueltos.
             </p>
           </div>
           <div class="card-block">
-            <h3>Contenido y redes</h3>
+            <h3>Contenido y redes <span class="soon">Próximamente</span></h3>
             <p>
               Arma la parrilla del mes, adapta versiones para Instagram, TikTok o Facebook y lleva las
               rondas de aprobación en orden.
             </p>
           </div>
           <div class="card-block">
-            <h3>Diseño y creativos</h3>
+            <h3>Diseño y creativos <span class="soon">Próximamente</span></h3>
             <p>
               Sube piezas una sola vez, mira en qué publicaciones y anuncios están ligadas y descubre
               cuáles traen mejores resultados.
             </p>
           </div>
           <div class="card-block">
-            <h3>Comercio y analítica</h3>
+            <h3>Comercio y analítica <span class="soon">Próximamente</span></h3>
             <p>
               Consulta ventas, pedidos, MER, ROAS, costo por cliente nuevo y margen de contribución
               diario conectados con el trabajo del equipo.
             </p>
           </div>
           <div class="card-block">
-            <h3>Clientes y aprobadores</h3>
+            <h3>Clientes y aprobadores <span class="soon">Próximamente</span></h3>
             <p>
               Revisan la parrilla, dejan comentarios puntuales y aprueban piezas desde un enlace en su
               navegador, sin instalar nada ni abrir cuenta.
@@ -787,8 +800,8 @@
           <p class="eyebrow">IA, archivos abiertos y rendimiento</p>
           <h2>Ligera por presupuesto. Privada por diseño.</h2>
           <p>
-            Nativa para Windows 11 con superficie Mica, modo claro y oscuro sin parpadeos y presupuestos
-            de rendimiento verificados en cada cambio.
+            Nativa para Windows 10 y 11 de 64 bits, con superficie Mica en Windows 11, modo claro y
+            oscuro sin parpadeos y presupuestos de rendimiento verificados en cada cambio.
           </p>
         </div>
 
@@ -803,20 +816,43 @@
           </div>
           <div class="metric">
             <strong>&lt; 30 MB</strong>
-            <span>Instalador nativo para Windows 11</span>
+            <span>Instalador nativo para Windows 10 y 11</span>
           </div>
           <div class="metric">
             <strong>&lt; 50 ms</strong>
-            <span>Búsqueda en un espacio de 10 000 páginas</span>
+            <span>Búsqueda en un Espacio de 10 000 páginas</span>
+          </div>
+        </div>
+
+        <div class="download-box" id="descarga">
+          <div class="download-copy">
+            <h3>Instalador para Windows</h3>
+            <p>
+              Requisitos: Windows 10 u 11 de 64 bits. El instalador todavía no está firmado, así que
+              Windows mostrará el aviso de SmartScreen al abrirlo: elige
+              <strong>Más información</strong> y después <strong>Ejecutar de todas formas</strong>.
+            </p>
+          </div>
+          <div class="download-actions">
+            <a
+              class="button primary"
+              data-download
+              href="https://github.com/jairbonillacan-cmd/fossil-app/releases"
+              >Descargar para Windows</a
+            >
+            <p class="download-meta" data-download-meta hidden></p>
+            <p class="download-note" data-download-note hidden>
+              Versión de prueba: puede tener errores. Conviene respaldar tu Espacio antes de instalarla.
+            </p>
           </div>
         </div>
 
         <div class="grid-3">
           <div class="card-block">
-            <h3>1. Tus propias claves de API</h3>
+            <h3>1. Tus propias claves de API <span class="soon">Próximamente</span></h3>
             <p>
-              Conecta tus claves de API directamente. Se guardan cifradas en el almacén de credenciales
-              de Windows, nunca en archivos de texto ni en registros.
+              Más adelante podrás conectar tus propias claves de API. Se guardarán cifradas en el
+              almacén de credenciales de Windows, nunca en archivos de texto ni en registros.
             </p>
           </div>
           <div class="card-block">
@@ -908,27 +944,29 @@ updated_at: "2026-10-15T15:30:00Z"
             <summary>¿Fossil entrena modelos de IA con mis datos o cobra una suscripción de IA?</summary>
             <p>
               No. Fossil no tiene un servidor de IA intermedio ni entrena modelos con tu información. Tú
-              eliges si usas tus propias claves de API, un modelo local en tu computadora o tu
-              suscripción existente. Antes de enviar contexto ves exactamente qué se incluye, y ninguna
-              acción externa o destructiva ocurre sin tu confirmación.
+              eliges si usas un modelo local en tu computadora o tu suscripción existente. Antes de
+              enviar puedes abrir la vista previa del contexto y ver
+              exactamente qué se incluye.
             </p>
           </details>
           <details class="faq-item">
             <summary>¿Cómo aprueba contenido un cliente si Fossil es una app de escritorio?</summary>
             <p>
-              Cuando envías una parrilla o una publicación a revisión, Fossil genera un
-              <strong>Enlace de aprobación</strong> web seguro con la identidad de tu equipo. El cliente
-              abre ese enlace en su navegador, ve la previsualización de cada red, deja comentarios y
-              aprueba sin instalar la app ni crear una cuenta.
+              Esa función llega junto con las funciones de contenido: Fossil generará un
+              <strong>Enlace de aprobación</strong> web seguro con la identidad de tu equipo para que el
+              cliente abra el enlace en su navegador, vea la previsualización de cada red, deje
+              comentarios y apruebe sin instalar la app ni crear una cuenta.
             </p>
           </details>
           <details class="faq-item">
             <summary>¿En qué sistema operativo funciona y cuánto consume?</summary>
             <p>
-              Fossil es una aplicación nativa para Windows 11 x64 con superficie Mica. Tiene
-              presupuestos estrictos que verificamos de forma automática en cada cambio: instalador
-              menor a 30 MB, arranque en frío menor a 1.5 segundos y menos de 200 MB de memoria RAM en
-              reposo.
+              Fossil es una aplicación nativa para Windows 10 y 11 de 64 bits, con superficie Mica en
+              Windows 11. Tiene presupuestos estrictos que verificamos de forma automática en cada
+              cambio: instalador menor a 30 MB (hoy pesa poco más de 1 MB), arranque en frío menor a 1.5
+              segundos y menos de 200 MB de memoria RAM en reposo. Como el instalador aún no está
+              firmado, Windows SmartScreen mostrará un aviso al abrirlo: elige
+              <strong>Más información</strong> y después <strong>Ejecutar de todas formas</strong>.
             </p>
           </details>
         </div>
@@ -941,9 +979,19 @@ updated_at: "2026-10-15T15:30:00Z"
           viene en los siguientes lanzamientos.
         </p>
         <div class="actions">
-          <a class="button primary" href="/roadmap/">Ver el roadmap</a>
+          <a
+            class="button primary"
+            data-download
+            href="https://github.com/jairbonillacan-cmd/fossil-app/releases"
+            >Descargar para Windows</a
+          >
+          <a class="button" href="/roadmap/">Ver el roadmap</a>
           <a class="button" href="/changelog/">Leer el changelog</a>
         </div>
+        <p class="download-meta" data-download-meta hidden></p>
+        <p class="download-note" data-download-note hidden>
+          Versión de prueba: puede tener errores. Conviene respaldar tu Espacio antes de instalarla.
+        </p>
       </section>
     </main>
 
@@ -963,6 +1011,7 @@ updated_at: "2026-10-15T15:30:00Z"
       </div>
     </footer>
 
+    <script type="module" src="./download.js"></script>
     <script type="module">
       const tabs = document.querySelectorAll(".shot-tab");
       const panes = document.querySelectorAll(".shot-pane");
