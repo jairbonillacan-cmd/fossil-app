@@ -182,7 +182,7 @@ export function PageEditor({ object, onSelect, onObjectUpdated }: PageEditorProp
         panels stay outside, as siblings of this wrapper.
       */}
       <div className="flex h-full min-w-0 flex-1 flex-col overflow-y-auto [scrollbar-gutter:stable] print:h-auto print:overflow-visible">
-        <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-6 py-8 in-data-[density=compact]:gap-2.5 in-data-[density=compact]:py-5">
+        <div className="mx-auto flex min-h-full w-full max-w-2xl flex-col gap-4 px-6 py-8 in-data-[density=compact]:gap-2.5 in-data-[density=compact]:py-5">
           <div className="flex items-start gap-2">
             <input
               type="text"

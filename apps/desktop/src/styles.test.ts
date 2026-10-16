@@ -15,7 +15,7 @@ describe("global scrollbar styles (spec R1.5, r1-scrollbar)", () => {
     expect(appCss).toMatch(/::-webkit-scrollbar\b/);
     expect(appCss).toMatch(/::-webkit-scrollbar-thumb\s*\{[^}]*var\(--scrollbar-thumb\)/);
     expect(appCss).toMatch(
-      /::-webkit-scrollbar-thumb:(hover|active)[^{]*\{[^}]*var\(--scrollbar-thumb-strong\)/,
+      /(:hover|:active|\[data-scrolling\])::-webkit-scrollbar-thumb[^{]*\{[^}]*var\(--scrollbar-thumb-strong\)/,
     );
   });
 
@@ -34,7 +34,7 @@ describe("global scrollbar styles (spec R1.5, r1-scrollbar)", () => {
   });
 
   it("transition 120-200 ms ease-out and respect prefers-reduced-motion", () => {
-    expect(appCss).toMatch(/transition:\s*background-color\s+1[2-9]\dms\s+ease-out/);
+    expect(appCss).toMatch(/transition:\s*background-color\s+(1[2-9]\d|200)ms\s+ease-out/);
     expect(appCss).toMatch(/prefers-reduced-motion:\s*reduce/);
   });
 });

@@ -62,7 +62,8 @@ body,
 }
 
 ::-webkit-scrollbar-thumb:hover,
-::-webkit-scrollbar-thumb:active {
+::-webkit-scrollbar-thumb:active,
+[data-scrolling]::-webkit-scrollbar-thumb {
   background-color: var(--scrollbar-thumb-strong);
 }
 
