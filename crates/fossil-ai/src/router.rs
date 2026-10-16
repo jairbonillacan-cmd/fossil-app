@@ -5,7 +5,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, OnceLock};
 
 use rusqlite::{Connection, params};
-use tokio::sync::mpsc::Sender;
+use tokio::sync::{Notify, mpsc::Sender};
 
 use crate::anthropic::AnthropicProvider;
 use crate::contract::{
@@ -13,10 +13,38 @@ use crate::contract::{
     ProviderInfo, RequestId, RouteRule, TaskKind, Usage, default_routes,
 };
 use crate::gemini::GeminiProvider;
-use crate::http::chat_caps;
+use crate::http::{build_prompt, chat_caps, redact_secrets};
 use crate::ollama::OllamaProvider;
 use crate::openai::OpenAiProvider;
 use crate::provider::{Provider, ProviderError};
+
+/// Default model identifier used when `ChatOptions::model` is `None`.
+pub fn default_model(provider: ProviderId) -> &'static str {
+    match provider {
+        ProviderId::Agy | ProviderId::Gemini => "gemini-2.5-pro",
+        ProviderId::Claude | ProviderId::Anthropic => "claude-sonnet-4-20250514",
+        ProviderId::Codex | ProviderId::OpenAi => "gpt-4o",
+        ProviderId::Ollama => "llama3.2",
+    }
+}
+
+/// Estimates outgoing input tokens and USD cost (when the provider charges per token) before sending.
+pub fn estimate_usage(req: &ChatRequest, provider: ProviderId) -> Usage {
+    let input_tokens =
+        (build_prompt(req).chars().count().div_ceil(4)).min(u32::MAX as usize) as u32;
+    let rate_per_m = match provider {
+        ProviderId::Anthropic => Some(3.0),
+        ProviderId::OpenAi => Some(2.5),
+        ProviderId::Gemini => Some(1.25),
+        ProviderId::Ollama => Some(0.0),
+        ProviderId::Agy | ProviderId::Claude | ProviderId::Codex => None,
+    };
+    Usage {
+        input_tokens,
+        output_tokens: 0,
+        cost_usd: rate_per_m.map(|r| (f64::from(input_tokens) * r) / 1e6),
+    }
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct UsageRecord {
@@ -60,6 +88,7 @@ impl Provider for UnconfiguredCliProvider {
 pub struct AiRouter {
     providers: HashMap<ProviderId, Arc<dyn Provider>>,
     db: Mutex<Option<Connection>>,
+    in_flight: Mutex<HashMap<RequestId, Arc<Notify>>>,
 }
 
 impl Default for AiRouter {
@@ -88,6 +117,7 @@ impl AiRouter {
         let router = Self {
             providers,
             db: Mutex::new(conn),
+            in_flight: Mutex::new(HashMap::new()),
         };
         router.init_db();
         router
@@ -195,14 +225,25 @@ impl AiRouter {
         let mut out = Vec::with_capacity(ProviderId::all().len());
         for &id in ProviderId::all() {
             if let Some(p) = self.providers.get(&id) {
+                let mut health = p.health().await;
+                health.detail = health.detail.map(|d| redact_secrets(&d));
                 out.push(ProviderInfo {
                     id,
                     caps: p.capabilities(),
-                    health: p.health().await,
+                    health,
                 });
             }
         }
         out
+    }
+
+    pub fn cancel(&self, request_id: &RequestId) -> bool {
+        self.in_flight
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(request_id)
+            .inspect(|n| n.notify_one())
+            .is_some()
     }
 
     pub async fn chat(
@@ -219,6 +260,21 @@ impl AiRouter {
         req: ChatRequest,
         tx: Sender<ChatEvent>,
     ) -> Result<ChatSummary, AiError> {
+        self.chat_with_id(RequestId::new(), task, req, tx).await
+    }
+
+    pub async fn chat_with_id(
+        &self,
+        request_id: RequestId,
+        task: TaskKind,
+        req: ChatRequest,
+        tx: Sender<ChatEvent>,
+    ) -> Result<ChatSummary, AiError> {
+        let notify = Arc::new(Notify::new());
+        self.in_flight
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(request_id.clone(), notify.clone());
         let candidates = if let Some(forced) = req.options.provider {
             vec![forced]
         } else {
@@ -231,6 +287,7 @@ impl AiRouter {
         };
 
         let mut last_err = None;
+        let mut res = None;
         for id in candidates {
             let Some(p) = self.providers.get(&id) else {
                 continue;
@@ -243,18 +300,35 @@ impl AiRouter {
             if !cap_ok || p.health().await.status != HealthStatus::Ready {
                 continue;
             }
-            match p.chat(req.clone(), tx.clone()).await {
+            let outcome = tokio::select! {
+                biased;
+                () = notify.notified() => Err(ProviderError::Cancelled),
+                out = p.chat(req.clone(), tx.clone()) => out,
+            };
+            match outcome {
                 Ok(summary) => {
                     self.record_usage(task, &summary);
-                    return Ok(summary);
+                    res = Some(Ok(summary));
+                    break;
                 }
-                Err(ProviderError::Unavailable(msg)) => last_err = Some(msg),
-                Err(e) => return Err(AiError::ProviderFailure(e.to_string())),
+                Err(ProviderError::Unavailable(msg)) => last_err = Some(redact_secrets(&msg)),
+                Err(e) => {
+                    res = Some(Err(AiError::ProviderFailure(redact_secrets(
+                        &e.to_string(),
+                    ))));
+                    break;
+                }
             }
         }
-        Err(AiError::NoProvider(last_err.unwrap_or_else(|| {
-            format!("no ready provider for {task:?}")
-        })))
+        self.in_flight
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(&request_id);
+        res.unwrap_or_else(|| {
+            Err(AiError::NoProvider(last_err.unwrap_or_else(|| {
+                format!("no ready provider for {task:?}")
+            })))
+        })
     }
 
     fn record_usage(&self, task: TaskKind, s: &ChatSummary) {
@@ -376,5 +450,35 @@ mod tests {
             (40, 5)
         );
         assert!(!format!("{logs:?}").contains(secret_prompt));
+
+        assert!(
+            ProviderId::all()
+                .iter()
+                .all(|&p| !default_model(p).is_empty())
+        );
+        let est_req = ChatRequest {
+            prompt: "Resume".into(),
+            ..ChatRequest::default()
+        };
+        assert!(
+            estimate_usage(&est_req, ProviderId::Anthropic)
+                .cost_usd
+                .is_some()
+        );
+        assert_eq!(
+            estimate_usage(&est_req, ProviderId::Ollama).cost_usd,
+            Some(0.0)
+        );
+        assert_eq!(estimate_usage(&est_req, ProviderId::Agy).cost_usd, None);
+
+        let id = RequestId::new();
+        let notify = Arc::new(Notify::new());
+        router
+            .in_flight
+            .lock()
+            .unwrap()
+            .insert(id.clone(), notify.clone());
+        assert!(router.cancel(&id));
+        notify.notified().await;
     }
 }

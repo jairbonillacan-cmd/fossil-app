@@ -136,7 +136,16 @@
     "actionTone": "Change tone",
     "promptLabel": "Message for AI",
     "send": "Send",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "estimatedTokens": "Estimated: ~{{tokens}} tokens",
+    "estimatedTokensCost": "Estimated: ~{{tokens}} tokens ({{cost}})",
+    "actualUsage": "Usage: {{total}} tokens ({{input}} in · {{output}} out)",
+    "actualUsageCost": "Usage: {{total}} tokens ({{input}} in · {{output}} out · {{cost}})",
+    "proposalBadge": "Proposal",
+    "confirmInsert": "Insert into page",
+    "rejectProposal": "Reject",
+    "proposalConfirmed": "Inserted into page",
+    "proposalRejected": "Proposal discarded"
   },
   "error": {
     "notImplemented": "This feature is not available yet.",

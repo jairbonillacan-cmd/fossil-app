@@ -136,7 +136,16 @@
     "actionTone": "Cambiar tono",
     "promptLabel": "Mensaje para la IA",
     "send": "Enviar",
-    "cancel": "Cancelar"
+    "cancel": "Cancelar",
+    "estimatedTokens": "Estimado: ~{{tokens}} tokens",
+    "estimatedTokensCost": "Estimado: ~{{tokens}} tokens ({{cost}})",
+    "actualUsage": "Consumo: {{total}} tokens ({{input}} entrada · {{output}} salida)",
+    "actualUsageCost": "Consumo: {{total}} tokens ({{input}} entrada · {{output}} salida · {{cost}})",
+    "proposalBadge": "Propuesta",
+    "confirmInsert": "Insertar en la página",
+    "rejectProposal": "Rechazar",
+    "proposalConfirmed": "Insertado en la página",
+    "proposalRejected": "Propuesta descartada"
   },
   "error": {
     "notImplemented": "Esta función todavía no está disponible.",
