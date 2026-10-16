@@ -43,6 +43,7 @@ pub fn save(root: &Path, file_name: &str, bytes: &[u8]) -> Result<String, CoreEr
         )));
     }
     let dir = root.join(ATTACHMENTS_DIR);
+    fs_guard::reject_link(&dir)?;
     fs::create_dir_all(&dir).map_err(storage_error)?;
     let name = format!("{}.{extension}", ulid::Ulid::generate());
     // Atomic: a crash mid-write leaves a temp file, never a truncated image.
@@ -73,7 +74,9 @@ pub fn load(root: &Path, relative: &str) -> Result<Vec<u8>, CoreError> {
     if extension_of(name).is_none_or(|ext| !SUPPORTED.contains(&ext.as_str())) {
         return Err(storage_error("invalid attachment path"));
     }
+    fs_guard::reject_link(&root.join(ATTACHMENTS_DIR))?;
     let path = root.join(ATTACHMENTS_DIR).join(name);
+    fs_guard::reject_link(&path)?;
     // Size is checked before reading: a file dropped into the folder by hand
     // must never be pulled whole into memory (and base64-encoded for IPC).
     let size = fs::symlink_metadata(&path).map_err(storage_error)?.len();
@@ -200,5 +203,18 @@ mod tests {
             let _ = fs::write(dir.path().join(path), PNG);
             assert!(load(dir.path(), path).is_err(), "{path} must be rejected");
         }
+    }
+
+    // File symlinks need admin rights on Windows, so only the folder case is
+    // covered (junctions need none); `reject_link` treats both alike.
+    #[cfg(windows)]
+    #[test]
+    fn refuses_a_linked_attachments_folder() {
+        let dir = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        fs::write(outside.path().join("x.png"), PNG).unwrap();
+        crate::fs_guard::tests::make_junction(&dir.path().join(ATTACHMENTS_DIR), outside.path());
+        assert!(load(dir.path(), "attachments/x.png").is_err());
+        assert!(save(dir.path(), "y.png", PNG).is_err());
     }
 }
