@@ -67,7 +67,7 @@ fn has_sibling_clash(conn: &Connection, meta: &ObjectMeta, name: &str) -> Result
                 if let Some(fc) = sib_title
                     .chars()
                     .take(MAX_NAME_CHARS)
-                    .find(|&c| !(c.is_whitespace() && !c.is_control()) && c != '.')
+                    .find(|&c| !(c.is_whitespace() && !c.is_control()))
                     .map(clean_char)
                 {
                     if first_name != Some(fc)
@@ -443,5 +443,17 @@ mod tests {
             relative_path(&conn, &root).unwrap(),
             PathBuf::from("Plan.md")
         );
+    }
+
+    #[test]
+    fn leading_dot_siblings_still_collide() {
+        for (first, second) in [(".Plan", ".Plan"), (".Plan", " .Plan")] {
+            let conn = open_vault(":memory:").unwrap();
+            let a = object_store::create(&conn, meta(first, None)).unwrap();
+            let b = object_store::create(&conn, meta(second, None)).unwrap();
+            let pa = relative_path(&conn, &a).unwrap();
+            let pb = relative_path(&conn, &b).unwrap();
+            assert_ne!(pa, pb, "{first:?} vs {second:?}");
+        }
     }
 }

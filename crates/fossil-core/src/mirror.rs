@@ -123,6 +123,18 @@ pub fn export(conn: &Connection, root: &Path, id: &ObjectId) -> Result<Option<St
 /// folder of every child), reading and writing `mirror.json` once.
 pub fn export_tree(conn: &Connection, root: &Path, id: &ObjectId) -> Result<(), CoreError> {
     let mut index = read_index(root)?;
+    let result = export_descendants(conn, root, id, &mut index);
+    // Files moved before a failure must stay tracked, so the index is saved either way.
+    write_index(root, &index)?;
+    result
+}
+
+fn export_descendants(
+    conn: &Connection,
+    root: &Path,
+    id: &ObjectId,
+    index: &mut Index,
+) -> Result<(), CoreError> {
     let mut pending = vec![id.clone()];
     let mut seen = 0;
     while let Some(next) = pending.pop() {
@@ -130,7 +142,7 @@ pub fn export_tree(conn: &Connection, root: &Path, id: &ObjectId) -> Result<(), 
         if seen > MAX_TREE {
             return Err(storage_error("object tree too large to mirror at once"));
         }
-        export_with_index(conn, root, &next, &mut index)?;
+        export_with_index(conn, root, &next, index)?;
         let filter = ObjectFilter {
             parent: Some(next),
             include_archived: true,
@@ -138,7 +150,7 @@ pub fn export_tree(conn: &Connection, root: &Path, id: &ObjectId) -> Result<(), 
         };
         pending.extend(object_store::list(conn, filter)?.into_iter().map(|m| m.id));
     }
-    write_index(root, &index)
+    Ok(())
 }
 
 #[cfg(test)]
@@ -257,6 +269,26 @@ mod tests {
         assert!(root.join("Proyecto 2").join("Notas.md").exists());
         assert!(!root.join("Proyecto").join("Notas.md").exists());
         assert!(read_index(root).unwrap().contains_key(&child.0));
+    }
+
+    #[test]
+    fn a_failed_child_still_saves_the_moved_parent_in_the_index() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        let mut conn = open_vault(":memory:").unwrap();
+        let parent = page(&conn, "Plan", None);
+        page(&conn, "Notas", Some(parent.clone()));
+        export_tree(&conn, root, &parent).unwrap();
+        // A file where the child folder should go makes the child export fail.
+        fs::write(root.join("Nuevo"), "bloqueo").unwrap();
+        rename(&mut conn, &parent, "Nuevo");
+        assert!(export_tree(&conn, root, &parent).is_err());
+        assert!(root.join("Nuevo.md").exists());
+        assert!(!root.join("Plan.md").exists());
+        assert_eq!(
+            read_index(root).unwrap().get(&parent.0).map(String::as_str),
+            Some("Nuevo.md")
+        );
     }
 
     #[test]

@@ -211,14 +211,20 @@ fn schedule_index(app: &tauri::AppHandle, id: ObjectId) {
 }
 
 fn schedule_mirror(app: &tauri::AppHandle, id: ObjectId, tree: bool) {
-    let generation = app.state::<MirrorDebounce>().0.bump(&id.0);
+    // Body edits get their own key so they never cancel a pending export_tree.
+    let key = if tree {
+        id.0.clone()
+    } else {
+        format!("body:{}", id.0)
+    };
+    let generation = app.state::<MirrorDebounce>().0.bump(&key);
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(MIRROR_DELAY).await;
         if !app
             .state::<MirrorDebounce>()
             .0
-            .take_if_latest(&id.0, generation)
+            .take_if_latest(&key, generation)
         {
             return;
         }
