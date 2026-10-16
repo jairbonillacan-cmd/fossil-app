@@ -118,8 +118,8 @@ Capturas: `103-settings-light.png` · `103-settings-dark.png`
 
 | Estado | Qué se ve | Disparador | Captura |
 |---|---|---|---|
-| Crear / abrir bóveda fallida | Alerta localizada `error.generic` / `error.notImplemented` (`vault-screen.tsx`) | Fallo de `vault_create` o del diálogo nativo | **pendiente de captura** |
-| Nueva página / Hoy fallidas | Aviso localizado en la barra lateral (`sidebar.tsx`) | Fallo de `object_create` | **pendiente de captura** |
+| Crear / abrir bóveda fallida | Alerta localizada `error.generic` / `error.notImplemented` (`vault-screen.tsx`) | Fallo de `vault_create`, `vault_open` o del diálogo nativo | **pendiente de captura** |
+| Nueva página / Hoy fallidas | Aviso localizado en la barra lateral (`sidebar.tsx`) | Fallo de `object_create` (Nueva página) o `journal_today` (Hoy) | **pendiente de captura** |
 | Carga de página fallida | Alerta localizada `error.generic` / `error.notImplemented` sobre el editor | Fallo de `object_load_doc` | **pendiente de captura** (no se fuerza un fallo sobre el Espacio de ejemplo) |
 | Exportación fallida | Aviso en cabecera; no se descarga nada | Fallo de `object_export_markdown` | **pendiente de captura** |
 | Imagen no cargada | Estado `error` del nodo de imagen (`editor.image.error`) | Adjunto ilegible | **pendiente de captura** (r1-images) |
@@ -143,13 +143,13 @@ pruebas visuales del ítem que los implemente, sin romper el Espacio de ejemplo.
 ## Referencias de captura
 
 Tomadas con `scripts/capture-window.ps1` en una ventana enfocada, con datos de ejemplo (Espacio
-«Acme» en `C:\Users\Public\FossilCaptures\Acme`) y sin rutas personales. Cada pantalla se capturó
+«Acme» en `$env:PUBLIC\FossilCaptures\Acme`) y sin rutas personales. Cada pantalla se capturó
 en claro y en oscuro. Método (por transparencia):
 
 - Binario de captura construido desde esta rama con identificador
   `io.github.jairbonillacan-cmd.fossil.capture`, para no interferir con la instancia única de la
   app en ejecución; el pie de **Ajustes** muestra esa ruta de datos.
-- Entorno aislado (configuración y perfil en `C:\Users\Public\FossilCaptureAppData`), de modo que
+- Entorno aislado (configuración y perfil en `$env:PUBLIC\FossilCaptureAppData`), de modo que
   ninguna ruta visible contiene un nombre de usuario.
 - Cada captura se verificó automáticamente: huella distinta, tema correcto por nombre y texto
   reconocido (OCR) que corresponde a Fossil y no a otra ventana.
