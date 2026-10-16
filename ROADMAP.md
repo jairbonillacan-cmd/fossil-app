@@ -11,6 +11,12 @@ Cómo escribir aquí:
 
 ## En curso
 
+### Tus cambios, siempre a salvo
+Un indicador te dice si la página está guardada, guardando o con error, y nunca dice "Guardado" si algo falló. Respaldos de tu espacio, sus imágenes y tu configuración, con un asistente para recuperar una página, un archivo o el espacio completo.
+
+### Historial de páginas
+Compara versiones anteriores de una página y restaura la que necesites sin romper los enlaces que apuntan a ella.
+
 ### Búsqueda
 Encuentra cualquier página por texto, etiqueta, tipo o fecha con el fragmento resaltado, o busca dentro de la página con `Ctrl+F`. Ya está terminada; falta publicarla.
 
@@ -30,16 +36,16 @@ Sangría con `Tab`, bloques y secciones plegables, avisos, tablas simples, arras
 Descarga cualquier página como `.md` o guárdala como PDF limpio en tema claro. Ya está terminada; falta publicarla.
 
 ### Asistente de IA
-Chat con el contexto de tu página y acciones sobre el texto seleccionado. Usa tus propias claves de API, modelos locales o tu suscripción existente.
+Chat con el contexto de tu página y acciones sobre el texto seleccionado. Usa tus propias claves de API, modelos locales o tu suscripción existente. Ves qué proveedor y modelo responden, qué contexto se envía y cuánto consume, y nada se inserta en la página sin que lo confirmes.
 
 ### Imágenes en páginas
 Pega o arrastra imágenes en cualquier página; se guardan dentro de tu espacio. Ya está terminada; falta publicarla.
 
 ### Captura rápida
-Un atajo global (`Win+Shift+F`) y acceso desde la bandeja del sistema para anotar algo al vuelo sin cambiar de ventana.
+Un atajo global (`Win+Shift+F`) y acceso desde la bandeja del sistema para anotar texto, un enlace o un archivo al vuelo sin cambiar de ventana, incluso con Fossil cerrado. Todo llega a una bandeja de entrada y Fossil te dice dónde quedó.
 
 ### Pestañas y paneles divididos
-Abre varias páginas en pestañas o trabaja con dos páginas lado a lado.
+Abre varias páginas en pestañas o trabaja con dos páginas lado a lado. Al reiniciar, todo vuelve como lo dejaste.
 
 ### Bloques de código avanzados
 Resaltado de sintaxis por lenguaje, título de archivo, botón de copiar, números y resaltado de línea, vista de diferencias, formateo de JSON o SQL y atajos de edición de código.
@@ -57,6 +63,30 @@ Alterna entre el editor de bloques y el texto en Markdown, reemplaza texto con `
 Fija páginas importantes en la barra lateral, vuelve rápido a las últimas que abriste, inserta fechas con `@hoy` y recupera páginas borradas desde la papelera del espacio.
 
 ## Planeado
+
+### Trae tus notas
+Importa una carpeta de notas en Markdown con sus imágenes, enlaces y propiedades. Antes de confirmar ves qué se importará y qué tiene conflictos, y puedes deshacer la importación completa.
+
+### Primer inicio guiado
+Tres pasos para empezar y un espacio de ejemplo que puedes borrar cuando ya no lo necesites.
+
+### Contexto relacionado
+Un panel que sugiere páginas relacionadas por enlaces, menciones, títulos parecidos, etiquetas y actividad reciente, y explica por qué sugiere cada una.
+
+### Explorador de archivos adjuntos
+Ve cuánto ocupan tus imágenes y archivos, en qué páginas se usan y cuáles ya no usa nadie. Borrar una página nunca borra un archivo que otra página sigue usando.
+
+### Accesibilidad y atajos
+Mapa de atajos, foco siempre visible, navegación completa con teclado y opción para reducir el movimiento.
+
+### Búsqueda más precisa y enlaces que no se rompen
+Resultados ordenados por título, enlaces y recencia, filtros guardados y una paleta de comandos que entiende errores de escritura. Renombrar, archivar o mover una página nunca deja enlaces rotos sin avisarte.
+
+### Proyectos y planificación semanal
+Proyectos con estado, progreso, hitos, tareas y archivos; dependencias entre tareas; revisión semanal y modo Enfoque; plantillas de espacio para empezar rápido.
+
+### Grafo de páginas
+Explora cómo se conectan tus páginas, filtra el grafo y encuentra el camino entre dos ideas.
 
 ### Tipos y campos
 Define tus propios tipos de página, como proyecto, cliente, campaña o publicación, con sus propios campos y plantillas.
