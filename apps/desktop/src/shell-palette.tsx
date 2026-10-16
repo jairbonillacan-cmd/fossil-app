@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { ObjectMeta, SearchHit } from "./bindings";
 import { commands } from "./bindings";
@@ -6,6 +6,9 @@ import { type FuzzyMatch, fuzzyMatch, listCommands } from "./shell-commands";
 import { formatObjectTitle, selectWorkspaceObject } from "./sidebar";
 
 export type PaletteMode = "palette" | "switcher";
+
+let paletteOpener: ((target: PaletteMode) => void) | null = null;
+export const openPalette = (target: PaletteMode) => paletteOpener?.(target);
 
 function renderHighlighted(text: string, indices: number[]) {
   if (indices.length === 0) return text;
@@ -39,24 +42,28 @@ export function ShellPalette(props: { onSelect?: ((object: ObjectMeta) => void) 
   const inputRef = useRef<HTMLInputElement>(null);
   const openerRef = useRef<HTMLElement | null>(null);
 
+  const openMode = useCallback((target: PaletteMode, toggle = false) => {
+    setMode((cur) => {
+      if (cur === null && document.activeElement instanceof HTMLElement)
+        openerRef.current = document.activeElement;
+      return toggle && cur === target ? null : target;
+    });
+    setQuery("");
+    setActiveIndex(0);
+  }, []);
+  paletteOpener = (target) => openMode(target, false);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return;
       const k = e.key.toLowerCase();
       if (k !== "k" && k !== "p") return;
       e.preventDefault();
-      const target: PaletteMode = k === "k" ? "palette" : "switcher";
-      setMode((cur) => {
-        if (cur === null && document.activeElement instanceof HTMLElement)
-          openerRef.current = document.activeElement;
-        return cur === target ? null : target;
-      });
-      setQuery("");
-      setActiveIndex(0);
+      openMode(k === "k" ? "palette" : "switcher", true);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [openMode]);
 
   useEffect(() => {
     if (mode === null) return void openerRef.current?.focus();
