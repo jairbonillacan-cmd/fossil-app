@@ -2,7 +2,7 @@
 
 **Clave:** s-r1-ui · **Área:** `area:ui`, `area:editor` · **Docs:** `docs/DESIGN.md`, `docs/GLOSSARY.md`, `docs/modules/ui.md`, `docs/modules/editor.md`
 
-## Por qué
+## Qué y por qué
 
 La interfaz actual funciona, pero la barra de desplazamiento es la del sistema, el encabezado
 amontona botones a la del título, no hay pestañas, la barra lateral es una lista plana y las
@@ -22,6 +22,8 @@ escribir código, para que los ítems se implementen y revisen contra criterios 
 - Textos visibles solo por clave i18n (`es-MX` y `en` completos); nombres de `docs/GLOSSARY.md`.
 - Transiciones de 120–200 ms `ease-out`; se respeta `prefers-reduced-motion`.
 - Tests con Vitest en el paquete que toque; `pnpm.cmd check` en verde.
+- **«Carpeta»** es una Página que contiene otras (todo es Página, `docs/GLOSSARY.md`); se usa como
+  atajo descriptivo, nunca como nombre visible en la interfaz.
 
 ## Contexto actual (verificado en `origin/main`)
 
@@ -53,7 +55,7 @@ implementar los ítems 2–6.
   regiones, sus componentes y su jerarquía visual según `docs/DESIGN.md` (Inter 14 px en UI y
   16 px en el editor, escala de 4 px, contraste AA, blanco y negro) usando tokens de `packages/ui`
   y nombres de `docs/GLOSSARY.md`.
-- **Dado** la app en marcha con una bóveda de ejemplo, **cuando** se captura con
+- **Dado** la app en marcha con un Espacio de ejemplo, **cuando** se captura con
   `scripts/capture-window.ps1` en claro y en oscuro, **entonces** cada pantalla construible tiene
   su captura de referencia en `docs/screenshots/` con el patrón `<issue>-<slug>-<light|dark>.png`,
   y el mapa referencia cada captura.
@@ -106,9 +108,10 @@ ancho.
 - **Dado** una página cuyo título tiene 120 caracteres, **cuando** se abre en una ventana de
   1280 px de ancho en claro y en oscuro, **entonces** el título se lee completo (varias líneas o
   elipsis con tooltip que lo muestra entero) y nunca se recorta ni se solapa con el botón `⋯`.
-- **Dado** el encabezado, **cuando** se mira su composición, **entonces** las acciones secundarias
-  (Exportar Markdown, Exportar PDF y las demás que existan) solo son accesibles desde el menú `⋯`
-  anclado a la derecha del encabezado; fuera del menú queda únicamente lo esencial.
+- **Dado** el encabezado, **cuando** se mira su composición en claro y en oscuro, **entonces** las
+  acciones secundarias (Exportar Markdown, Exportar PDF y las demás que existan) solo son
+  accesibles desde el menú `⋯` anclado a la derecha del encabezado; fuera del menú queda
+  únicamente lo esencial.
 - **Dado** el botón `⋯` enfocado, **cuando** se pulsa clic, `Enter` o `Espacio`, **entonces** el
   menú se abre; y **cuando** se pulsa `Esc` o se hace clic fuera, **entonces** el menú se cierra y
   el foco vuelve al botón `⋯`.
@@ -132,8 +135,10 @@ botón `+` y navegación atrás/adelante. Sin restauración de sesión.
 ### Criterios de aceptación
 
 - **Dado** varias páginas abiertas, **cuando** se actúa sobre una pestaña, **entonces** se puede
-  fijar y desfijar (la fijada se distingue visualmente y sobrevive al cierre accidental) y cerrar
-  con clic o con teclado, sin afectar a las demás.
+  fijar y desfijar; la fijada se distingue visualmente en claro y en oscuro y solo se cierra con
+  una acción explícita sobre ella (clic en su ✕, atajo de cerrar pestaña activa o menú
+  contextual), nunca al cerrar las demás; y se cierra con clic o con teclado sin afectar a las
+  demás.
 - **Dado** tres pestañas, **cuando** se arrastra una a otra posición, **entonces** se reordena y
   la posición destino es visible durante el arrastre, en claro y en oscuro.
 - **Dado** 15 pestañas abiertas en una ventana de 1280 px, **cuando** no caben, **entonces** la
@@ -155,21 +160,26 @@ Restauración de sesión al reiniciar (`r1-tabs-restore`) y paneles divididos (#
 
 ## 5. r1-sidebar-tree — Barra lateral en árbol
 
-**Entregable:** árbol de carpetas y páginas con mover por arrastre, expandido recordado, página
-activa resaltada y búsqueda `Ctrl+P` arriba.
+**Entregable:** árbol de páginas (las que contienen a otras funcionan como carpetas) con mover por
+arrastre, expandido recordado, página activa resaltada y el campo de la Paleta de comandos
+(`Ctrl+P`) arriba.
 
 ### Criterios de aceptación
 
 - **Dado** un Espacio con carpetas y páginas, **cuando** se abre la barra lateral, **entonces** se
-  ve un árbol jerárquico con iconos coherentes por tipo, legible en claro y en oscuro.
+  ve un árbol jerárquico con el set de iconos Lucide por tipo fijado en el mapa de pantallas
+  (r1-ui-design) —uno por tipo de página y otro para las carpetas—, legible en claro y en oscuro y
+  mostrado en la captura de referencia.
 - **Dado** una página o carpeta, **cuando** se arrastra a otra carpeta o nivel, **entonces** se
-  mueve (reparentado) y el destino se marca visualmente durante el arrastre.
+  mueve (reparentado) y el destino se marca visualmente durante el arrastre, en claro y en oscuro.
 - **Dado** un árbol expandido, **cuando** se cierra y se vuelve a abrir la app, **entonces** el
   estado expandido/contraído de cada nodo se recuerda.
 - **Dado** una página abierta, **cuando** se mira la barra lateral, **entonces** la página activa
-  está resaltada de forma inequívoca (no solo por color: también atributo accesible).
-- **Dado** la barra lateral, **cuando** se busca con `Ctrl+P`, **entonces** el campo de búsqueda
-  está arriba, siempre accesible, y salta a la página elegida.
+  está resaltada de forma inequívoca en claro y en oscuro (no solo por color: también atributo
+  accesible).
+- **Dado** la barra lateral, **cuando** se busca una página, **entonces** el campo de la Paleta de
+  comandos (`Ctrl+P`, salto a página; `docs/GLOSSARY.md`) está arriba, siempre accesible —y el
+  atajo global sigue funcionando desde cualquier foco—, y salta a la página elegida.
 - **Dado** los tests del shell, **cuando** se ejecuta `pnpm.cmd check`, **entonces** hay tests de
   recordar lo expandido, resaltar la activa y mover con arrastre.
 
@@ -186,9 +196,9 @@ diferida y supervivencia al mover o duplicar la página.
 
 ### Criterios de aceptación
 
-- **Dado** el editor, **cuando** se pega una imagen, se arrastra un archivo o se elige «Imagen» en
-  el menú `/`, **entonces** se guarda en `attachments/` y el doc conserva solo la ruta relativa
-  (`attachments/<nombre>.<ext>`), nunca bytes ni data URLs.
+- **Dado** el editor, **cuando** se pega una imagen, se arrastra un archivo o se elige su entrada
+  en el menú `/` (clave `editor.slash.image`), **entonces** se guarda en `attachments/` y el doc
+  conserva solo la ruta relativa (`attachments/<nombre>.<ext>`), nunca bytes ni data URLs.
 - **Dado** una imagen insertada, **cuando** se edita, **entonces** se puede redimensionar, alinear
   y escribir pie de foto y texto alternativo (`alt`), y el `alt` se conserva al editar y al
   reabrir la página.
