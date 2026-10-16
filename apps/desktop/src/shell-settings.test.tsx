@@ -3,10 +3,19 @@ import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { commands } from "./bindings";
 import i18next from "./i18n";
+import { ShellCapture } from "./shell-capture";
 import { ShellSettings } from "./shell-settings";
 
 vi.mock("./bindings", () => ({
-  commands: { appInfo: vi.fn() },
+  commands: {
+    appInfo: vi.fn(),
+    captureAppend: vi.fn(),
+    captureWindowHide: vi.fn(),
+    captureWindowShow: vi.fn(),
+    captureShortcutGet: vi.fn(),
+    captureShortcutSet: vi.fn(),
+  },
+  events: { captureRequested: { listen: vi.fn(() => Promise.resolve(() => {})) } },
 }));
 
 afterEach(() => {
@@ -24,6 +33,8 @@ beforeEach(() => {
     status: "ok",
     data: { version: "0.0.1", data_dir: "C:\\Data" },
   });
+  vi.mocked(commands.captureWindowHide).mockResolvedValue({ status: "ok", data: null });
+  vi.mocked(commands.captureShortcutGet).mockResolvedValue({ status: "ok", data: "Win+Shift+F" });
 });
 
 /** Opener button + dialog, as the sidebar mounts it. */
@@ -96,5 +107,30 @@ describe("ShellSettings (#31)", () => {
     render(<ShellSettings open={true} vaultName="Notas" onClose={() => {}} />);
     expect(screen.getByRole("group", { name: "Tema" })).not.toBeNull();
     expect(screen.getByRole("group", { name: "Densidad" })).not.toBeNull();
+  });
+
+  it("captures notes to today's journal and handles global shortcut conflicts (#9)", async () => {
+    const cmd = vi.mocked(commands);
+    Object.assign(navigator, { clipboard: { readText: vi.fn().mockResolvedValue("Nota Acme") } });
+    const today = { id: "1", types: ["Journal"], title: "2026-10-15" } as never;
+    cmd.captureAppend.mockResolvedValue({ status: "ok", data: today });
+    render(<ShellCapture />);
+    fireEvent.click(screen.getByRole("button", { name: "Pegar portapapeles" }));
+    const input = await screen.findByDisplayValue("Nota Acme");
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect((await screen.findByRole("status")).textContent).toMatch(/Guardado en Bitácora/i);
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(cmd.captureWindowHide).toHaveBeenCalledTimes(1);
+    cleanup();
+    const error = { ShortcutConflict: "Win+F" };
+    cmd.captureShortcutGet.mockResolvedValue({ status: "error", error });
+    cmd.captureShortcutSet.mockResolvedValueOnce({ status: "ok", data: "Ctrl+Alt+K" });
+    render(<ShellSettings open={true} vaultName="Acme" onClose={() => {}} />);
+    expect((await screen.findByRole("alert")).textContent).toContain("«Win+F»");
+    const box = screen.getByRole("textbox", { name: "Captura rápida" });
+    fireEvent.change(box, { target: { value: "Ctrl+Alt+K" } });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar atajo" }));
+    await vi.waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+    expect(cmd.captureShortcutSet).toHaveBeenLastCalledWith("Ctrl+Alt+K");
   });
 });

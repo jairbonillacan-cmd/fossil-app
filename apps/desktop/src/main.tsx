@@ -5,6 +5,7 @@ import "./i18n";
 import "@fossil/editor/styles.css";
 import "./styles.css";
 import { startScrollActivityTracking } from "./scroll-activity";
+import { ShellCapture } from "./shell-capture";
 import { applyStoredShellPreferences } from "./shell-prefs";
 
 // Theme, density and language before the first paint: no flash of defaults (#31).
@@ -18,8 +19,5 @@ if (container === null) {
   throw new Error("#root element missing in index.html");
 }
 
-createRoot(container).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+const isCapture = window.location.hash === "#capture";
+createRoot(container).render(<StrictMode>{isCapture ? <ShellCapture /> : <App />}</StrictMode>);
