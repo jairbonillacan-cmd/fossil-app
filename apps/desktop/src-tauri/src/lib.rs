@@ -17,7 +17,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         IndexUpdated, ObjectChanged, attachment_load, attachment_save, journal_today,
         links_backlinks, links_unlinked_mentions, object_apply_update, object_archive,
         object_create, object_export_markdown, object_get, object_list, object_load_doc,
-        object_update_meta, vault_create, vault_open, vault_recent,
+        object_move, object_update_meta, vault_create, vault_open, vault_recent,
     };
     use commands::os::{
         CaptureRequested, capture_append, capture_shortcut_get, capture_shortcut_set,
@@ -36,6 +36,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             object_list,
             object_update_meta,
             object_archive,
+            object_move,
             object_load_doc,
             object_apply_update,
             object_export_markdown,

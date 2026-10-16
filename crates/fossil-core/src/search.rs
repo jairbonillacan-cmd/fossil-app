@@ -76,8 +76,12 @@ impl From<CoreError> for SearchError {
         match error {
             CoreError::NotImplemented => Self::NotImplemented,
             CoreError::VaultNotOpen => Self::VaultNotOpen,
-            CoreError::ObjectNotFound(id) => Self::Storage(format!("object {id} not found")),
             CoreError::Storage(msg) => Self::Storage(msg),
+            // Move errors never reach search; keep their message, not their shape.
+            other @ (CoreError::ObjectNotFound(_)
+            | CoreError::ParentNotFound(_)
+            | CoreError::ParentArchived(_)
+            | CoreError::MoveCycle(_)) => Self::Storage(other.to_string()),
         }
     }
 }

@@ -171,6 +171,68 @@ pub fn archive(conn: &mut Connection, id: &ObjectId) -> Result<ObjectMeta, CoreE
     )
 }
 
+/// Moves `id` under `parent` (`None` moves to the root) in one transaction.
+///
+/// Errors are typed and nothing is written on failure: `ObjectNotFound` (the
+/// moved object), `ParentNotFound` (missing parent; ids from another Espacio
+/// never exist in this vault's database), `ParentArchived` (parent or any
+/// ancestor archived) and `MoveCycle` (into itself, into a descendant, or a
+/// pre-existing cycle in the ancestor chain, which also bounds the walk).
+/// Idempotent when the parent is unchanged. Sibling order stays the derived
+/// `updated_at DESC, id` order: the moved object lands first under its new
+/// parent and every other sibling keeps its relative position.
+pub fn move_object(
+    conn: &mut Connection,
+    id: &ObjectId,
+    parent: Option<ObjectId>,
+) -> Result<ObjectMeta, CoreError> {
+    validate_id(id)?;
+    if let Some(parent_id) = &parent {
+        validate_id(parent_id)?;
+    }
+    let tx = conn.transaction().map_err(storage_error)?;
+    let meta = get(&tx, id)?.ok_or_else(|| CoreError::ObjectNotFound(id.0.clone()))?;
+    let mut visited = std::collections::HashSet::from([id.clone()]);
+    let mut cursor = parent.clone();
+    while let Some(ancestor_id) = cursor {
+        if !visited.insert(ancestor_id.clone()) {
+            return Err(CoreError::MoveCycle(id.0.clone()));
+        }
+        let ancestor = get(&tx, &ancestor_id)?.ok_or(CoreError::ParentNotFound(ancestor_id.0))?;
+        if ancestor.archived {
+            return Err(CoreError::ParentArchived(ancestor.id.0));
+        }
+        cursor = ancestor.parent;
+    }
+    if meta.parent == parent {
+        return Ok(meta);
+    }
+    let prev_millis: i64 = tx
+        .query_row("SELECT updated_at FROM objects WHERE id=?1", [&id.0], |r| {
+            r.get(0)
+        })
+        .map_err(storage_error)?;
+    let max_sibling_millis: Option<i64> = tx
+        .query_row(
+            "SELECT MAX(updated_at) FROM objects WHERE (?1 IS NULL AND parent IS NULL) OR parent=?1",
+            [parent.as_ref().map(|p| p.0.as_str())],
+            |r| r.get(0),
+        )
+        .map_err(storage_error)?;
+    let now = Utc::now()
+        .timestamp_millis()
+        .max(prev_millis.saturating_add(1))
+        .max(max_sibling_millis.map_or(0, |m| m.saturating_add(1)));
+    tx.execute(
+        "UPDATE objects SET parent=?2, updated_at=?3 WHERE id=?1",
+        params![id.0, parent.map(|p| p.0), now],
+    )
+    .map_err(storage_error)?;
+    let result = get(&tx, id)?.ok_or_else(|| CoreError::ObjectNotFound(id.0.clone()))?;
+    tx.commit().map_err(storage_error)?;
+    Ok(result)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -307,5 +369,152 @@ mod tests {
         assert!(create(&conn, page("Dangling", Some(missing))).is_err());
         assert!(get(&conn, &ObjectId("../unsafe".into())).is_err());
         assert!(list(&conn, ObjectFilter::default()).unwrap().is_empty());
+    }
+
+    /// Children of `parent` in list order (`updated_at DESC, id`); `None` = root.
+    fn children(conn: &Connection, parent: Option<&ObjectId>) -> Vec<ObjectId> {
+        all(conn)
+            .into_iter()
+            .filter(|m| !m.archived && m.parent.as_ref() == parent)
+            .map(|m| m.id)
+            .collect()
+    }
+
+    fn all(conn: &Connection) -> Vec<ObjectMeta> {
+        let filter = ObjectFilter {
+            include_archived: true,
+            ..Default::default()
+        };
+        list(conn, filter).unwrap()
+    }
+
+    #[test]
+    fn move_object_reparents_and_keeps_sibling_order_dense_and_stable() {
+        let mut conn = open_vault(":memory:").unwrap();
+        let a = create(&conn, page("Carpeta A", None)).unwrap().id;
+        let b = create(&conn, page("Carpeta B", None)).unwrap().id;
+        for title in ["A1", "A3"] {
+            create(&conn, page(title, Some(a.clone()))).unwrap();
+        }
+        let moved = create(&conn, page("A2", Some(a.clone()))).unwrap();
+        for title in ["B1", "B2"] {
+            create(&conn, page(title, Some(b.clone()))).unwrap();
+        }
+        let grandchild = create(&conn, page("Nieto", Some(moved.id.clone()))).unwrap();
+        let before_a: Vec<_> = children(&conn, Some(&a))
+            .into_iter()
+            .filter(|id| *id != moved.id)
+            .collect();
+        let before_b = children(&conn, Some(&b));
+
+        let after = move_object(&mut conn, &moved.id, Some(b.clone())).unwrap();
+        assert_eq!(after.parent, Some(b.clone()));
+        assert!(after.updated_at > moved.updated_at);
+        assert_eq!(
+            get(&conn, &grandchild.id).unwrap().unwrap().parent,
+            Some(moved.id.clone())
+        );
+        // Source keeps its relative order; target gets the moved object first,
+        // once, ahead of the unchanged previous order (no gaps, no duplicates).
+        assert_eq!(children(&conn, Some(&a)), before_a);
+        let mut expected_b = vec![moved.id.clone()];
+        expected_b.extend(before_b.iter().cloned());
+        assert_eq!(children(&conn, Some(&b)), expected_b);
+
+        // Idempotent: same parent changes nothing, not even the timestamp.
+        assert_eq!(
+            move_object(&mut conn, &moved.id, Some(b.clone())).unwrap(),
+            after
+        );
+        assert_eq!(children(&conn, Some(&b)), expected_b);
+
+        let mut expected_root = vec![moved.id.clone()];
+        expected_root.extend(children(&conn, None));
+        let at_root = move_object(&mut conn, &moved.id, None).unwrap();
+        assert_eq!(at_root.parent, None);
+        assert_eq!(children(&conn, None), expected_root);
+        assert_eq!(children(&conn, Some(&b)), before_b);
+        assert_eq!(move_object(&mut conn, &moved.id, None).unwrap(), at_root);
+    }
+
+    #[test]
+    fn move_object_rejects_cycles_with_typed_errors_and_writes_nothing() {
+        let mut conn = open_vault(":memory:").unwrap();
+        let root = create(&conn, page("Raíz", None)).unwrap().id;
+        let mid = create(&conn, page("Intermedio", Some(root.clone())))
+            .unwrap()
+            .id;
+        let leaf = create(&conn, page("Hoja", Some(mid.clone()))).unwrap().id;
+        let snapshot = all(&conn);
+        for target in [&root, &mid, &leaf] {
+            assert_eq!(
+                move_object(&mut conn, &root, Some(target.clone())),
+                Err(CoreError::MoveCycle(root.0.clone()))
+            );
+        }
+        assert_eq!(
+            move_object(&mut conn, &mid, Some(leaf.clone())),
+            Err(CoreError::MoveCycle(mid.0.clone()))
+        );
+        assert_eq!(all(&conn), snapshot);
+    }
+
+    #[test]
+    fn move_object_rejects_missing_foreign_and_archived_parents() {
+        let mut conn = open_vault(":memory:").unwrap();
+        let leaf = create(&conn, page("Hoja", None)).unwrap().id;
+        let missing = ObjectId::new();
+        assert_eq!(
+            move_object(&mut conn, &leaf, Some(missing.clone())),
+            Err(CoreError::ParentNotFound(missing.0.clone()))
+        );
+        assert_eq!(
+            move_object(&mut conn, &missing, None),
+            Err(CoreError::ObjectNotFound(missing.0))
+        );
+        // Each Espacio is its own database: a parent from another one is unknown here.
+        let other = open_vault(":memory:").unwrap();
+        let foreign = create(&other, page("Ajena", None)).unwrap().id;
+        assert_eq!(
+            move_object(&mut conn, &leaf, Some(foreign.clone())),
+            Err(CoreError::ParentNotFound(foreign.0))
+        );
+        let trash = create(&conn, page("Archivada", None)).unwrap().id;
+        let inside = create(&conn, page("Dentro", Some(trash.clone())))
+            .unwrap()
+            .id;
+        archive(&mut conn, &trash).unwrap();
+        for target in [&trash, &inside] {
+            assert_eq!(
+                move_object(&mut conn, &leaf, Some(target.clone())),
+                Err(CoreError::ParentArchived(trash.0.clone()))
+            );
+        }
+        let snapshot = all(&conn);
+        let bad = ObjectId("../bad".into());
+        assert!(matches!(
+            move_object(&mut conn, &bad, None),
+            Err(CoreError::Storage(_))
+        ));
+        assert!(matches!(
+            move_object(&mut conn, &leaf, Some(bad)),
+            Err(CoreError::Storage(_))
+        ));
+        assert_eq!(all(&conn), snapshot);
+    }
+
+    #[test]
+    fn move_object_stops_on_a_corrupted_ancestor_cycle() {
+        let mut conn = open_vault(":memory:").unwrap();
+        let x = create(&conn, page("X", None)).unwrap().id;
+        let y = create(&conn, page("Y", Some(x.clone()))).unwrap().id;
+        let z = create(&conn, page("Z", None)).unwrap().id;
+        conn.execute("UPDATE objects SET parent=?2 WHERE id=?1", [&x.0, &y.0])
+            .unwrap();
+        assert_eq!(
+            move_object(&mut conn, &z, Some(x)),
+            Err(CoreError::MoveCycle(z.0.clone()))
+        );
+        assert_eq!(get(&conn, &z).unwrap().unwrap().parent, None);
     }
 }

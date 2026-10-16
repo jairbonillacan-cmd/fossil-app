@@ -287,6 +287,20 @@ pub fn object_archive(
     })?;
     Ok(changed(&app, meta))
 }
+
+#[tauri::command]
+#[specta::specta]
+pub fn object_move(
+    state: tauri::State<'_, VaultState>,
+    app: tauri::AppHandle,
+    id: ObjectId,
+    parent: Option<ObjectId>,
+) -> Result<ObjectMeta, CoreError> {
+    let meta = with_session(state, |session| {
+        session.with_connection(|conn| object_store::move_object(conn, &id, parent))
+    })?;
+    Ok(changed(&app, meta))
+}
 #[tauri::command]
 #[specta::specta]
 pub fn object_load_doc(

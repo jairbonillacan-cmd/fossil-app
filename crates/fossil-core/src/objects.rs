@@ -100,6 +100,16 @@ pub enum CoreError {
     ObjectNotFound(String),
     #[error("storage error: {0}")]
     Storage(String),
+    /// `object_move`: the target parent (or one of its ancestors) does not
+    /// exist in the open vault. Ids from another Espacio land here too.
+    #[error("parent {0} not found in this vault")]
+    ParentNotFound(String),
+    /// `object_move`: the target parent or one of its ancestors is archived.
+    #[error("parent {0} is archived")]
+    ParentArchived(String),
+    /// `object_move`: the moved object would end up inside itself or a descendant.
+    #[error("cannot move {0} into itself or one of its descendants")]
+    MoveCycle(String),
 }
 
 #[cfg(test)]

@@ -29,6 +29,7 @@ export const commands = {
 	objectList: (filter: ObjectFilter) => typedError<ObjectMeta[], CoreError>(__TAURI_INVOKE("object_list", { filter })),
 	objectUpdateMeta: (id: ObjectId, patch: MetaPatch) => typedError<ObjectMeta, CoreError>(__TAURI_INVOKE("object_update_meta", { id, patch })),
 	objectArchive: (id: ObjectId) => typedError<ObjectMeta, CoreError>(__TAURI_INVOKE("object_archive", { id })),
+	objectMove: (id: ObjectId, parent: string | null) => typedError<ObjectMeta, CoreError>(__TAURI_INVOKE("object_move", { id, parent })),
 	objectLoadDoc: (id: ObjectId) => typedError<number[], CoreError>(__TAURI_INVOKE("object_load_doc", { id })),
 	objectApplyUpdate: (id: ObjectId, update: number[]) => typedError<null, CoreError>(__TAURI_INVOKE("object_apply_update", { id, update })),
 	/**  The page as Markdown, exactly what the vault mirror writes (#126). */
@@ -175,7 +176,16 @@ export type ChatSummary = {
 /**  Typed errors shared by every IPC command in R1. */
 export type CoreError = 
 /**  The command is part of the fixed contract but not implemented yet. */
-"NotImplemented" | "VaultNotOpen" | ({ ObjectNotFound: string }) & { Storage?: never } | ({ Storage: string }) & { ObjectNotFound?: never };
+"NotImplemented" | "VaultNotOpen" | ({ ObjectNotFound: string }) & { MoveCycle?: never; ParentArchived?: never; ParentNotFound?: never; Storage?: never } | ({ Storage: string }) & { MoveCycle?: never; ObjectNotFound?: never; ParentArchived?: never; ParentNotFound?: never } | 
+/**
+ *  `object_move`: the target parent (or one of its ancestors) does not
+ *  exist in the open vault. Ids from another Espacio land here too.
+ */
+({ ParentNotFound: string }) & { MoveCycle?: never; ObjectNotFound?: never; ParentArchived?: never; Storage?: never } | 
+/**  `object_move`: the target parent or one of its ancestors is archived. */
+({ ParentArchived: string }) & { MoveCycle?: never; ObjectNotFound?: never; ParentNotFound?: never; Storage?: never } | 
+/**  `object_move`: the moved object would end up inside itself or a descendant. */
+({ MoveCycle: string }) & { ObjectNotFound?: never; ParentArchived?: never; ParentNotFound?: never; Storage?: never };
 
 /**  Result of a provider probe. */
 export type Health = {
