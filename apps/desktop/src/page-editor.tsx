@@ -1,5 +1,5 @@
 import { Button } from "@fossil/ui";
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AiChatPanel } from "./ai-panel";
 import type { ObjectMeta } from "./bindings";
@@ -22,7 +22,7 @@ export interface PageEditorProps {
   onObjectUpdated?: ((object: ObjectMeta) => void) | undefined;
 }
 
-/** Page header (`object_update_meta`, 400 ms debounce + blur), body and collapsible backlinks/AI panels (#26, #28, #14). */
+/** Page header (`object_update_meta`, 400 ms debounce + blur), `⋯` actions menu, body and collapsible backlinks/AI panels (#26, #28, #14, #105). */
 export function PageEditor({ object, onSelect, onObjectUpdated }: PageEditorProps) {
   const { t, i18n } = useTranslation();
   const [title, setTitle] = useState(object?.title ?? "");
@@ -35,9 +35,16 @@ export function PageEditor({ object, onSelect, onObjectUpdated }: PageEditorProp
   const [exportFailed, setExportFailed] = useState(false);
   const [backlinksOpen, setBacklinksOpen] = useState(true);
   const [aiOpen, setAiOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [activeMenuIndex, setActiveMenuIndex] = useState(0);
   const exportRef = useRef<() => void>(() => {});
   const printRef = useRef<() => void>(() => {});
+  const copyLinkRef = useRef<() => void>(() => {});
   const bodyRef = useRef<HTMLDivElement>(null);
+  const titleInputRef = useRef<HTMLTextAreaElement>(null);
+  const menuContainerRef = useRef<HTMLDivElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const menuItemRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   useEffect(() => {
     const nextId = object?.id ?? null;
@@ -53,6 +60,7 @@ export function PageEditor({ object, onSelect, onObjectUpdated }: PageEditorProp
       lastSavedTitleRef.current = initialTitle.trim();
       inFlightSaveRef.current = null;
       setExportFailed(false);
+      setMenuOpen(false);
     } else if (
       object !== null &&
       timerRef.current === null &&
@@ -135,6 +143,7 @@ export function PageEditor({ object, onSelect, onObjectUpdated }: PageEditorProp
       [
         ["editor.exportMarkdown", t("editor.exportMarkdown"), () => exportRef.current()],
         ["editor.exportPdf", t("editor.exportPdf"), () => printRef.current()],
+        ["editor.copyLink", t("editor.copyLink"), () => copyLinkRef.current()],
         ["editor.toggleBacklinks", t("palette.toggleBacklinks"), () => setBacklinksOpen((o) => !o)],
       ] as const
     ).map(([id, lbl, run]) => registerCommand({ id, title: lbl, run }));
@@ -143,7 +152,62 @@ export function PageEditor({ object, onSelect, onObjectUpdated }: PageEditorProp
     };
   }, [object, t]);
 
-  if (object === null) {
+  useEffect(() => {
+    if (!menuOpen) return;
+    menuItemRefs.current[activeMenuIndex]?.focus();
+  }, [menuOpen, activeMenuIndex]);
+
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    const onOutsidePointer = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      if (target && !menuContainerRef.current?.contains(target)) {
+        setMenuOpen(false);
+        menuButtonRef.current?.focus();
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setMenuOpen(false);
+        menuButtonRef.current?.focus();
+      }
+    };
+    document.addEventListener("mousedown", onOutsidePointer);
+    document.addEventListener("click", onOutsidePointer);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onOutsidePointer);
+      document.removeEventListener("click", onOutsidePointer);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [menuOpen]);
+
+  const currentObject =
+    object !== null && lastSavedTitleRef.current !== object.title
+      ? { ...object, title: lastSavedTitleRef.current }
+      : object;
+  const displayTitle =
+    object !== null &&
+    currentObject !== null &&
+    object.types.includes("Journal") &&
+    title.trim() === lastSavedTitleRef.current
+      ? formatObjectTitle(currentObject, i18n.language, "")
+      : title;
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: displayTitle drives the auto-sizing measurement.
+  useLayoutEffect(() => {
+    const el = titleInputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    if (el.scrollHeight > 0) {
+      el.style.height = `${el.scrollHeight}px`;
+    } else {
+      el.style.height = "";
+    }
+  }, [displayTitle]);
+
+  if (object === null || currentObject === null) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2">
         <h2 className="text-lg font-semibold text-[color:var(--fg)]">{t("editor.emptyTitle")}</h2>
@@ -152,25 +216,55 @@ export function PageEditor({ object, onSelect, onObjectUpdated }: PageEditorProp
     );
   }
 
-  const currentObject =
-    lastSavedTitleRef.current !== object.title
-      ? { ...object, title: lastSavedTitleRef.current }
-      : object;
-  const displayTitle =
-    object.types.includes("Journal") && title.trim() === lastSavedTitleRef.current
-      ? formatObjectTitle(currentObject, i18n.language, "")
-      : title;
-
   const exportMarkdown = async () => {
     // Flush first: the export reads the stored title, not the one being typed.
     await flushTitle(titleRef.current);
     const name = displayTitle.trim() === "" ? t("editor.untitled") : displayTitle;
     setExportFailed(!(await exportObjectMarkdown(object.id, name, object.id)));
   };
+  const copyPageLink = async () => {
+    await flushTitle(titleRef.current);
+    const raw = (displayTitle.trim() === "" ? t("editor.untitled") : displayTitle).replace(
+      /[[\]|#]/g,
+      " ",
+    );
+    const wikilink = `[[${raw.trim()}]]`;
+    try {
+      await navigator.clipboard?.writeText(wikilink);
+    } catch {
+      // Clipboard API may be unavailable in restricted contexts.
+    }
+  };
   exportRef.current = () => void exportMarkdown();
   printRef.current = () => {
     void flushTitle(titleRef.current);
     printObjectPdf();
+  };
+  copyLinkRef.current = () => void copyPageLink();
+
+  const menuItems = [
+    {
+      id: "export-markdown",
+      label: t("editor.exportMarkdown"),
+      run: () => void exportMarkdown(),
+    },
+    {
+      id: "export-pdf",
+      label: t("editor.exportPdf"),
+      run: () => printRef.current(),
+    },
+    {
+      id: "copy-link",
+      label: t("editor.copyLink"),
+      run: () => void copyPageLink(),
+    },
+  ];
+
+  const closeMenu = (restoreFocus: boolean) => {
+    setMenuOpen(false);
+    if (restoreFocus) {
+      menuButtonRef.current?.focus();
+    }
   };
 
   return (
@@ -183,49 +277,125 @@ export function PageEditor({ object, onSelect, onObjectUpdated }: PageEditorProp
       */}
       <div className="flex h-full min-w-0 flex-1 flex-col overflow-y-auto [scrollbar-gutter:stable] print:h-auto print:overflow-visible">
         <div className="mx-auto flex min-h-full w-full max-w-2xl flex-col gap-4 px-6 py-8 in-data-[density=compact]:gap-2.5 in-data-[density=compact]:py-5">
-          <div className="flex items-start gap-2">
-            <input
-              type="text"
+          <div className="flex items-start justify-between gap-3">
+            <textarea
+              ref={titleInputRef}
+              rows={1}
               value={displayTitle}
+              title={displayTitle || t("editor.untitled")}
               aria-label={t("editor.titleLabel")}
               placeholder={t("editor.untitled")}
               onChange={(event) => {
-                titleRef.current = event.target.value;
-                setTitle(event.target.value);
+                const next = event.target.value.replace(/[\r\n]+/g, " ");
+                titleRef.current = next;
+                setTitle(next);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  event.currentTarget.blur();
+                }
               }}
               onBlur={() => void flushTitle(titleRef.current)}
-              className="min-w-0 flex-1 rounded border-0 bg-transparent px-0 text-3xl font-semibold text-[color:var(--fg)] placeholder:text-[color:var(--fg-muted)] focus-visible:outline-2 focus-visible:outline-[color:var(--accent)]"
+              className="min-w-0 flex-1 resize-none overflow-hidden break-words rounded border-0 bg-transparent px-0 py-0 text-3xl leading-tight font-semibold text-[color:var(--fg)] placeholder:text-[color:var(--fg-muted)] focus-visible:outline-2 focus-visible:outline-[color:var(--accent)] [field-sizing:content]"
             />
-            <Button
-              variant="secondary"
-              className="mt-1.5 shrink-0 print:hidden"
-              onClick={() => void exportMarkdown()}
-            >
-              {t("editor.exportMarkdown")}
-            </Button>
-            <Button
-              variant="secondary"
-              className="mt-1.5 shrink-0 print:hidden"
-              onClick={() => printRef.current()}
-            >
-              {t("editor.exportPdf")}
-            </Button>
-            <Button
-              variant="secondary"
-              className="mt-1.5 shrink-0 print:hidden"
-              aria-expanded={backlinksOpen}
-              onClick={() => setBacklinksOpen((open) => !open)}
-            >
-              {t("backlinks.toggle")}
-            </Button>
-            <Button
-              variant="secondary"
-              className="mt-1.5 shrink-0"
-              aria-expanded={aiOpen}
-              onClick={() => setAiOpen((open) => !open)}
-            >
-              {t("ai.toggle")}
-            </Button>
+            <div className="mt-1 flex shrink-0 items-center gap-1.5 print:hidden">
+              <Button
+                variant="secondary"
+                className="shrink-0"
+                aria-label={t("backlinks.toggle")}
+                aria-expanded={backlinksOpen}
+                onClick={() => setBacklinksOpen((open) => !open)}
+              >
+                {t("backlinks.toggle")}
+              </Button>
+              <Button
+                variant="secondary"
+                className="shrink-0"
+                aria-label={t("ai.toggle")}
+                aria-expanded={aiOpen}
+                onClick={() => setAiOpen((open) => !open)}
+              >
+                {t("ai.toggle")}
+              </Button>
+              <div ref={menuContainerRef} className="relative">
+                <button
+                  ref={menuButtonRef}
+                  type="button"
+                  className="fui-button fui-button--secondary shrink-0 px-2.5"
+                  aria-label={t("editor.moreActions")}
+                  title={t("editor.moreActions")}
+                  aria-haspopup="menu"
+                  aria-expanded={menuOpen}
+                  onClick={() => {
+                    setActiveMenuIndex(0);
+                    setMenuOpen((open) => !open);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " " || event.key === "ArrowDown") {
+                      event.preventDefault();
+                      setActiveMenuIndex(0);
+                      setMenuOpen((open) => !open);
+                    } else if (event.key === "ArrowUp") {
+                      event.preventDefault();
+                      setActiveMenuIndex(menuItems.length - 1);
+                      setMenuOpen(true);
+                    }
+                  }}
+                >
+                  ⋯
+                </button>
+                {menuOpen && (
+                  <div
+                    role="menu"
+                    aria-label={t("editor.moreActions")}
+                    className="absolute top-full right-0 z-20 mt-1 min-w-48 rounded-md border border-[color:var(--border)] bg-[color:var(--bg-elevated)] p-1 shadow-md"
+                  >
+                    {menuItems.map((item, index) => (
+                      <button
+                        key={item.id}
+                        ref={(el) => {
+                          menuItemRefs.current[index] = el;
+                        }}
+                        type="button"
+                        role="menuitem"
+                        aria-label={item.label}
+                        tabIndex={index === activeMenuIndex ? 0 : -1}
+                        onClick={() => {
+                          closeMenu(true);
+                          item.run();
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === "ArrowDown") {
+                            event.preventDefault();
+                            setActiveMenuIndex((i) => (i + 1) % menuItems.length);
+                          } else if (event.key === "ArrowUp") {
+                            event.preventDefault();
+                            setActiveMenuIndex(
+                              (i) => (i - 1 + menuItems.length) % menuItems.length,
+                            );
+                          } else if (event.key === "Home") {
+                            event.preventDefault();
+                            setActiveMenuIndex(0);
+                          } else if (event.key === "End") {
+                            event.preventDefault();
+                            setActiveMenuIndex(menuItems.length - 1);
+                          } else if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            closeMenu(true);
+                            item.run();
+                          }
+                        }}
+                        className="flex w-full items-center rounded px-3 py-1.5 text-left text-sm text-[color:var(--fg)] hover:bg-[color:var(--bg)] focus-visible:bg-[color:var(--bg)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[color:var(--accent)]"
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
           {exportFailed && (
             <p role="alert" className="text-sm text-[color:var(--fg-muted)] print:hidden">

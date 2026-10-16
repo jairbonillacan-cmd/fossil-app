@@ -17,17 +17,33 @@
   },
   "sidebar": {
     "label": "Páginas",
+    "quickOpen": "Ir a página…",
+    "quickOpenShortcut": "Ctrl+P",
     "newPage": "Nueva página",
     "today": "Hoy",
     "settings": "Ajustes",
     "loading": "Cargando…",
-    "empty": "Todavía no hay páginas. Crea la primera con «Nueva página»."
+    "empty": "Todavía no hay páginas. Crea la primera con «Nueva página».",
+    "expand": "Expandir {{title}}",
+    "collapse": "Contraer {{title}}"
+  },
+  "tabs": {
+    "listLabel": "Pestañas abiertas",
+    "newTab": "Nueva pestaña",
+    "back": "Atrás",
+    "forward": "Adelante",
+    "pin": "Fijar pestaña",
+    "unpin": "Desfijar pestaña",
+    "close": "Cerrar pestaña",
+    "pinnedBadge": "Fijada"
   },
   "editor": {
     "emptyTitle": "Ninguna página abierta",
     "emptyBody": "Elige una página de la lista o crea una nueva.",
     "titleLabel": "Título de la página",
     "untitled": "Sin título",
+    "moreActions": "Más acciones",
+    "copyLink": "Copiar enlace",
     "exportMarkdown": "Exportar Markdown",
     "exportPdf": "Exportar PDF",
     "exportFailed": "No se pudo exportar la página. Inténtalo de nuevo.",
@@ -89,7 +105,7 @@
     "shortcuts": "Atajos de teclado",
     "shortcutPalette": "Paleta de comandos",
     "shortcutQuickOpen": "Cambio rápido de página",
-    "shortcutCapture": "Captura rápida global"
+    "shortcutCapture": "Captura rápida"
   },
   "backlinks": {
     "panelLabel": "Enlazada desde",
@@ -146,6 +162,18 @@
     "rejectProposal": "Rechazar",
     "proposalConfirmed": "Insertado en la página",
     "proposalRejected": "Propuesta descartada"
+  },
+  "capture": {
+    "placeholder": "Escribe una nota rápida… (Enter para guardar, Esc para cerrar)",
+    "paste": "Pegar portapapeles",
+    "save": "Guardar en Hoy",
+    "savedIn": "Guardado en Bitácora · {{title}}",
+    "shortcutSave": "Guardar atajo",
+    "shortcutConflict": "Windows u otra aplicación ya ocupa «{{shortcut}}». Elige otro atajo.",
+    "shortcutInvalid": "Atajo no válido (usa por ejemplo Win+Shift+F o Ctrl+Alt+K).",
+    "trayOpen": "Abrir Fossil",
+    "trayNew": "Nueva captura",
+    "trayQuit": "Salir"
   },
   "error": {
     "notImplemented": "Esta función todavía no está disponible.",
