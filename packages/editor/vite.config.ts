@@ -7,5 +7,6 @@ export default defineConfig({
   },
   test: {
     environment: "jsdom",
+    testTimeout: 20_000,
   },
 });

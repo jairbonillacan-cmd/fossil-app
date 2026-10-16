@@ -100,7 +100,9 @@ export const BlockId = Extension.create({
           });
 
           if (!modified) return null;
-          tr.setMeta("addToHistory", false);
+          // Must stay undoable: y-prosemirror reads `addToHistory` from the last transaction of
+          // the batch, so opting out here would drop the whole user step (paste, Enter) from the
+          // Y.UndoManager stack.
           return tr;
         },
       }),
