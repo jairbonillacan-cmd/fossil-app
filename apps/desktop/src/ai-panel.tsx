@@ -1,5 +1,6 @@
+import type { Editor } from "@fossil/editor";
 import { Button, Input } from "@fossil/ui";
-import { type ChangeEvent, type FormEvent, useEffect, useState } from "react";
+import { type ChangeEvent, type FormEvent, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type {
   ChatContext,
@@ -27,36 +28,40 @@ const MODEL_INFO: Record<ProviderId, [string, number | null]> = {
 const ALL_PROVIDERS = Object.keys(MODEL_INFO) as ProviderId[];
 const ROUTES: readonly (ProviderId | null)[] = [null, ...ALL_PROVIDERS];
 const ACTIONS = ["actionRewrite", "actionSummarize", "actionTranslate", "actionTone"] as const;
-const DEFAULT_PREFER: Record<TaskKind, ProviderId[]> = {
-  Chat: ALL_PROVIDERS,
-  Inline: ["Anthropic", "OpenAi", "Gemini", "Ollama", "Agy", "Claude", "Codex"],
-  Embedding: ["OpenAi", "Gemini", "Ollama"],
-};
 
-type TurnStatus = "pending" | "confirmed" | "rejected" | "cancelled";
-type ChatTurn = [RequestId, string, string, string, Usage | null, string, TurnStatus];
+type TurnRange = { from: number; to: number } | null;
+type TurnStatus = "chat" | "streaming" | "ready" | "confirmed" | "rejected" | "cancelled" | "error";
+type ChatTurn = [RequestId, string, string, string, Usage | null, string, TurnRange, TurnStatus];
 
-const HEADING_CLS =
-  "shrink-0 text-xs font-semibold uppercase tracking-wide text-[color:var(--fg-muted)]";
+const HEADING_CLS = "text-xs font-semibold uppercase tracking-wide text-[color:var(--fg-muted)]";
 const CARD_CLS = "rounded border border-[color:var(--border)] bg-[color:var(--bg-elevated)]";
-const CHIP_CLS = `${CARD_CLS} inline-flex items-center gap-1.5 px-2 py-0.5 text-xs text-[color:var(--fg)]`;
-const PRE_CLS = `${CARD_CLS} m-0 whitespace-pre-wrap break-words p-2 font-mono text-[11px] text-[color:var(--fg)]`;
+const CHIP_CLS = `${CARD_CLS} inline-flex items-center gap-1.5 px-2 py-1 text-xs text-[color:var(--fg)]`;
+const PRE_CLS = `${CARD_CLS} m-0 whitespace-pre-wrap break-words p-2.5 font-mono text-xs text-[color:var(--fg)]`;
 const ITEM_CLS =
   "rounded px-2 py-1 text-left text-xs text-[color:var(--fg)] hover:bg-[color:var(--bg)]";
 const META_CLS = "font-mono text-[11px] text-[color:var(--fg-muted)]";
-const BTN_SM = "h-6 shrink-0 px-1.5 text-xs";
+const BTN_SM = "h-6 px-2 text-xs";
 
 const redactSecrets = (s: string) =>
   s.replace(/\b(sk-[A-Za-z0-9_-]{8,}|AIza[A-Za-z0-9_-]{20,})/g, "[redactado]");
 const formatUsd = (u: number) => `$${u < 0.01 && u > 0 ? u.toFixed(4) : u.toFixed(2)} USD`;
-const mapTurn = (p: ChatTurn[], id: RequestId, fn: (r: ChatTurn) => ChatTurn) =>
-  p.map((r) => (r[0] === id ? fn(r) : r));
+const patchTurn = (r: ChatTurn, p: Record<number, unknown>): ChatTurn =>
+  Object.assign([...r] as ChatTurn, p);
+const getEditor = (): Editor | null =>
+  (document.querySelector(".fossil-editor") as { editor?: Editor } | null)?.editor ?? null;
+const readEditorSel = () => {
+  const ed = getEditor();
+  if (!ed) return null;
+  const { from, to } = ed.state.selection;
+  return from < to ? { from, to, text: ed.state.doc.textBetween(from, to, "\n").trim() } : null;
+};
 
 /** Right-side AI panel (#14, #80): context preview, provider/model/usage visibility and proposal confirmation. */
 export function AiChatPanel({ object }: { object: ObjectMeta }) {
   const { t, i18n } = useTranslation();
   const [attached, setAttached] = useState<ObjectMeta[]>([object]);
   const [selection, setSelection] = useState("");
+  const rangeRef = useRef<TurnRange>(null);
   const [pages, setPages] = useState<ObjectMeta[]>([]);
   const [routes, setRoutes] = useState<RouteRule[]>([]);
   const [providersInfo, setProvidersInfo] = useState<ProviderInfo[]>([]);
@@ -79,27 +84,35 @@ export function AiChatPanel({ object }: { object: ObjectMeta }) {
       .aiProviders?.()
       ?.then((res) => setProvidersInfo(res.status === "ok" ? res.data : []));
     const onSel = () => {
-      const text = window.getSelection?.()?.toString().trim() ?? "";
-      if (text !== "") setSelection(text);
+      const es = readEditorSel();
+      const text = es?.text || (window.getSelection?.()?.toString().trim() ?? "");
+      if (text !== "") {
+        rangeRef.current = es ? { from: es.from, to: es.to } : null;
+        setSelection(text);
+      }
     };
+    onSel();
     document.addEventListener("selectionchange", onSel);
     let off = Promise.resolve<() => void>(() => {});
     try {
       off = events.aiEvent.listen(({ payload: { request_id, event } }) => {
-        const upd = (fn: (r: ChatTurn) => ChatTurn) => setTurns((p) => mapTurn(p, request_id, fn));
+        const upd = (fn: (r: ChatTurn) => ChatTurn) =>
+          setTurns((p) => p.map((r) => (r[0] === request_id ? fn(r) : r)));
         if ("Started" in event) {
           const b = `${event.Started.provider} · ${event.Started.model}`;
-          upd((r) => [r[0], r[1], r[2], b, r[4], r[5], r[6]]);
+          upd((r) => patchTurn(r, { 3: b }));
         } else if ("Delta" in event) {
-          const d = redactSecrets(event.Delta.text);
-          upd((r) => [r[0], r[1], r[2] + d, r[3], r[4], r[5], r[6]]);
+          const d = event.Delta.text;
+          upd((r) => patchTurn(r, { 2: redactSecrets(r[2] + d) }));
         } else if ("Usage" in event) {
-          upd((r) => [r[0], r[1], r[2], r[3], event.Usage ?? null, r[5], r[6]]);
+          upd((r) => patchTurn(r, { 4: event.Usage ?? null }));
         } else if ("Done" in event) {
           const s = event.Done.summary;
-          upd((r) => [r[0], r[1], r[2], `${s.provider} · ${s.model}`, s.usage, r[5], r[6]]);
+          const m = `${s.provider} · ${s.model}`;
+          upd((r) => patchTurn(r, { 3: m, 4: s.usage, 7: r[7] === "streaming" ? "ready" : r[7] }));
           setActiveId((cur) => (cur === request_id ? null : cur));
         } else if ("Error" in event) {
+          upd((r) => patchTurn(r, { 7: "error" }));
           setError(redactSecrets(event.Error.message));
           setActiveId((cur) => (cur === request_id ? null : cur));
         }
@@ -115,7 +128,9 @@ export function AiChatPanel({ object }: { object: ObjectMeta }) {
 
   const resolveProvider = (task: TaskKind): ProviderId => {
     if (provider !== null) return provider;
-    const chain = routes.find((r) => r.task === task)?.prefer ?? DEFAULT_PREFER[task];
+    const def =
+      task === "Inline" ? (["Anthropic", ...ALL_PROVIDERS] as ProviderId[]) : ALL_PROVIDERS;
+    const chain = routes.find((r) => r.task === task)?.prefer ?? def;
     const ready = chain.find(
       (id) => providersInfo.find((p) => p.id === id)?.health.status === "Ready",
     );
@@ -150,13 +165,16 @@ export function AiChatPanel({ object }: { object: ObjectMeta }) {
       );
       return;
     }
-    const b = badgeFor(resolveProvider(task));
+    const m = badgeFor(resolveProvider(task));
+    const st: TurnStatus = task === "Inline" ? "streaming" : "chat";
     setActiveId(res.data);
-    setTurns((p) => [...p, [res.data, cleanPrompt, "", b, null, cleanSel, "pending"]]);
+    setTurns((p) => [...p, [res.data, cleanPrompt, "", m, null, cleanSel, rangeRef.current, st]]);
   };
 
   const onAction = (k: string) => {
-    const sel = (window.getSelection?.()?.toString().trim() || selection).trim();
+    const es = readEditorSel();
+    if (es && es.text !== "") rangeRef.current = { from: es.from, to: es.to };
+    const sel = (es?.text || window.getSelection?.()?.toString().trim() || selection).trim();
     if (sel !== "" && sel !== selection) setSelection(sel);
     const label = t(`ai.${k}`);
     void sendChat(sel !== "" ? `${label}: ${sel}` : label, "Inline", sel);
@@ -171,9 +189,12 @@ export function AiChatPanel({ object }: { object: ObjectMeta }) {
     setPrompt(e.target.value);
     if (e.target.value.endsWith("@")) setMentionOpen(true);
   };
-  const onSelInput = (e: ChangeEvent<HTMLInputElement>) => setSelection(e.target.value);
-  const setTurnStatus = (id: RequestId, status: TurnStatus) =>
-    setTurns((p) => mapTurn(p, id, (r) => [r[0], r[1], r[2], r[3], r[4], r[5], status]));
+  const onSelInput = (e: ChangeEvent<HTMLInputElement>) => {
+    rangeRef.current = null;
+    setSelection(e.target.value);
+  };
+  const setTurnStatus = (id: RequestId, st: TurnStatus) =>
+    setTurns((p) => p.map((r) => (r[0] === id ? patchTurn(r, { 7: st }) : r)));
   const onCancel = () => {
     if (activeId) {
       void commands.aiCancel?.(activeId);
@@ -181,12 +202,22 @@ export function AiChatPanel({ object }: { object: ObjectMeta }) {
     }
     setActiveId(null);
   };
-  const confirmTurn = ([id, , a, , , sel]: ChatTurn) => {
-    const surface = document.querySelector('[contenteditable="true"], [data-testid="page-body"]');
-    if (surface) {
-      const cur = surface.textContent ?? "";
-      surface.textContent =
-        sel !== "" && cur.includes(sel) ? cur.replace(sel, a) : `${cur}${cur ? "\n" : ""}${a}`;
+  const confirmTurn = ([id, , a, , , sel, range]: ChatTurn) => {
+    const ed = getEditor();
+    if (ed) {
+      let target = range;
+      if (!target && sel !== "") {
+        ed.state.doc.descendants((node, pos) => {
+          if (target || !node.isText || !node.text) return !target;
+          const idx = node.text.indexOf(sel);
+          if (idx >= 0) target = { from: pos + idx, to: pos + idx + sel.length };
+          return !target;
+        });
+      }
+      ed.chain()
+        .focus()
+        .insertContentAt(target ?? ed.state.selection.to, a)
+        .run();
     }
     setSelection(a);
     setTurnStatus(id, "confirmed");
@@ -211,7 +242,8 @@ export function AiChatPanel({ object }: { object: ObjectMeta }) {
     ...(prompt.trim() !== "" ? [`[Prompt] ${prompt.trim()}`] : []),
   ].join("\n");
   const estTokens = previewText.length === 0 ? 0 : Math.max(1, Math.ceil(previewText.length / 4));
-  const estRate = MODEL_INFO[chatTarget][1];
+  const estTarget = selection.trim() !== "" && prompt.trim() === "" ? inlineTarget : chatTarget;
+  const estRate = MODEL_INFO[estTarget][1];
   const estCost = estRate !== null ? formatUsd((estTokens * estRate) / 1e6) : null;
   const estLabel = estCost
     ? t("ai.estimatedTokensCost", { tokens: estTokens, cost: estCost })
@@ -226,10 +258,10 @@ export function AiChatPanel({ object }: { object: ObjectMeta }) {
   return (
     <aside
       aria-label={t("ai.panelLabel")}
-      className="flex h-full w-96 shrink-0 flex-col gap-2 overflow-y-auto border-l border-[color:var(--border)] px-3.5 py-2.5"
+      className="flex h-full w-80 shrink-0 flex-col gap-4 overflow-y-auto border-l border-[color:var(--border)] px-4 py-6 in-data-[density=compact]:gap-3 in-data-[density=compact]:py-4"
     >
-      <header className="flex flex-col gap-1">
-        <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5">
+      <header className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className={HEADING_CLS}>{t("ai.panelLabel")}</h2>
           <span data-testid="ai-chat-route" className={META_CLS}>
             {badgeFor(chatTarget)}
@@ -249,7 +281,7 @@ export function AiChatPanel({ object }: { object: ObjectMeta }) {
         </fieldset>
       </header>
 
-      <section aria-label={t("ai.contextTitle")} className="flex flex-col gap-1">
+      <section aria-label={t("ai.contextTitle")} className="flex flex-col gap-2">
         <div className="flex items-center justify-between gap-2">
           <span className={HEADING_CLS}>{t("ai.contextTitle")}</span>
           <Button variant="secondary" className={BTN_SM} onClick={() => setMentionOpen((o) => !o)}>
@@ -257,7 +289,7 @@ export function AiChatPanel({ object }: { object: ObjectMeta }) {
           </Button>
         </div>
 
-        <div className="flex flex-wrap gap-1">
+        <div className="flex flex-wrap gap-1.5">
           {chips.map(([id, label, onRemove]) => (
             <button key={id} type="button" onClick={onRemove} className={CHIP_CLS}>
               <span className="max-w-44 truncate">{label}</span> ×
@@ -275,31 +307,28 @@ export function AiChatPanel({ object }: { object: ObjectMeta }) {
           </div>
         )}
 
-        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5">
-          <Button variant="secondary" className={BTN_SM} onClick={() => setPreviewOpen((o) => !o)}>
-            {t("ai.previewToggle")}
-          </Button>
-          <span data-testid="ai-estimated-usage" className={META_CLS}>
-            {estLabel}
-          </span>
-        </div>
-        <pre
-          data-testid="ai-context-preview"
-          className={previewOpen ? PRE_CLS : `${PRE_CLS} max-h-12 overflow-hidden`}
-        >
-          {previewText}
-        </pre>
+        <Button variant="secondary" className={BTN_SM} onClick={() => setPreviewOpen((o) => !o)}>
+          {t("ai.previewToggle")}
+        </Button>
+        <span data-testid="ai-estimated-usage" className={META_CLS}>
+          {estLabel}
+        </span>
+        {previewOpen && (
+          <pre data-testid="ai-context-preview" className={PRE_CLS}>
+            {previewText}
+          </pre>
+        )}
       </section>
 
-      <section aria-label={t("ai.selectionActions")} className="flex flex-col gap-1">
-        <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5">
+      <section aria-label={t("ai.selectionActions")} className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
           <span className={HEADING_CLS}>{t("ai.selectionActions")}</span>
           <span data-testid="ai-selection-route" className={META_CLS}>
             {badgeFor(inlineTarget)}
           </span>
         </div>
         <Input value={selection} aria-label={t("ai.selectionActions")} onChange={onSelInput} />
-        <div className="grid grid-cols-2 gap-1">
+        <div className="grid grid-cols-2 gap-1.5">
           {ACTIONS.map((k) => (
             <Button key={k} variant="secondary" className={BTN_SM} onClick={() => onAction(k)}>
               {t(`ai.${k}`)}
@@ -308,23 +337,27 @@ export function AiChatPanel({ object }: { object: ObjectMeta }) {
         </div>
       </section>
 
-      <div className="flex flex-1 flex-col gap-1.5">
+      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
         {turns.map((turn) => {
-          const [id, q, a, m, u, , st] = turn;
+          const [id, q, a, m, u, , , st] = turn;
           return (
-            <div key={id} className={`${CARD_CLS} flex flex-col gap-1 p-2 text-xs`}>
+            <div key={id} className={`${CARD_CLS} flex flex-col gap-1.5 p-2.5 text-xs`}>
               <div className="flex items-center justify-between gap-2">
                 <p className="m-0 min-w-0 truncate font-medium text-[color:var(--fg)]">{q}</p>
-                <span className={`shrink-0 ${META_CLS}`}>{t("ai.proposalBadge")}</span>
+                {st !== "chat" && (
+                  <span className={`shrink-0 ${META_CLS}`}>{t("ai.proposalBadge")}</span>
+                )}
               </div>
-              <span className={META_CLS}>{m}</span>
+              <span data-testid="ai-turn-route" className={META_CLS}>
+                {m}
+              </span>
               {u !== null && (
                 <span data-testid="ai-actual-usage" className={META_CLS}>
                   {formatUsage(u)}
                 </span>
               )}
               <p className="m-0 whitespace-pre-wrap text-[color:var(--fg)]">{a}</p>
-              {a !== "" && st === "pending" && (
+              {a !== "" && st === "ready" && (
                 <div className="flex gap-1.5 pt-0.5">
                   <Button variant="primary" className={BTN_SM} onClick={() => confirmTurn(turn)}>
                     {t("ai.confirmInsert")}

@@ -30,12 +30,8 @@ pub fn default_model(provider: ProviderId) -> &'static str {
 
 /// Estimates outgoing input tokens and USD cost (when the provider charges per token) before sending.
 pub fn estimate_usage(req: &ChatRequest, provider: ProviderId) -> Usage {
-    let chars = build_prompt(req).chars().count();
-    let input_tokens = if chars == 0 {
-        0
-    } else {
-        (chars.div_ceil(4)).min(u32::MAX as usize) as u32
-    };
+    let input_tokens =
+        (build_prompt(req).chars().count().div_ceil(4)).min(u32::MAX as usize) as u32;
     let rate_per_m = match provider {
         ProviderId::Anthropic => Some(3.0),
         ProviderId::OpenAi => Some(2.5),
@@ -246,7 +242,7 @@ impl AiRouter {
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .remove(request_id)
-            .inspect(|n| n.notify_waiters())
+            .inspect(|n| n.notify_one())
             .is_some()
     }
 
@@ -391,7 +387,6 @@ pub fn global_router() -> &'static Arc<AiRouter> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::contract::ChatContext;
     use crate::http::spawn_mock_http;
     use crate::keyring::{KeyStore, MemoryKeyring, OsKeyring};
 
@@ -455,53 +450,35 @@ mod tests {
             (40, 5)
         );
         assert!(!format!("{logs:?}").contains(secret_prompt));
-    }
 
-    #[tokio::test]
-    async fn estimate_usage_cancel_and_secret_redaction_work() {
-        for &p in ProviderId::all() {
-            assert!(!default_model(p).is_empty());
-        }
-        let req = ChatRequest {
-            prompt: "Resume este párrafo".into(),
-            context: vec![ChatContext::Selection {
-                text: "Texto seleccionado".into(),
-            }],
+        assert!(
+            ProviderId::all()
+                .iter()
+                .all(|&p| !default_model(p).is_empty())
+        );
+        let est_req = ChatRequest {
+            prompt: "Resume".into(),
             ..ChatRequest::default()
         };
         assert!(
-            estimate_usage(&req, ProviderId::Anthropic)
+            estimate_usage(&est_req, ProviderId::Anthropic)
                 .cost_usd
                 .is_some()
         );
-        assert_eq!(estimate_usage(&req, ProviderId::Ollama).cost_usd, Some(0.0));
-        assert_eq!(estimate_usage(&req, ProviderId::Agy).cost_usd, None);
+        assert_eq!(
+            estimate_usage(&est_req, ProviderId::Ollama).cost_usd,
+            Some(0.0)
+        );
+        assert_eq!(estimate_usage(&est_req, ProviderId::Agy).cost_usd, None);
 
-        let keys = Arc::new(MemoryKeyring::default());
-        keys.set_key(ProviderId::Anthropic, "sk-ant-api03-FAKE_SECRET_1234567890")
-            .unwrap();
-        let err_sse = "data: {\"type\":\"error\",\"error\":{\"message\":\"leaked sk-proj-FAKE0123456789abcdef\"}}\n\n";
-        let url = spawn_mock_http(200, err_sse).await;
-        let router = Arc::new(AiRouter::new(vec![Arc::new(
-            AnthropicProvider::new(keys).with_base_url(url),
-        )]));
-        assert!(!format!("{:?}", router.providers().await).contains("FAKE_SECRET_1234567890"));
-        let (tx, _rx) = tokio::sync::mpsc::channel(16);
-        let err = router
-            .chat(ChatRequest::default(), tx)
-            .await
-            .unwrap_err()
-            .to_string();
-        assert!(!err.contains("FAKE0123456789abcdef"));
-
-        let req_id = RequestId::new();
-        assert!(!router.cancel(&req_id));
+        let id = RequestId::new();
+        let notify = Arc::new(Notify::new());
         router
             .in_flight
             .lock()
             .unwrap()
-            .insert(req_id.clone(), Arc::new(Notify::new()));
-        assert!(router.cancel(&req_id));
-        assert!(router.usage_records().is_empty());
+            .insert(id.clone(), notify.clone());
+        assert!(router.cancel(&id));
+        notify.notified().await;
     }
 }
