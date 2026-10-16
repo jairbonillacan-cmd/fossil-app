@@ -109,6 +109,29 @@ pub fn kill_process_tree(pid: u32) {
         .status();
 }
 
+fn is_executable_candidate(path: &std::path::Path) -> bool {
+    if !cfg!(windows) {
+        return true;
+    }
+    path.extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|ext| {
+            matches!(
+                ext.to_ascii_lowercase().as_str(),
+                "exe" | "cmd" | "bat" | "com"
+            )
+        })
+}
+
+fn select_binary_from_where(stdout: &str) -> Option<PathBuf> {
+    stdout
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .map(PathBuf::from)
+        .find(|p| is_executable_candidate(p))
+}
+
 pub fn detect_binary(kind: CliKind) -> Option<PathBuf> {
     let (_, bin_name, _) = kind.info();
     let mut path_env = std::env::var_os("PATH").unwrap_or_default();
@@ -122,20 +145,29 @@ pub fn detect_binary(kind: CliKind) -> Option<PathBuf> {
             path_env = joined;
         }
     }
-    let out = std::process::Command::new("where.exe")
+    let sys_dir = std::env::var_os("SystemRoot").map(|r| PathBuf::from(r).join("System32"));
+    let where_bin = if cfg!(windows) {
+        sys_dir
+            .as_ref()
+            .map(|d| d.join("where.exe"))
+            .unwrap_or_else(|| PathBuf::from("where.exe"))
+    } else {
+        PathBuf::from("which")
+    };
+    let mut cmd = std::process::Command::new(where_bin);
+    if let Some(dir) = sys_dir.as_ref().filter(|d| d.is_dir()) {
+        cmd.current_dir(dir);
+    }
+    let out = cmd
         .arg(bin_name)
         .env("PATH", path_env)
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .output()
         .ok()?;
-    out.status.success().then(|| {
-        String::from_utf8_lossy(&out.stdout)
-            .lines()
-            .map(str::trim)
-            .find(|l| !l.is_empty())
-            .map(PathBuf::from)
-    })?
+    out.status
+        .success()
+        .then(|| select_binary_from_where(&String::from_utf8_lossy(&out.stdout)))?
 }
 
 fn json_str<'a>(v: &'a Value, ptr: &str) -> Option<&'a str> {
@@ -319,5 +351,14 @@ mod tests {
         let t0 = Instant::now();
         waiter.await.unwrap();
         assert!(t0.elapsed() < Duration::from_millis(500));
+    }
+
+    #[test]
+    fn where_output_skips_extensionless_npm_shim_on_windows() {
+        let out = "C:\\Tools\\npm\\claude\r\nC:\\Tools\\npm\\claude.cmd\r\n";
+        let picked = select_binary_from_where(out);
+        if cfg!(windows) {
+            assert_eq!(picked, Some(PathBuf::from("C:\\Tools\\npm\\claude.cmd")));
+        }
     }
 }
