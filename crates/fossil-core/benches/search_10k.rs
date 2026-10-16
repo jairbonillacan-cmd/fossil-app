@@ -2,6 +2,9 @@
 //! verifies vault open < 1 s and FTS5 search with operators < 50 ms (p95).
 #![allow(clippy::unwrap_used)] // Benchmark harness: setup/measurement failures must panic immediately.
 
+#[path = "corpus/mod.rs"]
+mod corpus;
+
 use criterion::{Criterion, criterion_group, criterion_main};
 use fossil_core::objects::{ObjectFilter, TypeKey};
 use fossil_core::search::{SearchQuery, search_query};
@@ -21,21 +24,11 @@ fn seed_10k_vault(path: &str) -> Connection {
     let mut f_q = tx
         .prepare("INSERT INTO fts_objects VALUES (?1,?2,?3)")
         .unwrap();
-    for i in 0..OBJECT_COUNT {
-        let id = format!("01J8Z000000000000000{i:06}");
-        let types = ["[\"Journal\"]", "[\"Page\"]"][usize::from(i % 5 != 0)];
-        let k = ["Campaña trimestral", "Documento operativo"][usize::from(i % 11 != 0)];
-        let b = match (i % 7 == 0, i % 29 == 0) {
-            (_, true) => "borrador campaña trimestral",
-            (true, _) => "campaña trimestral",
-            _ => "métricas",
-        };
-        let (title, body) = (format!("{k} {i}"), format!("Resumen de {b} {i}"));
-        let ts = 1_728_000_000_000_i64 + (i as i64) * 1000;
-        o_q.execute(params![id, types, title, ts]).unwrap();
-        let tag = ["estrategia/q4", "operaciones"][usize::from(i % 3 != 0)];
-        t_q.execute(params![id, tag]).unwrap();
-        f_q.execute(params![id, title, body]).unwrap();
+    for p in corpus::pages(OBJECT_COUNT) {
+        o_q.execute(params![p.id, p.types, p.title, p.created_at_ms])
+            .unwrap();
+        t_q.execute(params![p.id, p.tag]).unwrap();
+        f_q.execute(params![p.id, p.title, p.body]).unwrap();
     }
     drop((o_q, t_q, f_q));
     tx.commit().unwrap();
