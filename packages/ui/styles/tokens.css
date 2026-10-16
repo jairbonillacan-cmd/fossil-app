@@ -23,6 +23,14 @@
   --accent: light-dark(#0a0a0a, #fafafa);
   --accent-fg: light-dark(#ffffff, #0a0a0a);
 
+  /*
+   * Discreet scrollbars: near-black thumb on light, near-white on dark,
+   * almost invisible at rest (alpha <= 0.3) and legible on hover/active
+   * (alpha >= 0.8). Consumed by the global scrollbar styles in the app.
+   */
+  --scrollbar-thumb: light-dark(rgba(10, 10, 10, 0.25), rgba(250, 250, 250, 0.25));
+  --scrollbar-thumb-strong: light-dark(rgba(10, 10, 10, 0.8), rgba(250, 250, 250, 0.8));
+
   /* Semantic states (the only non-monochrome colors in the UI). */
   --danger: light-dark(#b91c1c, #f87171);
   --success: light-dark(#15803d, #4ade80);
