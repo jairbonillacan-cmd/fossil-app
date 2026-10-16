@@ -2,7 +2,7 @@
 //!
 //! The Yjs document only keeps the relative path, never the bytes: binaries in
 //! the CRDT would bloat every update log and sync.
-use crate::{object_store::storage_error, objects::CoreError};
+use crate::{fs_guard, object_store::storage_error, objects::CoreError};
 use std::{fs, path::Path};
 
 pub const ATTACHMENTS_DIR: &str = "attachments";
@@ -64,6 +64,7 @@ pub fn load(root: &Path, relative: &str) -> Result<Vec<u8>, CoreError> {
         .filter(|name| {
             !name.is_empty()
                 && !name.starts_with('.')
+                && !fs_guard::is_reserved_device(name)
                 && name
                     .chars()
                     .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_')
@@ -142,6 +143,23 @@ mod tests {
             "attachments/a.txt",
             "C:/Windows/win.ini",
         ] {
+            assert!(load(dir.path(), path).is_err(), "{path} must be rejected");
+        }
+    }
+
+    #[test]
+    fn load_refuses_windows_device_names() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::create_dir_all(dir.path().join(ATTACHMENTS_DIR)).unwrap();
+        // Windows 10 opens the device for these names; Windows 11 allows them
+        // as ordinary files, so a real file is planted where the OS lets us.
+        // CON is left out: reading the console device would block the test.
+        for path in [
+            "attachments/nul.png",
+            "attachments/NUL.gif",
+            "attachments/com1.jpg",
+        ] {
+            let _ = fs::write(dir.path().join(path), PNG);
             assert!(load(dir.path(), path).is_err(), "{path} must be rejected");
         }
     }
