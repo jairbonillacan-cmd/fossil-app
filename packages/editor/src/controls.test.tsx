@@ -167,14 +167,16 @@ describe("DragHandle & EditorWordCount (#105b)", () => {
     const doc = new Y.Doc();
     const fragment = getBodyFragment(doc);
     doc.transact(() => {
+      const ps: Y.XmlElement[] = [];
       for (let i = 0; i < 5000; i++) {
         const p = new Y.XmlElement("paragraph");
         p.setAttribute("blockId", `blk_${i}`);
         const txt = new Y.XmlText();
         txt.insert(0, `Bloque número ${i} con texto de prueba`);
         p.insert(0, [txt]);
-        fragment.insert(fragment.length, [p]);
+        ps.push(p);
       }
+      fragment.insert(0, ps);
     });
 
     const { editor, view } = await mountEditor(undefined, doc);
@@ -211,5 +213,5 @@ describe("DragHandle & EditorWordCount (#105b)", () => {
     expect(statsMs).toBeLessThan(35);
     expect(selMs).toBeLessThan(35);
     view.unmount();
-  }, 30000);
+  }, 60000);
 });

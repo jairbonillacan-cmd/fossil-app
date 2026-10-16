@@ -145,7 +145,7 @@ describe("Undo/redo (#77)", () => {
   // transaction's `addToHistory` meta; pasting new blocks makes `BlockId`
   // append a reassignment transaction that sets `addToHistory: false`, so the
   // whole action (paste included) bypasses the UndoManager and Ctrl+Z does nothing.
-  it.fails("undoes and redoes a multi-block paste keeping block IDs stable", () => {
+  it("undoes and redoes a multi-block paste keeping block IDs stable", () => {
     const { editor } = createHeavyEditor();
     editor.commands.setContent("<p>Uno</p><p>Dos</p><p></p>");
     const baseIds = expectUniqueIds(editor);
@@ -173,7 +173,7 @@ describe("Undo/redo (#77)", () => {
   // paragraph makes `BlockId` append an `addToHistory: false` reassignment
   // transaction for the new block's fresh ID, so `undo()` returns false and the
   // split cannot be reverted (Ctrl+Z after Enter does nothing today).
-  it.fails("undoes and redoes a paragraph split, keeping the original ID and replaying the split ID", () => {
+  it("undoes and redoes a paragraph split, keeping the original ID and replaying the split ID", () => {
     const { editor } = createHeavyEditor();
     editor.commands.setContent("<p>AlphaBeta</p>");
     const [originalId] = expectUniqueIds(editor);

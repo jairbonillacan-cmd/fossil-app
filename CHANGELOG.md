@@ -27,6 +27,7 @@ Cómo escribir aquí:
 
 ### Ya no falla
 - Al abrir la app con el tema oscuro ya no aparece un destello blanco antes de cargar la ventana.
+- Deshacer ya revierte un pegado de varios bloques y un salto de bloque con `Enter`, que antes se quedaban en el documento.
 
 ## 0.1.1-alpha.2 · 2026-10-14
 
