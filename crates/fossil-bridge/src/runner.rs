@@ -14,9 +14,26 @@ use tokio::sync::mpsc::Sender;
 use tokio::time::{Instant, timeout_at};
 
 use crate::{
-    CancelRegistry, CliKind, detect_binary, global_cancel_registry, kill_process_tree,
-    parse_ndjson_line,
+    CancelRegistry, CliKind, detect_binary, global_cancel_registry, is_safe_model,
+    kill_process_tree, parse_ndjson_line,
 };
+
+/// Per-request working folder, removed when the request ends.
+struct RequestDir(PathBuf);
+
+impl RequestDir {
+    fn create(id: &RequestId) -> Result<Self, ProviderError> {
+        let dir = std::env::temp_dir().join(format!("fossil-bridge-{}", id.0));
+        std::fs::create_dir(&dir).map_err(|e| ProviderError::Unavailable(e.to_string()))?;
+        Ok(Self(dir))
+    }
+}
+
+impl Drop for RequestDir {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
 
 const DEFAULT_TIMEOUT_MS: u32 = 120_000;
 const MAX_LINE_BYTES: usize = 1024 * 1024;
@@ -131,6 +148,8 @@ impl Provider for BridgeProvider {
             };
         };
         let mut cmd = Command::new(bin);
+        #[cfg(windows)]
+        cmd.creation_flags(crate::CREATE_NO_WINDOW);
         cmd.arg("--version")
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
@@ -165,21 +184,30 @@ impl Provider for BridgeProvider {
         let t0 = StdInstant::now();
         let ms = req.options.timeout_ms.unwrap_or(DEFAULT_TIMEOUT_MS);
         let d = Instant::now() + Duration::from_millis(u64::from(ms));
+        if let Some(hint) = req.options.model.as_deref().filter(|m| !m.is_empty())
+            && !is_safe_model(hint)
+        {
+            return Err(ProviderError::Failed("invalid model name".into()));
+        }
         let mut model = req
             .options
             .model
             .clone()
             .unwrap_or_else(|| def_model.into());
 
-        let cwd = std::env::temp_dir().join("fossil-bridge-cwd");
-        let _ = std::fs::create_dir_all(&cwd);
+        let req_id = RequestId::new();
+        // Empty working folder of its own per request: nothing another
+        // process left behind is picked up by the CLI, and it is removed after.
+        let cwd = RequestDir::create(&req_id)?;
         let mut cmd = Command::new(bin);
         for var in SCRUBBED_ENV_VARS {
             cmd.env_remove(var);
         }
+        #[cfg(windows)]
+        cmd.creation_flags(crate::CREATE_NO_WINDOW);
         let mut child = cmd
             .args(self.kind.cli_args(req.options.model.as_deref()))
-            .current_dir(&cwd)
+            .current_dir(&cwd.0)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
@@ -187,7 +215,6 @@ impl Provider for BridgeProvider {
             .spawn()
             .map_err(|e| ProviderError::Unavailable(e.to_string()))?;
 
-        let req_id = RequestId::new();
         let pid = child.id().unwrap_or(0);
         if pid != 0 {
             self.cancel_reg.register(req_id.clone(), pid);
@@ -323,5 +350,15 @@ mod tests {
             Err(ProviderError::Unavailable(_))
         ));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn unsafe_model_names_never_reach_the_command_line() {
+        let p = BridgeProvider::new(CliKind::Claude).with_binary("D:\\Acme\\missing-claude.exe");
+        let mut req = ChatRequest::default();
+        req.options.model = Some("sonnet & calc".into());
+        let (tx, _rx) = tokio::sync::mpsc::channel(16);
+        let err = p.chat(req, tx).await.unwrap_err().to_string();
+        assert!(err.contains("model"), "{err}");
     }
 }
