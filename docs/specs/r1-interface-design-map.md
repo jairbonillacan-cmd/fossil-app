@@ -1,6 +1,6 @@
 # Mapa de pantallas R1.5
 
-**Clave:** r1-ui-design · **Spec:** `docs/specs/r1-interface-design.md` (§ 1) · **Guía visual:** `docs/DESIGN.md`
+**Clave:** r1-ui-design · **Spec:** `docs/specs/r1-interface-design.md` (§ 1; se publica con el PR de #102 y debe entrar a `main` antes que este mapa) · **Guía visual:** `docs/DESIGN.md`
 
 Mapa de pantallas y capturas de referencia de la interfaz actual, **antes de implementar** los
 ítems r1-scrollbar, r1-page-header, r1-tabs-ui, r1-sidebar-tree y r1-images. Sirve como línea
@@ -26,7 +26,7 @@ base para comparar el antes y el después de cada ítem.
 | Página | `file-text` | Tipo `Page` |
 | Bitácora | `calendar-days` | Journals (título `YYYY-MM-DD`) |
 | Carpeta (página con hijas) | `folder` | «Carpeta» = Página que contiene otras; nunca texto visible |
-| Paleta de comandos (`Ctrl+P`) | `search` | Campo arriba del árbol |
+| Cambio rápido de página (`Ctrl+P`) | `search` | Campo arriba del árbol |
 
 Los journals hoy muestran su `object.icon` (emoji) si existe; el set de arriba es el objetivo del
 ítem y queda fijado aquí para poder contrastar la captura de referencia con la implementación.
@@ -42,8 +42,8 @@ y, debajo, la lista de recientes.
 |---|---|---|
 | Cabecera | `<AppIcon />` + `<Wordmark />` + subtítulo (`vault.subtitle`) | `vault-screen.tsx` |
 | Acciones | **Crear bóveda** (primaria), **Abrir bóveda** (secundaria; diálogo nativo) | `vault-screen.tsx` |
-| Recientes | Lista de Espacios recientes (`vault_recent`); nombre y ruta | `vault-screen.tsx` |
-| Estado vacío | Sin recientes: texto `vault.recentsEmpty` + foco en la acción principal | `vault-screen.tsx` |
+| Recientes | Lista de Espacios recientes (comando IPC `vault_recent`; título `vault.recents`); nombre y ruta | `vault-screen.tsx` |
+| Estado vacío | Sin recientes: texto `vault.recentsEmpty` | `vault-screen.tsx` |
 
 Capturas: `103-vault-screen-light.png` · `103-vault-screen-dark.png`
 
@@ -54,10 +54,10 @@ Hoy la barra de pestañas no existe (ver § 3) y el panel derecho vive dentro de
 
 | Región | Contenido | Componente |
 |---|---|---|
-| 2.1 Barra lateral | Cabecera (AppIcon + nombre del Espacio), acciones (**Nueva página**, **Hoy**, **Buscar**), lista de páginas, **Ajustes** al pie | `sidebar.tsx` |
+| 2.1 Barra lateral | Cabecera (AppIcon + «Fossil» + nombre del Espacio), acciones (**Nueva página**, **Hoy**, **Buscar**), lista de páginas, **Ajustes** al pie | `sidebar.tsx` |
 | 2.2 Barra de pestañas | *(no construida — ver § 3)* | — |
 | 2.3 Encabezado de página | Título editable + acciones (**Exportar Markdown**, **Exportar PDF**, **Enlazada desde**, **IA**) | `page-editor.tsx` |
-| 2.4 Editor | Cuerpo de bloques (TipTap + Yjs), barra `Ctrl+F`, contador de palabras, asa de arrastre | `page-body.tsx` → `@fossil/editor` |
+| 2.4 Editor | Cuerpo de bloques (TipTap + Yjs), contador de palabras, asa de arrastre; barra `Ctrl+F` (`PageFindBar`) | `page-body.tsx` → `@fossil/editor`; barra: `shell-search.tsx` |
 | 2.5 Panel derecho | **Enlazada desde** + **Menciones sin enlace** (`w-72`) y panel **IA** (`w-80`), colapsables | `page-editor-backlinks.tsx`, `ai-panel.tsx` |
 
 Jerarquía visual: la columna de lectura es `max-w-2xl` centrada sobre `--bg`; los paneles se
@@ -110,7 +110,7 @@ Capturas: `103-settings-light.png` · `103-settings-dark.png`
 
 | Estado | Qué se ve | Acción principal | Captura |
 |---|---|---|---|
-| Sin página abierta | `editor.emptyTitle` + `editor.emptyBody` en el área de contenido | **Nueva página** | `103-empty-light.png` · `103-empty-dark.png` |
+| Sin página abierta | `editor.emptyTitle` + `editor.emptyBody` en el área de contenido | **Nueva página** (en la barra lateral) | `103-empty-light.png` · `103-empty-dark.png` |
 | Barra lateral sin páginas | `sidebar.empty` | **Nueva página** | (en la misma captura, Espacio vacío) |
 | Recientes vacíos | `vault.recentsEmpty` | **Crear bóveda** | `103-vault-empty-recents-light.png` · `103-vault-empty-recents-dark.png` |
 
@@ -118,6 +118,8 @@ Capturas: `103-settings-light.png` · `103-settings-dark.png`
 
 | Estado | Qué se ve | Disparador | Captura |
 |---|---|---|---|
+| Crear / abrir bóveda fallida | Alerta localizada `error.generic` / `error.notImplemented` (`vault-screen.tsx`) | Fallo de `vault_create` o del diálogo nativo | **pendiente de captura** |
+| Nueva página / Hoy fallidas | Aviso localizado en la barra lateral (`sidebar.tsx`) | Fallo de `object_create` | **pendiente de captura** |
 | Carga de página fallida | Alerta localizada `error.generic` / `error.notImplemented` sobre el editor | Fallo de `object_load_doc` | **pendiente de captura** (no se fuerza un fallo sobre el Espacio de ejemplo) |
 | Exportación fallida | Aviso en cabecera; no se descarga nada | Fallo de `object_export_markdown` | **pendiente de captura** |
 | Imagen no cargada | Estado `error` del nodo de imagen (`editor.image.error`) | Adjunto ilegible | **pendiente de captura** (r1-images) |
