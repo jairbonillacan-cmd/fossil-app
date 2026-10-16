@@ -65,8 +65,10 @@ code {
 .top-inner,
 .foot-inner {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
+  gap: 10px 24px;
   max-width: var(--max);
   margin: 0 auto;
   padding: 14px 24px;

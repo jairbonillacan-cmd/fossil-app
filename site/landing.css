@@ -336,7 +336,7 @@
   gap: 6px;
 }
 
-.mock-tags span {
+.mock-tags span:not(.soon) {
   padding: 2px 7px;
   border: 1px solid var(--border);
   border-radius: 999px;
@@ -870,7 +870,7 @@
   font: 600 15px / 1.35 var(--display);
 }
 
-.shortcut-card span {
+.shortcut-card > span {
   font-size: 13.5px;
   color: var(--fg-muted);
 }

@@ -1,6 +1,7 @@
 const RELEASES_API =
   "https://api.github.com/repos/jairbonillacan-cmd/fossil-app/releases?per_page=10";
 const RELEASES_PAGE = "https://github.com/jairbonillacan-cmd/fossil-app/releases";
+const DOWNLOAD_PREFIX = "https://github.com/jairbonillacan-cmd/fossil-app/releases/download/";
 
 const formatSize = (bytes) => {
   if (typeof bytes !== "number" || !Number.isFinite(bytes) || bytes <= 0) return "";
@@ -81,7 +82,12 @@ const loadRelease = async () => {
         ? (release.assets.find((a) => a && typeof a.name === "string" && /\.exe$/i.test(a.name)) ??
           null)
         : null;
-    if (!release || !asset || typeof asset.browser_download_url !== "string") {
+    if (
+      !release ||
+      !asset ||
+      typeof asset.browser_download_url !== "string" ||
+      !asset.browser_download_url.startsWith(DOWNLOAD_PREFIX)
+    ) {
       applyFallback();
       return;
     }
