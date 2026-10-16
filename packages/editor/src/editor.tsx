@@ -12,6 +12,7 @@ import { defaultEditorTranslator, type EditorTranslator } from "./i18n";
 import { ImageAttachment } from "./image-attachment";
 import { LinkAutocompleteMenu, type LinkAutocompleteProps, LinksExtension } from "./links";
 import { Outliner } from "./outliner";
+import { SafeLink } from "./safe-links";
 import { SlashMenu } from "./slash-menu";
 import { createUpdateBatcher, type DocTransport } from "./transport";
 import { YSync } from "./y-sync";
@@ -64,7 +65,9 @@ function BoundEditor({ doc, transport, t, onReady, className, ...rest }: BoundEd
           undoRedo: false,
           heading: { levels: [1, 2, 3] },
           codeBlock: { HTMLAttributes: { spellcheck: "false" } },
+          link: false,
         }),
+        SafeLink,
         TaskList,
         TaskItem.configure({ nested: true }),
         Callout,
