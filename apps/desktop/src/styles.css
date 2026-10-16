@@ -40,9 +40,11 @@ body,
  * the scrollbar tokens in packages/ui; the thumb is almost invisible at rest
  * (alpha <= 0.3) and legible on hover/active (alpha >= 0.8).
  */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: var(--scrollbar-thumb) transparent;
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+  }
 }
 
 ::-webkit-scrollbar {
