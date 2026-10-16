@@ -23,12 +23,12 @@ la propia app (`connect-src 'self' ipc: http://ipc.localhost` en `apps/desktop/s
 | Tus páginas, su historial y el índice de búsqueda | `<tu Espacio>\.fossil\fossil.db` | SQLite. La carpeta del Espacio la eliges tú |
 | Copia en Markdown de cada página | `<tu Espacio>\*.md` | Se reescribe 2 s después de cada cambio |
 | Imágenes pegadas o arrastradas | `<tu Espacio>\attachments\` | Solo se leen dentro de esta carpeta |
-| Lista de Espacios recientes | `%APPDATA%\<id de la app>\` | Rutas de las carpetas que abriste |
+| Lista de Espacios recientes | `%APPDATA%\Fossil\config.json` | Rutas de las carpetas que abriste |
 | Tamaño y posición de la ventana | `%APPDATA%\<id de la app>\.window-state.json` | |
 | Tema, densidad e idioma | Almacenamiento local de WebView2, en `%LOCALAPPDATA%\<id de la app>\` | |
 | Claves de API de proveedores de IA | Administrador de credenciales de Windows | Nunca en archivos ni en logs |
 
-Para borrar todo: elimina la carpeta del Espacio, las dos carpetas `<id de la app>` y las
+Para borrar todo: elimina la carpeta del Espacio, `%APPDATA%\Fossil\config.json`, las dos carpetas `<id de la app>` y las
 credenciales de Fossil en el Administrador de credenciales de Windows.
 
 ## Qué sale de tu computadora, y cuándo

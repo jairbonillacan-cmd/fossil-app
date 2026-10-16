@@ -13,7 +13,15 @@ use fossil_core::{
     vault::{VaultRecord, VaultSession},
 };
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, path::Path, sync::Mutex, time::Duration};
+use std::{
+    collections::HashMap,
+    path::Path,
+    sync::{
+        Mutex,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::Duration,
+};
 use tauri::Manager;
 use tauri_specta::Event;
 
@@ -27,6 +35,8 @@ pub const MIRROR_DELAY: Duration = Duration::from_secs(2);
 
 /// Re-indexes an object (`blocks`, `links`, `tags`, `fts_objects`) 300 ms after its last change (#19).
 pub const INDEX_DEBOUNCE: Duration = Duration::from_millis(300);
+
+static NEXT_GENERATION: AtomicU64 = AtomicU64::new(1);
 
 /// Debounce without polling: every change bumps the object's generation and
 /// arms one timer; only the timer of the latest generation does the work.
@@ -49,9 +59,9 @@ impl Generations {
 
     fn bump(&self, id: &str) -> u64 {
         let mut generations = self.generations();
-        let generation = generations.entry(id.to_owned()).or_insert(0);
-        *generation += 1;
-        *generation
+        let next = NEXT_GENERATION.fetch_add(1, Ordering::Relaxed);
+        generations.insert(id.to_owned(), next);
+        next
     }
 
     fn take_if_latest(&self, id: &str, generation: u64) -> bool {
@@ -72,7 +82,7 @@ pub(crate) fn with_session<T>(
     let mut session = state
         .0
         .lock()
-        .map_err(|error| CoreError::Storage(error.to_string()))?;
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     action(&mut session)
 }
 
@@ -404,6 +414,11 @@ mod tests {
         );
         assert!(idle.take_if_latest("a", second));
         assert!(!idle.take_if_latest("a", second), "fires at most once");
+        let third = idle.bump("a");
+        assert!(
+            third > second,
+            "generation never resets to 1 after removal (ABA-safe)"
+        );
         assert!(idle.take_if_latest("b", other));
     }
 

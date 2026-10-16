@@ -6,13 +6,16 @@ use crate::ids::ObjectId;
 use crate::object_store::{self, storage_error};
 use crate::objects::CoreError;
 use chrono::Utc;
-use rusqlite::{Connection, OptionalExtension, params};
+use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 use yrs::Update;
 use yrs::updates::decoder::Decode;
 
 /// Pending updates that trigger a compaction inside `apply_update`. The app
 /// also compacts after 30 s of inactivity (`compact`).
 pub const COMPACT_AFTER_UPDATES: usize = 200;
+
+/// Maximum size of a single Yjs update accepted by [`apply_update`] (16 MiB).
+pub const MAX_UPDATE_BYTES: usize = 16 * 1024 * 1024;
 
 fn ensure_object(conn: &Connection, id: &ObjectId) -> Result<(), CoreError> {
     object_store::get(conn, id)?
@@ -54,8 +57,23 @@ fn merge(blobs: Vec<Vec<u8>>) -> Result<Vec<u8>, CoreError> {
 
 /// Full document state of an object as one lib0 v1 update (empty doc if never edited).
 pub fn load(conn: &Connection, id: &ObjectId) -> Result<Vec<u8>, CoreError> {
-    ensure_object(conn, id)?;
-    merge(parts(conn, id)?.0)
+    conn.execute_batch("SAVEPOINT fossil_doc_load")
+        .map_err(storage_error)?;
+    let read = ensure_object(conn, id).and_then(|()| parts(conn, id));
+    let (blobs, _) = match read {
+        Ok(v) => {
+            conn.execute_batch("RELEASE SAVEPOINT fossil_doc_load")
+                .map_err(storage_error)?;
+            v
+        }
+        Err(e) => {
+            let _ = conn.execute_batch(
+                "ROLLBACK TO SAVEPOINT fossil_doc_load; RELEASE SAVEPOINT fossil_doc_load",
+            );
+            return Err(e);
+        }
+    };
+    merge(blobs)
 }
 
 /// Appends one update in its own transaction and bumps `updated_at`.
@@ -74,7 +92,9 @@ pub(crate) fn apply_update_with(
     update: &[u8],
     compact_after: usize,
 ) -> Result<bool, CoreError> {
-    let tx = conn.transaction().map_err(storage_error)?;
+    let tx = conn
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(storage_error)?;
     let compacted = append_in(&tx, id, update, compact_after)?;
     tx.commit().map_err(storage_error)?;
     Ok(compacted)
@@ -87,6 +107,9 @@ pub(crate) fn append_in(
     update: &[u8],
     compact_after: usize,
 ) -> Result<bool, CoreError> {
+    if update.len() > MAX_UPDATE_BYTES {
+        return Err(storage_error("Yjs update exceeds 16 MiB limit"));
+    }
     // Reject garbage before it can poison every future load of the object.
     Update::decode_v1(update).map_err(|e| storage_error(format!("invalid Yjs update: {e}")))?;
     ensure_object(tx, id)?;
@@ -117,7 +140,9 @@ pub(crate) fn append_in(
 /// Folds the pending updates into the snapshot (idle compaction). No-op when
 /// there is nothing pending or the object no longer exists in this vault.
 pub fn compact(conn: &mut Connection, id: &ObjectId) -> Result<(), CoreError> {
-    let tx = conn.transaction().map_err(storage_error)?;
+    let tx = conn
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(storage_error)?;
     compact_in(&tx, id)?;
     tx.commit().map_err(storage_error)
 }
@@ -237,6 +262,7 @@ mod tests {
         let mut conn = open_vault(":memory:").unwrap();
         let id = new_page(&conn);
         assert!(apply_update(&mut conn, &id, &[0xff, 0x01, 0x02]).is_err());
+        assert!(apply_update(&mut conn, &id, &vec![0u8; MAX_UPDATE_BYTES + 1]).is_err());
         assert_eq!(count(&conn, "object_updates", &id), 0);
         let missing = ObjectId::new();
         let empty = Doc::new()

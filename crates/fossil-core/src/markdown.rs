@@ -107,6 +107,9 @@ fn yaml(s: &str) -> Result<String, CoreError> {
 
 /// Full `.md` content: frontmatter (`id`, `types`, `tags`, `created`, `updated`) + body.
 pub fn render(meta: &ObjectMeta, state: &[u8]) -> Result<String, CoreError> {
+    if state.is_empty() {
+        return Ok(String::new());
+    }
     let types = meta
         .types
         .iter()
@@ -121,7 +124,7 @@ pub fn render(meta: &ObjectMeta, state: &[u8]) -> Result<String, CoreError> {
         .map_err(|e| storage_error(format!("corrupt Yjs state: {e}")))?;
     let blocks: Vec<String> = body
         .children(&txn)
-        .filter_map(|n| block(&n, &txn))
+        .filter_map(|n| block(&n, &txn, 0))
         .collect();
     // Tags are filled by the indexer (#19); the key is already part of the format.
     Ok(format!(
@@ -205,7 +208,10 @@ fn indent(text: &str, first: &str) -> String {
         .join("\n")
 }
 
-fn block<T: ReadTxn>(node: &XmlOut, txn: &T) -> Option<String> {
+fn block<T: ReadTxn>(node: &XmlOut, txn: &T, depth: usize) -> Option<String> {
+    if depth >= MAX_DEPTH {
+        return None;
+    }
     let e = match node {
         XmlOut::Element(e) => e,
         XmlOut::Text(t) => return Some(inline(t, txn)),
@@ -213,7 +219,7 @@ fn block<T: ReadTxn>(node: &XmlOut, txn: &T) -> Option<String> {
     };
     let children = |sep: &str| {
         e.children(txn)
-            .filter_map(|c| block(&c, txn))
+            .filter_map(|c| block(&c, txn, depth + 1))
             .collect::<Vec<_>>()
             .join(sep)
     };
@@ -261,10 +267,10 @@ fn block<T: ReadTxn>(node: &XmlOut, txn: &T) -> Option<String> {
                 let content = match &item {
                     XmlOut::Element(it) => it
                         .children(txn)
-                        .filter_map(|c| block(&c, txn))
+                        .filter_map(|c| block(&c, txn, depth + 1))
                         .collect::<Vec<_>>()
                         .join("\n"),
-                    other => block(other, txn).unwrap_or_default(),
+                    other => block(other, txn, depth + 1).unwrap_or_default(),
                 };
                 indent(&content, &marker)
             })
@@ -337,6 +343,7 @@ mod tests {
             .encode_state_as_update_v1(&StateVector::default());
         let conn = open_vault(":memory:").unwrap();
         let m = object_store::create(&conn, meta("Plan", None)).unwrap();
+        assert_eq!(render(&m, &[]).unwrap(), "");
         let md = render(&m, &state).unwrap();
         assert!(
             md.starts_with(&format!(
