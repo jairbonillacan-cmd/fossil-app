@@ -85,7 +85,8 @@ code {
 .top-nav,
 .foot nav {
   display: flex;
-  gap: 20px;
+  flex-wrap: wrap;
+  gap: 8px 20px;
   font-size: 14px;
 }
 
