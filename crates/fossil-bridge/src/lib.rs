@@ -100,7 +100,9 @@ pub fn kill_process_tree(pid: u32) {
     } else {
         ("kill", ["-9", "-9", "--"])
     };
-    let _ = std::process::Command::new(bin)
+    let mut cmd = std::process::Command::new(system_tool(bin));
+    hide_window(&mut cmd);
+    let _ = cmd
         .args(args)
         .arg(pid.to_string())
         .stdin(Stdio::null())
@@ -108,6 +110,80 @@ pub fn kill_process_tree(pid: u32) {
         .stderr(Stdio::null())
         .status();
 }
+
+/// `%SystemRoot%\System32\<name>.exe` on Windows, so a same-named file in the
+/// current directory or early on PATH is never run instead.
+fn system_tool(name: &str) -> PathBuf {
+    if !cfg!(windows) {
+        return PathBuf::from(name);
+    }
+    std::env::var_os("SystemRoot")
+        .map(|root| {
+            PathBuf::from(root)
+                .join("System32")
+                .join(format!("{name}.exe"))
+        })
+        .unwrap_or_else(|| PathBuf::from(format!("{name}.exe")))
+}
+
+/// Windows `CREATE_NO_WINDOW`: helper and CLI processes never flash a console.
+pub(crate) const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+fn hide_window(cmd: &mut std::process::Command) {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    #[cfg(not(windows))]
+    let _ = cmd;
+}
+
+/// Model hints become CLI arguments, and npm shims run through `cmd.exe`:
+/// only identifier characters, so nothing can be read as shell syntax.
+pub fn is_safe_model(model: &str) -> bool {
+    !model.is_empty()
+        && model.len() <= 128
+        && model
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | ':' | '/' | '-'))
+}
+
+/// Rank of a `where` candidate: a real `.exe` first, then script shims.
+fn executable_rank(path: &std::path::Path) -> Option<u8> {
+    if !cfg!(windows) {
+        return Some(0);
+    }
+    if !path.is_absolute() {
+        return None;
+    }
+    let ext = path.extension()?.to_str()?.to_ascii_lowercase();
+    match ext.as_str() {
+        "exe" => Some(0),
+        "cmd" | "bat" | "com" => Some(1),
+        _ => None,
+    }
+}
+
+fn select_binary_from_where(stdout: &str) -> Option<PathBuf> {
+    let mut best: Option<(u8, PathBuf)> = None;
+    for path in stdout
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .map(PathBuf::from)
+    {
+        if let Some(rank) = executable_rank(&path)
+            && best.as_ref().is_none_or(|(r, _)| rank < *r)
+        {
+            best = Some((rank, path));
+        }
+    }
+    best.map(|(_, path)| path)
+}
+
+/// Upper bound for one `where`/`which` lookup; detection must never hang the app.
+const DETECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 
 pub fn detect_binary(kind: CliKind) -> Option<PathBuf> {
     let (_, bin_name, _) = kind.info();
@@ -122,20 +198,41 @@ pub fn detect_binary(kind: CliKind) -> Option<PathBuf> {
             path_env = joined;
         }
     }
-    let out = std::process::Command::new("where.exe")
+    let sys_dir = std::env::var_os("SystemRoot").map(|r| PathBuf::from(r).join("System32"));
+    let where_bin = system_tool(if cfg!(windows) { "where" } else { "which" });
+    let mut cmd = std::process::Command::new(where_bin);
+    // `where` searches its working directory first: run it from System32.
+    if let Some(dir) = sys_dir.as_ref().filter(|d| d.is_dir()) {
+        cmd.current_dir(dir);
+    }
+    hide_window(&mut cmd);
+    let mut child = cmd
         .arg(bin_name)
         .env("PATH", path_env)
+        .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
-        .output()
+        .spawn()
         .ok()?;
-    out.status.success().then(|| {
-        String::from_utf8_lossy(&out.stdout)
-            .lines()
-            .map(str::trim)
-            .find(|l| !l.is_empty())
-            .map(PathBuf::from)
-    })?
+    let deadline = std::time::Instant::now() + DETECT_TIMEOUT;
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status,
+            Ok(None) if std::time::Instant::now() < deadline => {
+                std::thread::sleep(std::time::Duration::from_millis(20));
+            }
+            _ => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return None;
+            }
+        }
+    };
+    let mut stdout = String::new();
+    std::io::Read::read_to_string(&mut child.stdout.take()?, &mut stdout).ok()?;
+    status
+        .success()
+        .then(|| select_binary_from_where(&stdout))?
 }
 
 fn json_str<'a>(v: &'a Value, ptr: &str) -> Option<&'a str> {
@@ -319,5 +416,61 @@ mod tests {
         let t0 = Instant::now();
         waiter.await.unwrap();
         assert!(t0.elapsed() < Duration::from_millis(500));
+    }
+
+    #[test]
+    fn where_output_skips_extensionless_npm_shim_on_windows() {
+        let out = "C:\\Tools\\npm\\claude\r\nC:\\Tools\\npm\\claude.cmd\r\n";
+        let picked = select_binary_from_where(out);
+        if cfg!(windows) {
+            assert_eq!(picked, Some(PathBuf::from("C:\\Tools\\npm\\claude.cmd")));
+        }
+    }
+
+    #[test]
+    fn where_output_prefers_a_real_exe_over_script_shims() {
+        let out = "D:\\Acme\\claude.cmd\r\nD:\\Acme\\bin\\claude.bat\r\nD:\\Tools\\claude.exe\r\n";
+        if cfg!(windows) {
+            assert_eq!(
+                select_binary_from_where(out),
+                Some(PathBuf::from("D:\\Tools\\claude.exe"))
+            );
+        }
+    }
+
+    #[test]
+    fn where_output_ignores_relative_candidates() {
+        if cfg!(windows) {
+            assert_eq!(
+                select_binary_from_where("claude.exe\r\n.\\claude.cmd\r\n"),
+                None
+            );
+        }
+    }
+
+    #[test]
+    fn model_names_are_plain_identifiers() {
+        for ok in [
+            "gpt-5-codex",
+            "claude-sonnet-4-20250514",
+            "gemini-2.5-pro",
+            "org/model:tag",
+        ] {
+            assert!(is_safe_model(ok), "{ok}");
+        }
+        let long = "a".repeat(129);
+        for bad in [
+            "",
+            "x & calc",
+            "a|b",
+            "a\"b",
+            "%PATH%",
+            "a^b",
+            "a b",
+            "a\nb",
+            long.as_str(),
+        ] {
+            assert!(!is_safe_model(bad), "{bad:?}");
+        }
     }
 }

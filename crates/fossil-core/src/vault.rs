@@ -1,5 +1,5 @@
 //! Vault lifecycle and per-installation recent vaults (ADR-0004).
-use crate::{object_store::storage_error, objects::CoreError, storage::open_vault};
+use crate::{fs_guard, object_store::storage_error, objects::CoreError, storage::open_vault};
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -59,7 +59,9 @@ impl VaultSession {
         if name.trim().is_empty() {
             return Err(storage_error("vault name is empty"));
         }
+        fs_guard::require_local_absolute(path)?;
         let internal = path.join(".fossil");
+        fs_guard::reject_link(&internal)?;
         fs::create_dir_all(&internal).map_err(storage_error)?;
         // Exclusive reservation: creating twice must never overwrite an existing vault.
         let file = fs::OpenOptions::new()
@@ -77,7 +79,13 @@ impl VaultSession {
     }
 
     pub fn open(&mut self, path: &Path) -> Result<VaultRecord, CoreError> {
+        // Checked before canonicalize: resolving a network path already connects to it.
+        fs_guard::require_local_absolute(path)?;
         let path = dunce::canonicalize(path).map_err(storage_error)?;
+        fs_guard::require_local_absolute(&path)?;
+        for internal in [".fossil", ".fossil/fossil.db", ".fossil/vault.json"] {
+            fs_guard::reject_link(&path.join(internal))?;
+        }
         let db = path.join(".fossil/fossil.db");
         if !db.is_file() {
             return Err(storage_error("vault database does not exist"));
@@ -203,5 +211,44 @@ mod tests {
         assert!(session.open(&path).is_err());
         assert_eq!(fs::read_to_string(config).unwrap(), "broken");
         assert!(session.with_connection(|_| Ok(())).is_ok());
+    }
+
+    #[test]
+    fn refuses_relative_network_and_device_paths() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut session = VaultSession::new(dir.path().join("config.json"));
+        let mut paths = vec!["relative-vault".to_string()];
+        if cfg!(windows) {
+            paths.extend(
+                [
+                    r"\\127.0.0.1\fossil-test\vault",
+                    r"\\?\UNC\127.0.0.1\x",
+                    r"\\.\NUL",
+                ]
+                .map(String::from),
+            );
+        }
+        for path in paths {
+            assert!(
+                session.create(Path::new(&path), "X".into()).is_err(),
+                "{path}"
+            );
+            assert!(session.open(Path::new(&path)).is_err(), "{path}");
+        }
+        assert!(!Path::new("relative-vault").exists(), "nothing created");
+        assert!(session.recent().unwrap().is_empty());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn refuses_a_vault_whose_internal_folder_is_a_link() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut session = VaultSession::new(dir.path().join("config.json"));
+        let real = dir.path().join("real");
+        session.create(&real, "Real".into()).unwrap();
+        let planted = dir.path().join("planted");
+        fs::create_dir(&planted).unwrap();
+        crate::fs_guard::tests::make_junction(&planted.join(".fossil"), &real.join(".fossil"));
+        assert!(session.open(&planted).is_err());
     }
 }

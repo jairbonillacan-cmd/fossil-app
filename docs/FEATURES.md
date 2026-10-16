@@ -1,13 +1,13 @@
 # Catálogo de funciones
 
-> **Última revisión:** 2026-10-15 · **Última actualización:** 2026-10-15 · **Cambio:** primera versión; reemplaza el catálogo del plan original
+> **Última revisión:** 2026-10-15 · **Última actualización:** 2026-10-15 · **Cambio:** filas del backlog R1 + R2 ([`backlog/R1-R2-recomendaciones.md`](backlog/R1-R2-recomendaciones.md)) y estado `R1.5`
 
 Fossil junta en una app el trabajo que hoy se reparte entre varias categorías de herramientas.
 Para cada categoría, este documento dice **qué resuelve**, **qué espera ya la gente** de ella y
 **cómo lo hace Fossil** dentro de su grafo de páginas. Es la referencia para escribir specs e issues:
 una función nueva debe caber en una de estas secciones o abrir una nueva.
 
-**Estado:** `0.1` lanzada · `Revisión` construida, en revisión de código · `R1`…`R7` release
+**Estado:** `0.1` lanzada · `Revisión` construida, en revisión de código · `R1`…`R7` y `R1.5` release
 planeado ([`MILESTONES.md`](MILESTONES.md)) · `Futuro` sin release asignado.
 Lo que funciona hoy, medido, está en [`STATUS.md`](STATUS.md).
 
@@ -29,7 +29,15 @@ escribiendo el título; ver qué notas apuntan a la actual; buscar al instante.
 | Enlaces `[[página]]` con autocompletado; crea la página si no existe | 0.1 | `packages/editor` |
 | **Enlazada desde** y **Menciones sin enlace** en el panel derecho | 0.1 | `fossil-core::indexer`, `apps/desktop/src/page-editor-backlinks.tsx` |
 | Búsqueda de texto completo con fragmento resaltado | 0.1 | ADR-0004 (FTS5), `fossil-core::search`, `apps/desktop/src/shell-search.tsx` |
-| Grafo local y global | R2 | — |
+| Indicador Guardado / Guardando / Error ligado al transporte; nunca dice "Guardado" si un cambio falló | R1 | `docs/specs/r1-trust.md` (pendiente) |
+| Respaldos de SQLite, adjuntos y configuración; restaurar una página, un archivo o el Espacio | R1 | `docs/specs/r1-trust.md` (pendiente), ADR-0018 (reservado) |
+| Historial local de páginas: comparar y restaurar versiones sin romper referencias | R1 | `docs/specs/r1-trust.md` (pendiente) |
+| La copia en Markdown se exporta y reimporta sin perder contenido; límites documentados | R1 | `docs/specs/r1-trust.md` (pendiente) |
+| Ranking de búsqueda por título, enlaces y recencia; filtros guardados | R1.5 | `fossil-core::search` |
+| Renombrar, archivar o mover nunca deja enlaces rotos en silencio | R1.5 | `fossil-core::indexer` |
+| Panel **Contexto relacionado** sin IA, con el porqué de cada sugerencia | R1.5 | `docs/specs/r1-shell-ux.md` |
+| Favoritos, recientes, `@hoy` y papelera del Espacio con restaurar | R1.5 | — |
+| Grafo local y global con filtros y rutas entre páginas | R2 | — |
 | Copia en Markdown bidireccional (editar el `.md` actualiza la página) | R7 | ADR-0004 |
 
 ### 2. Bloques, bases de datos y vistas
@@ -45,8 +53,15 @@ varias vistas sobre los mismos datos; plantillas.
 | Avisos (callouts) y tablas | 0.1 | `packages/editor` |
 | Arrastrar bloques con asa y conteo de palabras | 0.1 | `packages/editor` |
 | Imágenes pegadas o arrastradas, guardadas dentro del Espacio | Revisión | `fossil-core::attachments`, `packages/editor` |
+| Editor intensivo: undo/redo, selección múltiple, cortar/pegar y mover ramas sin alterar IDs de bloque | R1 | `packages/editor` |
+| Explorador de adjuntos: tamaños, páginas que los usan, huérfanos; nunca borra uno referenciado | R1.5 | `fossil-core::attachments` |
+| Bloques de código avanzados: lenguaje, título, copiar, líneas, diferencias, formateo JSON/SQL | R1.5 | `packages/editor` |
+| Matemáticas LaTeX, diagramas en texto y gráficas desde tablas, con carga diferida | R1.5 | `packages/editor` |
 | Campos tipados: texto, número, moneda, fecha, persona, selección, relación, rollup, fórmula | R2 | ADR-0005 |
+| Campos con id estable por Tipo; decimal exacto y moneda ISO; reglas de validación | R2 | `docs/specs/r2-types-views.md` |
 | Vistas tabla, tablero, lista y calendario sobre cualquier tipo | R2 | — |
+| Una sola fuente de verdad para todas las vistas; filtros AND/OR y vistas guardadas; 5 000 objetos virtualizados | R2 | `docs/specs/r2-types-views.md` |
+| Acciones masivas con vista previa, resultado parcial y reversión | R2 | `docs/specs/r2-types-views.md` |
 | Plantillas por tipo | R2 | — |
 | Línea de tiempo y galería | R3 | — |
 
@@ -61,6 +76,11 @@ actualizan solas según un criterio; colecciones manuales; espacios separados; c
 | Modelo de objetos: id, tipos, título, bloques, campos y enlaces | 0.1 (núcleo) | ADR-0005, `fossil-core::objects` |
 | Varios **Tipos** por página, con campos, plantilla, vista e ícono | R2 | ADR-0005 |
 | **Lista guardada** (consulta que se actualiza sola) y **Colección** (lista manual) | R2 | — |
+| Relaciones bidireccionales con cardinalidad y rollups incrementales | R2 | `docs/specs/r2-types-views.md` |
+| Estados y transiciones por Tipo, preservando historial | R2 | `docs/specs/r2-projects-planning.md` (pendiente) |
+| **Proyecto**: estado, progreso, hitos, tareas, archivos, dependencias y bloqueos | R2 | `docs/specs/r2-projects-planning.md` (pendiente) |
+| Plantillas de Espacio (software, estudio, agencia, personal) borrables | R2 | `docs/specs/r2-projects-planning.md` (pendiente) |
+| **Rastro**: idea → decisión → tarea → entregable, inferido o confirmado | R2 | `docs/specs/r2-projects-planning.md` (pendiente) |
 | Espacios de equipo con roles | R3 | ADR-0006, ADR-0007 |
 | Espacios privados cifrados de extremo a extremo | R7 | ADR-0007 |
 
@@ -75,6 +95,8 @@ referenciar e insertar un bloque en otra página; consultas embebidas.
 | **Bitácora**: el botón **Hoy** abre o crea la nota del día | 0.1 | `fossil-core::journal` |
 | Esquemas: sangría con `Tab`, bloques y secciones plegables, pegado limpio | 0.1 | `packages/editor` |
 | Referencias `((bloque))` e inserción de bloques | R2 | ADR-0005 |
+| Tareas desde casillas, selección o página, con vínculo al bloque de origen; recurrentes sin duplicados | R2 | `docs/specs/r2-tasks-reminders.md` |
+| Bandeja, Hoy, Próximo, Atrasado, revisión semanal y modo Enfoque | R2 | `docs/specs/r2-projects-planning.md` (pendiente) |
 | Consultas embebidas en una página | R5 | — |
 
 ### 5. Escritura sin distracciones
@@ -88,6 +110,8 @@ imágenes; exportar a varios formatos.
 | Tema claro, oscuro o del sistema; densidad cómoda o compacta; idioma | 0.1 | `DESIGN.md`, `apps/desktop/src/shell-settings.tsx` |
 | Etiquetas `#tag` con autocompletado | 0.1 | `packages/editor` |
 | Etiquetas anidadas con ícono | R2 | — |
+| Tipografía: sin patines, con patines o mono; tamaño; lectura centrada o ancho completo | R1.5 | `DESIGN.md` |
+| Modo Markdown, buscar y reemplazar `Ctrl+H`, índice de encabezados y presentación a pantalla completa | R1.5 | `packages/editor` |
 | Texto en imágenes y PDF con el OCR de Windows | R4 | `fossil-os` |
 | Exportar a PDF | 0.1 | `apps/desktop/src/page-export.ts` |
 | Exportar a DOCX, HTML y ePub | R7 | — |
@@ -101,7 +125,11 @@ desde otra app de notas.
 |---|---|---|
 | Paleta de comandos `Ctrl+K` y salto rápido `Ctrl+P` | 0.1 | `apps/desktop/src/shell-palette.tsx` |
 | Captura rápida con un atajo global, sin abrir la ventana | Revisión | `fossil-os` |
-| Importar Markdown y exportaciones (Markdown, HTML, CSV) de otras apps de notas | R2 | — |
+| Captura a la **Bandeja universal** (texto, enlace o archivo) con Fossil cerrado y aviso de dónde se guardó | R1 | `docs/specs/r1-import-adoption.md` (pendiente) |
+| Paleta unificada: nombres consistentes, búsqueda tolerante a errores y acciones recientes | R1.5 | `docs/specs/r1-shell-ux.md` |
+| Importar carpetas Markdown con frontmatter, imágenes y enlaces; vista de conflictos y reversión | R1.5 | `docs/specs/r1-import-adoption.md` (pendiente) |
+| Primer inicio en tres pasos con un Espacio de ejemplo eliminable | R1.5 | `docs/specs/r1-import-adoption.md` (pendiente) |
+| Importar exportaciones HTML y CSV de otras apps de notas, con reporte | R2 | — |
 | Recortador web | R6 | — |
 
 ---
@@ -230,8 +258,11 @@ que puede actuar dentro de la app con permiso; costo visible.
 | **Modelos de IA**: router por tarea con cadena de respaldo y registro de costo | 0.1 (núcleo) | `fossil-ai` |
 | Chat con contexto: página, selección y `@páginas` | Revisión | `docs/specs/r1-ai-router-bridge.md` |
 | Reescribir, resumir, traducir y cambiar el tono de una selección | Revisión | `docs/specs/r1-ai-router-bridge.md` |
+| Proveedor, modelo, contexto enviado y consumo visibles; confirmar antes de insertar; cancelar no toca la página | R1 | `docs/specs/r1-ai-router-bridge.md` |
 | Agente con las herramientas de la paleta; confirma lo destructivo o externo | R2 | — |
-| Contador de costos y topes por mes | R2 | — |
+| Un solo registro de herramientas para UI, paleta y MCP, con permisos validados en Rust | R2 | `docs/specs/r2-agent-tools.md` |
+| Plan de cambios del agente revisable, cancelable y reversible; historial de sus operaciones sin secretos | R2 | `docs/specs/r2-agent-tools.md` |
+| Contador de costos y topes por mes; aviso de envío externo | R2 | — |
 | Voz de marca en todo el contenido; ideas por pilar; campos que llena la IA | R4 | — |
 | Agente analista: responde en lenguaje natural mostrando el SQL, detecta anomalías y pronostica; solo sugiere, nunca ejecuta | R5 | — |
 | Búsqueda semántica y respuestas con citas | R5 | ADR-0004 (sqlite-vec) |
@@ -272,8 +303,10 @@ escribir en Fossil.
 | Ventana nativa de Windows 11 con Mica; tema y densidad aplicados antes de mostrarla | 0.1 | `DESIGN.md` |
 | Sin destello blanco de WebView2 al arrancar | 0.1 | `apps/desktop/src-tauri/tauri.conf.json` |
 | Instancia única y posición de la ventana recordada | 0.1 | `docs/modules/infra.md` |
-| Pestañas, paneles divididos y panel derecho | R1 | `docs/specs/r1-shell-ux.md` |
+| Pestañas, paneles divididos y panel derecho, con la sesión recuperable al reiniciar | R1 | `docs/specs/r1-shell-ux.md` |
+| Accesibilidad: mapa de atajos, foco visible, navegación sin ratón, reducir movimiento | R1.5 | `docs/specs/r1-shell-ux.md` |
 | Recordatorios con notificación de Windows; bandeja Hoy, Próximo, Atrasado | R2 | `fossil-os` |
+| Notificaciones fiables: reintentos, sin duplicados tras reinicio o suspensión, posponer y completar | R2 | `docs/specs/r2-tasks-reminders.md` |
 | Firma de código y actualizaciones automáticas (estable y beta) | R7 | — |
 | Listas de salto, onboarding e interfaz en inglés completa | R7 | — |
 | App móvil compañera | Futuro | — |

@@ -21,11 +21,11 @@ Tipos wire en `crates/fossil-ai/src/contract.rs` (`specta::Type`; sin `i64/u64`:
 
 `ChatEvent = Started{provider,model} | Delta{text} | ToolCall{name,arguments} | Usage | Done{summary} | Error{message}`; `ProviderError` (trait, Rust) ≠ `AiError` (IPC).
 
-## Proveedores por API y keyring (#32)
-Claves en el Administrador de credenciales de Windows (`com.fossil.ai`, `keyring.rs`), streaming SSE/NDJSON (`http.rs`) y proveedores con `health()` perezoso: Anthropic (`anthropic.rs`), OpenAI (`openai.rs`), Gemini API (`gemini.rs`, header `x-goog-api-key`) y Ollama local (`ollama.rs`, `127.0.0.1:11434`, `GET /api/version` y `POST /api/chat`).
+## Proveedores por API y keyring (#32, #55)
+Claves en el Administrador de credenciales de Windows (`com.fossil.ai`, `keyring.rs`, rechazando proveedores sin clave API), streaming SSE/NDJSON (`http.rs`, acumulando `Vec<u8>` hasta `\n` antes de decodificar UTF-8 con cota de 1 MiB por línea y abortando con `tokio::select!` en `tx.closed()`) y proveedores con `health()` perezoso: Anthropic (`anthropic.rs`), OpenAI (`openai.rs`), Gemini API (`gemini.rs`, header `x-goog-api-key`) y Ollama local (`ollama.rs`, `127.0.0.1:11434`, `GET /api/version` y `POST /api/chat`).
 
-## Router y registro de uso (#34)
-`AiRouter` (`router.rs`) recorre la cadena `RouteRule` (`default_routes()`), salta proveedores no listos (`HealthStatus != Ready` o `ProviderError::Unavailable`), valida capacidades al editar rutas (`ai_routes_get`/`ai_routes_set`), expone `ai_providers` con probe perezoso y persiste rutas y uso de tokens/costo en una conexión SQLite propia de `fossil-ai` (`ai_routes`, `ai_usage`, sin modificar las migraciones ni el esquema de `fossil-core` y sin guardar prompts).
+## Router y registro de uso (#34, #55)
+`AiRouter` (`router.rs`) recorre la cadena `RouteRule` (`default_routes()`), salta proveedores no listos (`HealthStatus != Ready` o `ProviderError::Unavailable`), valida capacidades y deduplica `prefer` al editar rutas (`ai_routes_get`/`ai_routes_set`), expone `ai_providers` con probe perezoso y persiste rutas (en transacción SQLite) y uso de tokens/costo en una conexión SQLite propia de `fossil-ai` (`ai_routes`, `ai_usage`, sin modificar las migraciones ni el esquema de `fossil-core` y sin guardar prompts).
 
 ## Tabla de CLIs (spike #14)
 
@@ -57,8 +57,8 @@ Claves en el Administrador de credenciales de Windows (`com.fossil.ai`, `keyring
 - `codex exec` envía ~16 k tokens de sistema por llamada (~13 k cacheados): presupuesto de cuota.
 - El PID de MSYS/Git-Bash ≠ PID de Windows: para matar el árbol usar Job Objects o el winpid.
 - `codex` fuera de un repo git exige `--skip-git-repo-check`.
-- Detección: solo `where.exe`; `agy` se instala en `%LOCALAPPDATA%\agy\bin` (agregar a PATH de detección).
+- Detección: `%SystemRoot%\System32\where.exe` filtrando extensiones ejecutables (`.exe`, `.cmd`, `.bat`, `.com`) en Windows para descartar shims POSIX de npm; `agy` se instala en `%LOCALAPPDATA%\agy\bin` (agregar a PATH de detección).
 
-**Implementación puente (#33):** `crates/fossil-bridge/src/lib.rs` detecta `agy` (`%LOCALAPPDATA%\agy\bin`), `claude` y `codex` con `where.exe`, parsea NDJSON a `ChatEvent` (validado contra `crates/fossil-bridge/tests/fixtures/*.jsonl`) y cancela el árbol de procesos con `taskkill /F /T` en < 500 ms; `BridgeProvider` (`crates/fossil-bridge/src/runner.rs`) implementa `Provider` (`health()` perezoso con `--version` y `chat()` ejecutando subprocesos headless en un `cwd` temporal y cerrando `stdin`).
+**Implementación puente (#33, #55):** `crates/fossil-bridge/src/lib.rs` detecta `agy` (`%LOCALAPPDATA%\agy\bin`), `claude` y `codex` con `where.exe` (descartando candidatos sin extensión ejecutable en Windows), parsea NDJSON a `ChatEvent` (validado contra `crates/fossil-bridge/tests/fixtures/*.jsonl`) y cancela el árbol de procesos con `taskkill /F /T` en < 500 ms; `BridgeProvider` (`crates/fossil-bridge/src/runner.rs`) implementa `Provider` (`health()` perezoso con `--version` y `chat()` ejecutando subprocesos headless sin variables de entorno de claves de terceros, abortando con `tx.closed()` y propagando códigos de salida != 0 para fallback).
 
 **ADRs relacionados:** [0011](../adr/0011-ai-router-bridge.md), [0013](../adr/0013-bridge-headless-jsonl.md)

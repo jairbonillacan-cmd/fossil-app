@@ -57,7 +57,11 @@ fn os_entry(p: ProviderId) -> Result<keyring::Entry, ProviderError> {
         ProviderId::Anthropic => "anthropic-api-key",
         ProviderId::OpenAi => "openai-api-key",
         ProviderId::Gemini => "gemini-api-key",
-        _ => "unused-api-key",
+        ProviderId::Agy | ProviderId::Claude | ProviderId::Codex | ProviderId::Ollama => {
+            return Err(ProviderError::Failed(
+                "provider does not use an API key".into(),
+            ));
+        }
     };
     keyring::Entry::new("com.fossil.ai", name)
         .map_err(|_| ProviderError::Unavailable("OS keyring unavailable".into()))
@@ -73,8 +77,9 @@ impl KeyStore for OsKeyring {
     }
 
     fn set_key(&self, p: ProviderId, key: &str) -> Result<(), ProviderError> {
+        let entry = os_entry(p)?;
         let s = SecretKey::new(key).ok_or_else(|| ProviderError::Failed("empty key".into()))?;
-        os_entry(p)?
+        entry
             .set_password(s.expose())
             .map_err(|_| ProviderError::Failed("write failed".into()))
     }

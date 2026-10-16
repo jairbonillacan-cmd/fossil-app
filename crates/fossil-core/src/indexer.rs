@@ -4,13 +4,15 @@ use crate::ids::{BlockId, ObjectId};
 use crate::object_store::{self, storage_error};
 use crate::objects::{CoreError, Link, LinkKind, Mention};
 use rusqlite::{Connection, Params, params};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use yrs::types::text::YChange;
 use yrs::updates::decoder::Decode;
 use yrs::{
     Any, Doc, Out, ReadTxn, Text, Transact, Update, Xml, XmlElementRef, XmlFragment, XmlOut,
     XmlTextRef,
 };
+
+const MAX_XML_DEPTH: usize = 32;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IndexedBlock(pub BlockId, pub String, pub i64);
@@ -35,15 +37,18 @@ fn plain_text<T: ReadTxn>(t: &XmlTextRef, txn: &T) -> String {
         .collect()
 }
 
-fn element_text<T: ReadTxn>(el: &XmlElementRef, txn: &T) -> String {
+fn element_text<T: ReadTxn>(el: &XmlElementRef, txn: &T, depth: usize) -> String {
     if el.tag().as_ref() == "hardBreak" {
         return "\n".into();
+    }
+    if depth >= MAX_XML_DEPTH {
+        return String::new();
     }
     let inline = matches!(el.tag().as_ref(), "paragraph" | "heading" | "codeBlock");
     el.children(txn)
         .filter_map(|c| match c {
             XmlOut::Text(t) => Some(plain_text(&t, txn)),
-            XmlOut::Element(sub) => Some(element_text(&sub, txn)),
+            XmlOut::Element(sub) => Some(element_text(&sub, txn, depth + 1)),
             XmlOut::Fragment(_) => None,
         })
         .filter(|s| !s.is_empty())
@@ -65,7 +70,10 @@ fn collect_doc_blocks<T: ReadTxn>(
                         Some(Out::Any(Any::String(s))) => s.to_string(),
                         _ => String::new(),
                     };
-                    ((!s.trim().is_empty()).then_some(s), element_text(&el, txn))
+                    (
+                        (!s.trim().is_empty()).then_some(s),
+                        element_text(&el, txn, 0),
+                    )
                 }
                 XmlOut::Text(t) => (None, plain_text(&t, txn)),
                 XmlOut::Fragment(_) => return None,
@@ -192,7 +200,7 @@ fn resolve_target(conn: &Connection, target: &str) -> Result<String, CoreError> 
 
     let trimmed = target.trim();
     if let Some(id) = conn
-        .prepare_cached("SELECT id FROM objects WHERE id = ?1 LIMIT 1")
+        .prepare_cached("SELECT id FROM objects WHERE id = ?1 AND archived = 0 LIMIT 1")
         .map_err(storage_error)?
         .query_row([trimmed], |r| r.get::<_, String>(0))
         .optional()
@@ -212,8 +220,8 @@ fn resolve_target(conn: &Connection, target: &str) -> Result<String, CoreError> 
         let mut stmt = conn
             .prepare_cached(
                 "SELECT o.id, o.title FROM fts_objects JOIN objects o ON o.id = fts_objects.object_id
-                 WHERE fts_objects MATCH ?1
-                 ORDER BY o.archived ASC, o.created_at ASC, o.id ASC",
+                 WHERE fts_objects MATCH ?1 AND o.archived = 0
+                 ORDER BY o.created_at ASC, o.id ASC",
             )
             .map_err(storage_error)?;
         let rows = stmt
@@ -230,8 +238,8 @@ fn resolve_target(conn: &Connection, target: &str) -> Result<String, CoreError> 
     }
     if let Some(id) = conn
         .prepare_cached(
-            "SELECT id FROM objects WHERE lower(trim(title)) = ?1
-             ORDER BY archived ASC, created_at ASC, id ASC LIMIT 1",
+            "SELECT id FROM objects WHERE archived = 0 AND lower(trim(title)) = ?1
+             ORDER BY created_at ASC, id ASC LIMIT 1",
         )
         .map_err(storage_error)?
         .query_row([&lower], |r| r.get::<_, String>(0))
@@ -244,8 +252,8 @@ fn resolve_target(conn: &Connection, target: &str) -> Result<String, CoreError> 
         let char_len = lower.chars().count() as i64;
         let mut stmt = conn
             .prepare_cached(
-                "SELECT id, title FROM objects WHERE length(trim(title)) = ?1
-                 ORDER BY archived ASC, created_at ASC, id ASC",
+                "SELECT id, title FROM objects WHERE archived = 0 AND length(trim(title)) = ?1
+                 ORDER BY created_at ASC, id ASC",
             )
             .map_err(storage_error)?;
         let rows = stmt
@@ -281,20 +289,16 @@ pub fn index_object(conn: &mut Connection, id: &ObjectId) -> Result<(), CoreErro
     ] {
         exec(&tx, sql, [&id.0])?;
     }
-    if !title_key.is_empty() {
+    if !archived && !title_key.is_empty() {
         let sql = "UPDATE OR IGNORE links SET to_object = ?1 WHERE to_object = ?2";
         exec(&tx, sql, params![id.0, title_key])?;
     }
     let mut body_parts = Vec::with_capacity(blocks.len());
+    let mut seen_in_page: BTreeMap<String, usize> = BTreeMap::new();
     {
         let mut ins_blk = tx
             .prepare_cached(
                 "INSERT INTO blocks (id, object_id, text, sort_order) VALUES (?1, ?2, ?3, ?4) ON CONFLICT(id) DO NOTHING",
-            )
-            .map_err(storage_error)?;
-        let mut ins_scoped = tx
-            .prepare_cached(
-                "INSERT OR REPLACE INTO blocks (id, object_id, text, sort_order) VALUES (?1, ?2, ?3, ?4)",
             )
             .map_err(storage_error)?;
         let mut ins_lnk = tx
@@ -308,20 +312,33 @@ pub fn index_object(conn: &mut Connection, id: &ObjectId) -> Result<(), CoreErro
 
         for IndexedBlock(bid, text, ord) in &blocks {
             body_parts.push(text.as_str());
+            let occurrence = seen_in_page.entry(bid.0.clone()).or_insert(0);
+            *occurrence += 1;
+            let page_local_id = if *occurrence == 1 {
+                bid.0.clone()
+            } else {
+                format!("{}#{occurrence}", bid.0)
+            };
             // blocks.id is global: a block pasted from another page keeps its blockId.
             // Never replace another object's row; store this copy under an id scoped
             // to this object instead (this object's rows were deleted above).
             let inserted = ins_blk
-                .execute(params![bid.0, id.0, text, ord])
+                .execute(params![page_local_id, id.0, text, ord])
                 .map_err(storage_error)?;
             let bid = if inserted == 1 {
-                bid.clone()
+                BlockId(page_local_id)
             } else {
-                let scoped = BlockId(format!("{}:{}", id.0, bid.0));
-                ins_scoped
-                    .execute(params![scoped.0, id.0, text, ord])
-                    .map_err(storage_error)?;
-                scoped
+                let mut candidate = format!("{}:{page_local_id}", id.0);
+                let mut suffix = 2usize;
+                while ins_blk
+                    .execute(params![candidate, id.0, text, ord])
+                    .map_err(storage_error)?
+                    == 0
+                {
+                    candidate = format!("{}:{page_local_id}#{suffix}", id.0);
+                    suffix += 1;
+                }
+                BlockId(candidate)
             };
             for (fb, tgt, tb) in parse_wikilinks(&bid, text) {
                 let to_obj = resolve_target(&tx, &tgt)?;
@@ -570,6 +587,37 @@ mod tests {
             (1, 1),
             "re-indexing the copy stays scoped"
         );
+    }
+
+    #[test]
+    fn archived_object_does_not_claim_unresolved_incoming_links_and_duplicate_block_ids_survive() {
+        let mut conn = open_vault(":memory:").unwrap();
+        let src = page(&conn, "Origen");
+        set_body(
+            &mut conn,
+            &src,
+            &[
+                ("paragraph", "dup", "Ver [[Objetivo]] uno"),
+                ("paragraph", "dup", "Ver [[Objetivo]] dos"),
+            ],
+        );
+        assert_eq!(count(&conn, &src), 2);
+        let blk_ids = scalar(
+            &conn,
+            "SELECT group_concat(id, ',') FROM (SELECT id FROM blocks WHERE object_id = ?1 ORDER BY sort_order)",
+            &src.0,
+        );
+        assert_eq!(blk_ids, "dup,dup#2");
+
+        let target = page(&conn, "Objetivo");
+        object_store::archive(&mut conn, &target).unwrap();
+        index_object(&mut conn, &target).unwrap();
+        let resolved = scalar(
+            &conn,
+            "SELECT to_object FROM links WHERE from_object = ?1 LIMIT 1",
+            &src.0,
+        );
+        assert_eq!(resolved, "objetivo");
     }
 
     #[test]

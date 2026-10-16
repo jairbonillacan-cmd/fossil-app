@@ -59,7 +59,7 @@ impl Provider for UnconfiguredCliProvider {
 
 pub struct AiRouter {
     providers: HashMap<ProviderId, Arc<dyn Provider>>,
-    db: Mutex<Connection>,
+    db: Mutex<Option<Connection>>,
 }
 
 impl Default for AiRouter {
@@ -83,7 +83,7 @@ impl AiRouter {
     }
 
     pub fn new(list: Vec<Arc<dyn Provider>>) -> Self {
-        let conn = Connection::open_in_memory().unwrap_or_else(|_| unreachable!());
+        let conn = Connection::open_in_memory().ok();
         let providers = list.into_iter().map(|p| (p.id(), p)).collect();
         let router = Self {
             providers,
@@ -94,32 +94,45 @@ impl AiRouter {
     }
 
     fn init_db(&self) {
-        let db = self.db.lock().unwrap_or_else(|e| e.into_inner());
-        let _ = db.execute_batch(
-            "CREATE TABLE IF NOT EXISTS ai_routes (idx INTEGER PRIMARY KEY, rule_json TEXT NOT NULL);
-             CREATE TABLE IF NOT EXISTS ai_usage (request_id TEXT PRIMARY KEY, task_json TEXT NOT NULL, summary_json TEXT NOT NULL, input_tokens INTEGER NOT NULL, output_tokens INTEGER NOT NULL, cost_usd REAL);",
-        );
-        drop(db);
+        let guard = self.db.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(db) = guard.as_ref() {
+            let _ = db.execute_batch(
+                "CREATE TABLE IF NOT EXISTS ai_routes (idx INTEGER PRIMARY KEY, rule_json TEXT NOT NULL);
+                 CREATE TABLE IF NOT EXISTS ai_usage (request_id TEXT PRIMARY KEY, task_json TEXT NOT NULL, summary_json TEXT NOT NULL, input_tokens INTEGER NOT NULL, output_tokens INTEGER NOT NULL, cost_usd REAL);",
+            );
+        }
+        drop(guard);
         let _ = self.save_routes(&default_routes());
     }
 
     fn save_routes(&self, rules: &[RouteRule]) -> Result<(), AiError> {
-        let db = self.db.lock().unwrap_or_else(|e| e.into_inner());
-        let _ = db.execute("DELETE FROM ai_routes", []);
+        let guard = self.db.lock().unwrap_or_else(|e| e.into_inner());
+        let Some(db) = guard.as_ref() else {
+            return Ok(());
+        };
+        let tx = db
+            .unchecked_transaction()
+            .map_err(|e| AiError::InvalidRoute(e.to_string()))?;
+        tx.execute("DELETE FROM ai_routes", [])
+            .map_err(|e| AiError::InvalidRoute(e.to_string()))?;
         for (idx, rule) in rules.iter().enumerate() {
             let json =
                 serde_json::to_string(rule).map_err(|e| AiError::InvalidRoute(e.to_string()))?;
-            db.execute(
+            tx.execute(
                 "INSERT INTO ai_routes (idx, rule_json) VALUES (?1, ?2)",
                 params![idx as i64, json],
             )
             .map_err(|e| AiError::InvalidRoute(e.to_string()))?;
         }
-        Ok(())
+        tx.commit()
+            .map_err(|e| AiError::InvalidRoute(e.to_string()))
     }
 
     pub fn routes_get(&self) -> Vec<RouteRule> {
-        let db = self.db.lock().unwrap_or_else(|e| e.into_inner());
+        let guard = self.db.lock().unwrap_or_else(|e| e.into_inner());
+        let Some(db) = guard.as_ref() else {
+            return default_routes();
+        };
         let Ok(mut stmt) = db.prepare("SELECT rule_json FROM ai_routes ORDER BY idx ASC") else {
             return default_routes();
         };
@@ -137,18 +150,20 @@ impl AiRouter {
         }
     }
 
-    pub fn routes_set(&self, rules: Vec<RouteRule>) -> Result<(), AiError> {
+    pub fn routes_set(&self, mut rules: Vec<RouteRule>) -> Result<(), AiError> {
         if rules.is_empty() {
             return Err(AiError::InvalidRoute("route table cannot be empty".into()));
         }
         let mut seen = HashSet::new();
-        for rule in &rules {
+        for rule in &mut rules {
             if !seen.insert(rule.task) {
                 return Err(AiError::InvalidRoute(format!(
                     "duplicate task {:?}",
                     rule.task
                 )));
             }
+            let mut seen_providers = HashSet::new();
+            rule.prefer.retain(|id| seen_providers.insert(*id));
             if rule.prefer.is_empty() {
                 return Err(AiError::InvalidRoute(format!(
                     "empty chain for {:?}",
@@ -243,7 +258,10 @@ impl AiRouter {
     }
 
     fn record_usage(&self, task: TaskKind, s: &ChatSummary) {
-        let db = self.db.lock().unwrap_or_else(|e| e.into_inner());
+        let guard = self.db.lock().unwrap_or_else(|e| e.into_inner());
+        let Some(db) = guard.as_ref() else {
+            return;
+        };
         let t_json = serde_json::to_string(&task).unwrap_or_default();
         let s_json = serde_json::to_string(s).unwrap_or_default();
         let _ = db.execute(
@@ -253,7 +271,10 @@ impl AiRouter {
     }
 
     pub fn usage_records(&self) -> Vec<UsageRecord> {
-        let db = self.db.lock().unwrap_or_else(|e| e.into_inner());
+        let guard = self.db.lock().unwrap_or_else(|e| e.into_inner());
+        let Some(db) = guard.as_ref() else {
+            return Vec::new();
+        };
         let Ok(mut stmt) =
             db.prepare("SELECT task_json, summary_json FROM ai_usage ORDER BY rowid ASC")
         else {
@@ -293,7 +314,7 @@ pub fn global_router() -> &'static Arc<AiRouter> {
 mod tests {
     use super::*;
     use crate::http::spawn_mock_http;
-    use crate::keyring::{KeyStore, MemoryKeyring};
+    use crate::keyring::{KeyStore, MemoryKeyring, OsKeyring};
 
     #[tokio::test]
     async fn router_fallback_skips_unready_and_logs_usage_without_prompt() {
@@ -315,6 +336,29 @@ mod tests {
             router.routes_set(vec![bad_rule]),
             Err(AiError::InvalidRoute(_))
         ));
+
+        let dup_rule = RouteRule {
+            task: TaskKind::Chat,
+            prefer: vec![
+                ProviderId::OpenAi,
+                ProviderId::Anthropic,
+                ProviderId::OpenAi,
+            ],
+        };
+        router.routes_set(vec![dup_rule]).unwrap();
+        assert_eq!(
+            router.routes_get()[0].prefer,
+            vec![ProviderId::OpenAi, ProviderId::Anthropic]
+        );
+        for p in [
+            ProviderId::Ollama,
+            ProviderId::Agy,
+            ProviderId::Claude,
+            ProviderId::Codex,
+        ] {
+            assert!(OsKeyring.get_key(p).is_err());
+            assert!(OsKeyring.set_key(p, "k").is_err());
+        }
 
         let secret_prompt = "CONFIDENTIAL_PROMPT_NEVER_PERSIST_12345";
         let req = ChatRequest {
