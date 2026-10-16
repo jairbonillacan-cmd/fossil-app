@@ -5,7 +5,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, OnceLock};
 
 use rusqlite::{Connection, params};
-use tokio::sync::mpsc::Sender;
+use tokio::sync::{Notify, mpsc::Sender};
 
 use crate::anthropic::AnthropicProvider;
 use crate::contract::{
@@ -13,10 +13,42 @@ use crate::contract::{
     ProviderInfo, RequestId, RouteRule, TaskKind, Usage, default_routes,
 };
 use crate::gemini::GeminiProvider;
-use crate::http::chat_caps;
+use crate::http::{build_prompt, chat_caps, redact_secrets};
 use crate::ollama::OllamaProvider;
 use crate::openai::OpenAiProvider;
 use crate::provider::{Provider, ProviderError};
+
+/// Default model identifier used when `ChatOptions::model` is `None`.
+pub fn default_model(provider: ProviderId) -> &'static str {
+    match provider {
+        ProviderId::Agy | ProviderId::Gemini => "gemini-2.5-pro",
+        ProviderId::Claude | ProviderId::Anthropic => "claude-sonnet-4-20250514",
+        ProviderId::Codex | ProviderId::OpenAi => "gpt-4o",
+        ProviderId::Ollama => "llama3.2",
+    }
+}
+
+/// Estimates outgoing input tokens and USD cost (when the provider charges per token) before sending.
+pub fn estimate_usage(req: &ChatRequest, provider: ProviderId) -> Usage {
+    let chars = build_prompt(req).chars().count();
+    let input_tokens = if chars == 0 {
+        0
+    } else {
+        (chars.div_ceil(4)).min(u32::MAX as usize) as u32
+    };
+    let rate_per_m = match provider {
+        ProviderId::Anthropic => Some(3.0),
+        ProviderId::OpenAi => Some(2.5),
+        ProviderId::Gemini => Some(1.25),
+        ProviderId::Ollama => Some(0.0),
+        ProviderId::Agy | ProviderId::Claude | ProviderId::Codex => None,
+    };
+    Usage {
+        input_tokens,
+        output_tokens: 0,
+        cost_usd: rate_per_m.map(|r| (f64::from(input_tokens) * r) / 1e6),
+    }
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct UsageRecord {
@@ -60,6 +92,7 @@ impl Provider for UnconfiguredCliProvider {
 pub struct AiRouter {
     providers: HashMap<ProviderId, Arc<dyn Provider>>,
     db: Mutex<Option<Connection>>,
+    in_flight: Mutex<HashMap<RequestId, Arc<Notify>>>,
 }
 
 impl Default for AiRouter {
@@ -88,6 +121,7 @@ impl AiRouter {
         let router = Self {
             providers,
             db: Mutex::new(conn),
+            in_flight: Mutex::new(HashMap::new()),
         };
         router.init_db();
         router
@@ -195,14 +229,30 @@ impl AiRouter {
         let mut out = Vec::with_capacity(ProviderId::all().len());
         for &id in ProviderId::all() {
             if let Some(p) = self.providers.get(&id) {
+                let mut health = p.health().await;
+                health.detail = health.detail.map(|d| redact_secrets(&d));
                 out.push(ProviderInfo {
                     id,
                     caps: p.capabilities(),
-                    health: p.health().await,
+                    health,
                 });
             }
         }
         out
+    }
+
+    pub fn cancel(&self, request_id: &RequestId) -> bool {
+        let notify = self
+            .in_flight
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(request_id);
+        if let Some(n) = notify {
+            n.notify_waiters();
+            true
+        } else {
+            false
+        }
     }
 
     pub async fn chat(
@@ -218,6 +268,36 @@ impl AiRouter {
         task: TaskKind,
         req: ChatRequest,
         tx: Sender<ChatEvent>,
+    ) -> Result<ChatSummary, AiError> {
+        self.chat_with_id(RequestId::new(), task, req, tx).await
+    }
+
+    pub async fn chat_with_id(
+        &self,
+        request_id: RequestId,
+        task: TaskKind,
+        req: ChatRequest,
+        tx: Sender<ChatEvent>,
+    ) -> Result<ChatSummary, AiError> {
+        let notify = Arc::new(Notify::new());
+        self.in_flight
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(request_id.clone(), notify.clone());
+        let res = self.run_chat(task, req, tx, &notify).await;
+        self.in_flight
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(&request_id);
+        res
+    }
+
+    async fn run_chat(
+        &self,
+        task: TaskKind,
+        req: ChatRequest,
+        tx: Sender<ChatEvent>,
+        cancel_notify: &Notify,
     ) -> Result<ChatSummary, AiError> {
         let candidates = if let Some(forced) = req.options.provider {
             vec![forced]
@@ -243,13 +323,34 @@ impl AiRouter {
             if !cap_ok || p.health().await.status != HealthStatus::Ready {
                 continue;
             }
-            match p.chat(req.clone(), tx.clone()).await {
+            let (inner_tx, mut inner_rx) = tokio::sync::mpsc::channel(16);
+            let out_tx = tx.clone();
+            let forward = tokio::spawn(async move {
+                while let Some(ev) = inner_rx.recv().await {
+                    let clean = match ev {
+                        ChatEvent::Error { message } => ChatEvent::Error {
+                            message: redact_secrets(&message),
+                        },
+                        other => other,
+                    };
+                    if out_tx.send(clean).await.is_err() {
+                        break;
+                    }
+                }
+            });
+            let outcome = tokio::select! {
+                biased;
+                () = cancel_notify.notified() => Err(ProviderError::Cancelled),
+                res = p.chat(req.clone(), inner_tx) => res,
+            };
+            let _ = forward.await;
+            match outcome {
                 Ok(summary) => {
                     self.record_usage(task, &summary);
                     return Ok(summary);
                 }
-                Err(ProviderError::Unavailable(msg)) => last_err = Some(msg),
-                Err(e) => return Err(AiError::ProviderFailure(e.to_string())),
+                Err(ProviderError::Unavailable(msg)) => last_err = Some(redact_secrets(&msg)),
+                Err(e) => return Err(AiError::ProviderFailure(redact_secrets(&e.to_string()))),
             }
         }
         Err(AiError::NoProvider(last_err.unwrap_or_else(|| {
@@ -313,6 +414,7 @@ pub fn global_router() -> &'static Arc<AiRouter> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::contract::ChatContext;
     use crate::http::spawn_mock_http;
     use crate::keyring::{KeyStore, MemoryKeyring, OsKeyring};
 
@@ -376,5 +478,100 @@ mod tests {
             (40, 5)
         );
         assert!(!format!("{logs:?}").contains(secret_prompt));
+    }
+
+    #[tokio::test]
+    async fn estimate_usage_cancel_and_secret_redaction_work() {
+        for &p in ProviderId::all() {
+            assert!(!default_model(p).is_empty());
+        }
+        let req = ChatRequest {
+            prompt: "Resume este párrafo".into(),
+            context: vec![ChatContext::Selection {
+                text: "Texto seleccionado de ejemplo".into(),
+            }],
+            ..ChatRequest::default()
+        };
+        let est_api = estimate_usage(&req, ProviderId::Anthropic);
+        assert!(est_api.input_tokens > 0);
+        assert!(est_api.cost_usd.unwrap() > 0.0);
+        assert_eq!(estimate_usage(&req, ProviderId::Ollama).cost_usd, Some(0.0));
+        assert_eq!(estimate_usage(&req, ProviderId::Agy).cost_usd, None);
+
+        struct SlowOrLeakingProvider;
+        #[async_trait::async_trait]
+        impl Provider for SlowOrLeakingProvider {
+            fn id(&self) -> ProviderId {
+                ProviderId::Anthropic
+            }
+            fn capabilities(&self) -> Caps {
+                chat_caps()
+            }
+            async fn health(&self) -> Health {
+                Health {
+                    status: HealthStatus::Ready,
+                    version: None,
+                    detail: Some("key sk-ant-api03-FAKE_SECRET_1234567890 ok".into()),
+                }
+            }
+            async fn chat(
+                &self,
+                req: ChatRequest,
+                tx: Sender<ChatEvent>,
+            ) -> Result<ChatSummary, ProviderError> {
+                if req.prompt == "cancel-me" {
+                    let _ = tx
+                        .send(ChatEvent::Delta {
+                            text: "parcial".into(),
+                        })
+                        .await;
+                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                }
+                let _ = tx
+                    .send(ChatEvent::Error {
+                        message: "bad key AIzaFAKE0123456789abcdefghijklmnop".into(),
+                    })
+                    .await;
+                Err(ProviderError::Failed(
+                    "leaked sk-proj-FAKE0123456789abcdef".into(),
+                ))
+            }
+        }
+
+        let router = Arc::new(AiRouter::new(vec![Arc::new(SlowOrLeakingProvider)]));
+        let info = router.providers().await;
+        assert!(!format!("{info:?}").contains("FAKE_SECRET_1234567890"));
+
+        let (tx, mut rx) = tokio::sync::mpsc::channel(16);
+        let err = router
+            .chat(ChatRequest::default(), tx)
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(!err.contains("FAKE0123456789abcdef"));
+        if let Some(ChatEvent::Error { message }) = rx.recv().await {
+            assert!(!message.contains("FAKE0123456789abcdefghijklmnop"));
+        }
+
+        let req_id = RequestId::new();
+        let r_clone = router.clone();
+        let id_clone = req_id.clone();
+        let (tx2, mut rx2) = tokio::sync::mpsc::channel(16);
+        let handle = tokio::spawn(async move {
+            let mut req = ChatRequest::default();
+            req.prompt = "cancel-me".into();
+            r_clone
+                .chat_with_id(id_clone, TaskKind::Inline, req, tx2)
+                .await
+        });
+        assert_eq!(
+            rx2.recv().await,
+            Some(ChatEvent::Delta {
+                text: "parcial".into()
+            })
+        );
+        assert!(router.cancel(&req_id));
+        assert!(handle.await.unwrap().is_err());
+        assert!(router.usage_records().is_empty());
     }
 }

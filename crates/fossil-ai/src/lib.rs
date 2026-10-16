@@ -21,7 +21,7 @@ pub use keyring::{KeyStore, MemoryKeyring, OsKeyring, SecretKey};
 pub use ollama::OllamaProvider;
 pub use openai::OpenAiProvider;
 pub use provider::{Provider, ProviderError};
-pub use router::{AiRouter, UsageRecord, global_router};
+pub use router::{AiRouter, UsageRecord, default_model, estimate_usage, global_router};
 
 /// Canonical crate name, sanity-checked against the package name in tests.
 pub const CRATE_NAME: &str = "fossil-ai";
