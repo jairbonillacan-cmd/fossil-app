@@ -4,8 +4,8 @@
 //! vault paths.
 use crate::ids::ObjectId;
 use crate::object_store::{self, storage_error};
-use crate::objects::{CoreError, ObjectFilter, ObjectMeta, TypeKey};
-use rusqlite::Connection;
+use crate::objects::{CoreError, ObjectMeta, TypeKey};
+use rusqlite::{Connection, params};
 use std::path::PathBuf;
 use yrs::types::text::YChange;
 use yrs::updates::decoder::Decode;
@@ -22,19 +22,18 @@ const RESERVED: [&str; 22] = [
 const MAX_NAME_CHARS: usize = 120;
 const MAX_DEPTH: usize = 32;
 
+#[inline]
+fn clean_char(c: char) -> char {
+    if c.is_control() || matches!(c, '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*') {
+        '-'
+    } else {
+        c
+    }
+}
+
 /// Windows-safe file/folder name for `title`; `fallback` when nothing is left.
 pub fn safe_name(title: &str, fallback: &str) -> String {
-    let cleaned: String = title
-        .chars()
-        .map(|c| {
-            if c.is_control() || r#"<>:"/\|?*"#.contains(c) {
-                '-'
-            } else {
-                c
-            }
-        })
-        .take(MAX_NAME_CHARS)
-        .collect();
+    let cleaned: String = title.chars().map(clean_char).take(MAX_NAME_CHARS).collect();
     // Windows silently drops trailing dots and spaces.
     let mut name = cleaned.trim().trim_end_matches(['.', ' ']).to_string();
     if name.is_empty() {
@@ -50,6 +49,66 @@ pub fn safe_name(title: &str, fallback: &str) -> String {
         name.insert(0, '_');
     }
     name
+}
+
+fn has_sibling_clash(conn: &Connection, meta: &ObjectMeta, name: &str) -> Result<bool, CoreError> {
+    let first_name = name.chars().next();
+    let check = |stmt: &mut rusqlite::Statement<'_>,
+                 p: &[&dyn rusqlite::ToSql]|
+     -> Result<bool, CoreError> {
+        let mut rows = stmt.query(p).map_err(storage_error)?;
+        while let Some(row) = rows.next().map_err(storage_error)? {
+            let sib_title = row
+                .get_ref(1)
+                .map_err(storage_error)?
+                .as_str()
+                .map_err(storage_error)?;
+            if !name.starts_with('_') {
+                if let Some(fc) = sib_title
+                    .chars()
+                    .take(MAX_NAME_CHARS)
+                    .find(|&c| !(c.is_whitespace() && !c.is_control()))
+                    .map(clean_char)
+                {
+                    if first_name != Some(fc)
+                        && !first_name.is_some_and(|n| n.eq_ignore_ascii_case(&fc))
+                    {
+                        continue;
+                    }
+                    if sib_title.len() < name.len() {
+                        continue;
+                    }
+                }
+            }
+            let sib_id = row
+                .get_ref(0)
+                .map_err(storage_error)?
+                .as_str()
+                .map_err(storage_error)?;
+            if safe_name(sib_title, sib_id).eq_ignore_ascii_case(name) {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    };
+    match &meta.parent {
+        Some(pid) => {
+            let mut stmt = conn
+                .prepare_cached(
+                    "SELECT id, title FROM objects WHERE parent = ?1 AND archived = 0 AND id != ?2",
+                )
+                .map_err(storage_error)?;
+            check(&mut stmt, params![pid.0, meta.id.0])
+        }
+        None => {
+            let mut stmt = conn
+                .prepare_cached(
+                    "SELECT id, title FROM objects WHERE parent IS NULL AND archived = 0 AND id != ?1",
+                )
+                .map_err(storage_error)?;
+            check(&mut stmt, params![meta.id.0])
+        }
+    }
 }
 
 /// Path of the object's `.md`, relative to the vault: parent titles as
@@ -68,18 +127,7 @@ pub fn relative_path(conn: &Connection, meta: &ObjectMeta) -> Result<PathBuf, Co
         parent = p.parent;
     }
     let name = safe_name(&meta.title, &meta.id.0);
-    let siblings = object_store::list(
-        conn,
-        ObjectFilter {
-            parent: meta.parent.clone(),
-            ..Default::default()
-        },
-    )?;
-    let clash = siblings.iter().any(|s| {
-        s.id != meta.id
-            && s.parent == meta.parent
-            && safe_name(&s.title, &s.id.0).eq_ignore_ascii_case(&name)
-    });
+    let clash = has_sibling_clash(conn, meta, &name)?;
     let file = if clash {
         format!("{name} ({}).md", short(&meta.id))
     } else {
@@ -395,5 +443,17 @@ mod tests {
             relative_path(&conn, &root).unwrap(),
             PathBuf::from("Plan.md")
         );
+    }
+
+    #[test]
+    fn leading_dot_siblings_still_collide() {
+        for (first, second) in [(".Plan", ".Plan"), (".Plan", " .Plan")] {
+            let conn = open_vault(":memory:").unwrap();
+            let a = object_store::create(&conn, meta(first, None)).unwrap();
+            let b = object_store::create(&conn, meta(second, None)).unwrap();
+            let pa = relative_path(&conn, &a).unwrap();
+            let pb = relative_path(&conn, &b).unwrap();
+            assert_ne!(pa, pb, "{first:?} vs {second:?}");
+        }
     }
 }

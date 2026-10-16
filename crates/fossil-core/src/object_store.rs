@@ -82,24 +82,40 @@ pub fn list(conn: &Connection, filter: ObjectFilter) -> Result<Vec<ObjectMeta>, 
         .map(|key| serde_json::to_string(&key))
         .transpose()
         .map_err(storage_error)?;
+    if let Some(parent) = filter.parent {
+        let mut stmt = conn
+            .prepare_cached(
+                "SELECT id,types,title,icon,parent,created_at,updated_at,archived FROM objects
+             WHERE parent=?1 AND (?2 OR archived=0)
+             AND (?3 IS NULL OR instr(lower(title), lower(?3))>0)
+             AND (?4 IS NULL OR EXISTS (
+               SELECT 1 FROM json_each(objects.types) WHERE
+                 CASE WHEN type='text' THEN json_quote(value) ELSE value END = ?4))
+             ORDER BY updated_at DESC, id",
+            )
+            .map_err(storage_error)?;
+        return stmt
+            .query_map(
+                params![parent.0, filter.include_archived, filter.query, type_key],
+                metadata,
+            )
+            .map_err(storage_error)?
+            .collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(storage_error);
+    }
     let mut stmt = conn
-        .prepare(
+        .prepare_cached(
             "SELECT id,types,title,icon,parent,created_at,updated_at,archived FROM objects
-         WHERE (?1 OR archived=0) AND (?2 IS NULL OR parent=?2)
-         AND (?3 IS NULL OR instr(lower(title), lower(?3))>0)
-         AND (?4 IS NULL OR EXISTS (
+         WHERE (?1 OR archived=0)
+         AND (?2 IS NULL OR instr(lower(title), lower(?2))>0)
+         AND (?3 IS NULL OR EXISTS (
            SELECT 1 FROM json_each(objects.types) WHERE
-             CASE WHEN type='text' THEN json_quote(value) ELSE value END = ?4))
+             CASE WHEN type='text' THEN json_quote(value) ELSE value END = ?3))
          ORDER BY updated_at DESC, id",
         )
         .map_err(storage_error)?;
     stmt.query_map(
-        params![
-            filter.include_archived,
-            filter.parent.map(|p| p.0),
-            filter.query,
-            type_key
-        ],
+        params![filter.include_archived, filter.query, type_key],
         metadata,
     )
     .map_err(storage_error)?

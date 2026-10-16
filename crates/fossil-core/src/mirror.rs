@@ -64,10 +64,19 @@ pub fn render_object(conn: &Connection, id: &ObjectId) -> Result<String, CoreErr
     markdown::render(&meta, &doc_store::load(conn, id)?)
 }
 
-/// Exports one object: writes its `.md`, or removes it when the object is
-/// archived or gone. Returns the vault-relative path written, if any.
-pub fn export(conn: &Connection, root: &Path, id: &ObjectId) -> Result<Option<String>, CoreError> {
-    let mut index = read_index(root)?;
+fn write_index(root: &Path, index: &Index) -> Result<(), CoreError> {
+    write_atomic(
+        &root.join(INDEX),
+        &serde_json::to_vec_pretty(index).map_err(storage_error)?,
+    )
+}
+
+fn export_with_index(
+    conn: &Connection,
+    root: &Path,
+    id: &ObjectId,
+    index: &mut Index,
+) -> Result<Option<String>, CoreError> {
     let previous = index.get(&id.0).cloned();
     let target = match object_store::get(conn, id)? {
         Some(meta) if !meta.archived => {
@@ -82,7 +91,13 @@ pub fn export(conn: &Connection, root: &Path, id: &ObjectId) -> Result<Option<St
     let written = target.as_ref().map(|(rel, _)| rel.clone());
     // Remove the stale file BEFORE writing: on Windows "plan.md" and "Plan.md"
     // are the same file, so removing afterwards would delete the new export.
-    if let Some(old) = previous.filter(|old| Some(old) != written.as_ref()) {
+    // Never delete `old` when another object in `index` already owns that path.
+    if let Some(old) = previous.filter(|old| {
+        Some(old) != written.as_ref()
+            && !index
+                .iter()
+                .any(|(other_id, path)| other_id != &id.0 && path.eq_ignore_ascii_case(old))
+    }) {
         remove(root, &old)?;
     }
     if let Some((rel, content)) = &target {
@@ -92,16 +107,34 @@ pub fn export(conn: &Connection, root: &Path, id: &ObjectId) -> Result<Option<St
         Some(rel) => index.insert(id.0.clone(), rel.clone()),
         None => index.remove(&id.0),
     };
-    write_atomic(
-        &root.join(INDEX),
-        &serde_json::to_vec_pretty(&index).map_err(storage_error)?,
-    )?;
+    Ok(written)
+}
+
+/// Exports one object: writes its `.md`, or removes it when the object is
+/// archived or gone. Returns the vault-relative path written, if any.
+pub fn export(conn: &Connection, root: &Path, id: &ObjectId) -> Result<Option<String>, CoreError> {
+    let mut index = read_index(root)?;
+    let written = export_with_index(conn, root, id, &mut index)?;
+    write_index(root, &index)?;
     Ok(written)
 }
 
 /// Exports an object and all its descendants (a renamed parent moves the
-/// folder of every child).
+/// folder of every child), reading and writing `mirror.json` once.
 pub fn export_tree(conn: &Connection, root: &Path, id: &ObjectId) -> Result<(), CoreError> {
+    let mut index = read_index(root)?;
+    let result = export_descendants(conn, root, id, &mut index);
+    // Files moved before a failure must stay tracked, so the index is saved either way.
+    write_index(root, &index)?;
+    result
+}
+
+fn export_descendants(
+    conn: &Connection,
+    root: &Path,
+    id: &ObjectId,
+    index: &mut Index,
+) -> Result<(), CoreError> {
     let mut pending = vec![id.clone()];
     let mut seen = 0;
     while let Some(next) = pending.pop() {
@@ -109,7 +142,7 @@ pub fn export_tree(conn: &Connection, root: &Path, id: &ObjectId) -> Result<(), 
         if seen > MAX_TREE {
             return Err(storage_error("object tree too large to mirror at once"));
         }
-        export(conn, root, &next)?;
+        export_with_index(conn, root, &next, index)?;
         let filter = ObjectFilter {
             parent: Some(next),
             include_archived: true,
@@ -239,6 +272,26 @@ mod tests {
     }
 
     #[test]
+    fn a_failed_child_still_saves_the_moved_parent_in_the_index() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        let mut conn = open_vault(":memory:").unwrap();
+        let parent = page(&conn, "Plan", None);
+        page(&conn, "Notas", Some(parent.clone()));
+        export_tree(&conn, root, &parent).unwrap();
+        // A file where the child folder should go makes the child export fail.
+        fs::write(root.join("Nuevo"), "bloqueo").unwrap();
+        rename(&mut conn, &parent, "Nuevo");
+        assert!(export_tree(&conn, root, &parent).is_err());
+        assert!(root.join("Nuevo.md").exists());
+        assert!(!root.join("Plan.md").exists());
+        assert_eq!(
+            read_index(root).unwrap().get(&parent.0).map(String::as_str),
+            Some("Nuevo.md")
+        );
+    }
+
+    #[test]
     fn index_paths_cannot_escape_the_vault() {
         let dir = tempfile::tempdir().unwrap();
         assert!(inside(dir.path(), "../fuera.md").is_err());
@@ -254,5 +307,92 @@ mod tests {
         )
         .unwrap();
         assert!(export(&conn, dir.path(), &id).is_err());
+    }
+
+    #[test]
+    fn renaming_does_not_delete_file_owned_by_another_object_in_index() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        let mut conn = open_vault(":memory:").unwrap();
+        let a = page(&conn, "Compartido", None);
+        let b = page(&conn, "Temporal", None);
+        export(&conn, root, &a).unwrap();
+        let mut idx = read_index(root).unwrap();
+        idx.insert(b.0.clone(), "Compartido.md".into());
+        write_index(root, &idx).unwrap();
+
+        rename(&mut conn, &b, "NuevoNombre");
+        export(&conn, root, &b).unwrap();
+        assert!(
+            root.join("Compartido.md").exists(),
+            "file owned by object `a` must not be removed when `b` moves away"
+        );
+        assert!(root.join("NuevoNombre.md").exists());
+    }
+
+    #[test]
+    fn mirror_and_sibling_lookup_stay_fast_on_10k_vault() {
+        use std::time::Instant;
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        let mut conn = open_vault(":memory:").unwrap();
+        let parent = page(&conn, "Carpeta Raíz", None);
+        {
+            let tx = conn.transaction().unwrap();
+            let mut stmt = tx
+                .prepare(
+                    "INSERT INTO objects(id,types,title,parent,created_at,updated_at,archived)
+                     VALUES(?1,'[\"Page\"]',?2,?3,1,1,0)",
+                )
+                .unwrap();
+            for i in 0..50u128 {
+                let id = ulid::Ulid::from_parts(1_000, i + 1).to_string();
+                stmt.execute(rusqlite::params![id, format!("Subpágina {i}"), &parent.0])
+                    .unwrap();
+            }
+            for i in 0..9_949u128 {
+                let id = ulid::Ulid::from_parts(2_000, i + 1).to_string();
+                stmt.execute(rusqlite::params![
+                    id,
+                    format!("Página Raíz {i}"),
+                    Option::<String>::None
+                ])
+                .unwrap();
+            }
+            drop(stmt);
+            tx.commit().unwrap();
+        }
+        let parent_meta = object_store::get(&conn, &parent).unwrap().unwrap();
+
+        let t0 = Instant::now();
+        let rel = markdown::relative_path(&conn, &parent_meta).unwrap();
+        let rel_ms = t0.elapsed().as_secs_f64() * 1000.0;
+        assert_eq!(rel, PathBuf::from("Carpeta Raíz.md"));
+
+        let t1 = Instant::now();
+        export(&conn, root, &parent).unwrap();
+        let export_ms = t1.elapsed().as_secs_f64() * 1000.0;
+
+        let t2 = Instant::now();
+        export_tree(&conn, root, &parent).unwrap();
+        let tree_ms = t2.elapsed().as_secs_f64() * 1000.0;
+
+        let t3 = Instant::now();
+        let children = object_store::list(
+            &conn,
+            ObjectFilter {
+                parent: Some(parent.clone()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let list_ms = t3.elapsed().as_secs_f64() * 1000.0;
+        assert_eq!(children.len(), 50);
+
+        eprintln!(
+            "PERF_57: relative_path={rel_ms:.2}ms export={export_ms:.2}ms export_tree={tree_ms:.2}ms list_parent={list_ms:.3}ms"
+        );
+        assert!(rel_ms < 50.0, "relative_path took {rel_ms:.2}ms");
+        assert!(list_ms < 10.0, "list(parent) took {list_ms:.3}ms");
     }
 }
