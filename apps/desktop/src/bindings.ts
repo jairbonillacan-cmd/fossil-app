@@ -29,6 +29,7 @@ export const commands = {
 	objectList: (filter: ObjectFilter) => typedError<ObjectMeta[], CoreError>(__TAURI_INVOKE("object_list", { filter })),
 	objectUpdateMeta: (id: ObjectId, patch: MetaPatch) => typedError<ObjectMeta, CoreError>(__TAURI_INVOKE("object_update_meta", { id, patch })),
 	objectArchive: (id: ObjectId) => typedError<ObjectMeta, CoreError>(__TAURI_INVOKE("object_archive", { id })),
+	objectMove: (id: ObjectId, parent: string | null) => typedError<ObjectMeta, CoreError>(__TAURI_INVOKE("object_move", { id, parent })),
 	objectLoadDoc: (id: ObjectId) => typedError<number[], CoreError>(__TAURI_INVOKE("object_load_doc", { id })),
 	objectApplyUpdate: (id: ObjectId, update: number[]) => typedError<null, CoreError>(__TAURI_INVOKE("object_apply_update", { id, update })),
 	/**  The page as Markdown, exactly what the vault mirror writes (#126). */

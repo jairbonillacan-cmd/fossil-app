@@ -19,11 +19,12 @@
 
 **ADRs relacionados:** 0004 (SQLite + espejo Markdown), 0005 (modelo de objetos)
 
-## Metadatos (#17, #57)
-`object_store::{create,get,list,update,archive}` opera sobre una conexión de bóveda.
+## Metadatos (#17, #57, #118)
+`object_store::{create,get,list,update,archive,move_object}` opera sobre una conexión de bóveda.
 Los filtros de tipo comparan el enum completo en JSON; la búsqueda de título es
 literal (ASCII sin distinguir mayúsculas). `parent: None` no filtra; cuando `parent` es `Some`, `list` usa una consulta dedicada (`WHERE parent=?1`) para aprovechar `idx_objects_parent`.
 `MetaPatch` conserva campos `None` (incluido icon); archivar es un soft delete.
+`move_object(conn, id, parent)` (`object_move` en IPC) reparenta un objeto a otro padre o a la raíz (`None`), rechazando ciclos (hacia sí mismo o un descendiente) y padres inexistentes o archivados; es idempotente si el padre no cambia.
 Los timestamps INTEGER ms se convierten a ISO-8601 UTC con milisegundos mediante
 chrono. Las actualizaciones de metadatos son transaccionales. Los IDs se validan
 como Ulid en el límite; SQLite rechaza padres inexistentes mediante foreign keys.

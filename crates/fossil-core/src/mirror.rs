@@ -292,6 +292,67 @@ mod tests {
     }
 
     #[test]
+    fn moving_an_object_moves_its_markdown_subtree_and_keeps_links() {
+        use crate::indexer;
+        use yrs::{
+            Doc, ReadTxn, StateVector, Transact, XmlElementPrelim, XmlFragment, XmlTextPrelim,
+        };
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        let mut conn = open_vault(":memory:").unwrap();
+        let folder_a = page(&conn, "Carpeta A", None);
+        let folder_b = page(&conn, "Carpeta B", None);
+        let branch = page(&conn, "Subproyecto", Some(folder_a.clone()));
+        let leaf = page(&conn, "Entrega", Some(branch.clone()));
+        let linker = page(&conn, "Índice", None);
+        let doc = Doc::new();
+        let body = doc.get_or_insert_xml_fragment("body");
+        let update = {
+            let mut txn = doc.transact_mut();
+            let p = body.push_back(&mut txn, XmlElementPrelim::empty("paragraph"));
+            p.push_back(&mut txn, XmlTextPrelim::new("Ver [[Entrega]]"));
+            txn.encode_state_as_update_v1(&StateVector::default())
+        };
+        doc_store::apply_update(&mut conn, &linker, &update).unwrap();
+        indexer::index_object(&mut conn, &leaf).unwrap();
+        indexer::index_object(&mut conn, &linker).unwrap();
+
+        export_tree(&conn, root, &folder_a).unwrap();
+        assert!(root.join("Carpeta A").join("Subproyecto.md").exists());
+        assert!(
+            root.join("Carpeta A")
+                .join("Subproyecto")
+                .join("Entrega.md")
+                .exists()
+        );
+
+        object_store::move_object(&mut conn, &branch, Some(folder_b.clone())).unwrap();
+        export_tree(&conn, root, &branch).unwrap();
+        assert!(!root.join("Carpeta A").join("Subproyecto.md").exists());
+        assert!(
+            !root
+                .join("Carpeta A")
+                .join("Subproyecto")
+                .join("Entrega.md")
+                .exists()
+        );
+        assert!(root.join("Carpeta B").join("Subproyecto.md").exists());
+        assert!(
+            root.join("Carpeta B")
+                .join("Subproyecto")
+                .join("Entrega.md")
+                .exists()
+        );
+        assert_eq!(indexer::backlinks(&conn, &leaf).unwrap().len(), 1);
+
+        object_store::move_object(&mut conn, &branch, None).unwrap();
+        export_tree(&conn, root, &branch).unwrap();
+        assert!(!root.join("Carpeta B").join("Subproyecto.md").exists());
+        assert!(root.join("Subproyecto.md").exists());
+        assert!(root.join("Subproyecto").join("Entrega.md").exists());
+    }
+
+    #[test]
     fn index_paths_cannot_escape_the_vault() {
         let dir = tempfile::tempdir().unwrap();
         assert!(inside(dir.path(), "../fuera.md").is_err());
