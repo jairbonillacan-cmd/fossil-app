@@ -38,7 +38,7 @@ const page: ObjectMeta = {
 const second: ObjectMeta = { ...page, id: "obj-2", title: "Campaña Acme" };
 
 const titleInput = () =>
-  screen.getByRole("textbox", { name: "Título de la página" }) as HTMLInputElement;
+  screen.getByRole("textbox", { name: "Título de la página" }) as HTMLTextAreaElement;
 
 async function awaitEditor(container: HTMLElement) {
   await vi.waitFor(() => expect(container.querySelector(".fossil-editor")).not.toBeNull(), {
@@ -70,7 +70,8 @@ describe("PageEditor", () => {
       const input = titleInput();
       expect(input.value).toBe("Launch checklist");
       expect(input.getAttribute("placeholder")).toBe("Sin título");
-      expect(screen.getByRole("button", { name: "Exportar Markdown" })).not.toBeNull();
+      expect(screen.getByRole("button", { name: "Más acciones" })).not.toBeNull();
+      expect(screen.queryByRole("menuitem", { name: "Exportar Markdown" })).toBeNull();
       const toggle = screen.getByRole("button", { name: "Enlazada desde" });
       expect(toggle.getAttribute("aria-expanded")).toBe("true");
       expect(await screen.findByRole("complementary", { name: "Enlazada desde" })).not.toBeNull();
@@ -214,4 +215,84 @@ describe("PageEditor", () => {
     },
     SLOW,
   );
+
+  it("displays a 120-character title in full with multiline wrap and tooltip (#105)", () => {
+    const longTitle =
+      "Estrategia integral de lanzamiento para la campaña trimestral de Mi equipo en canales orgánicos, tienda y anuncios 2026";
+    expect(longTitle).toHaveLength(119);
+    const title120 = `${longTitle}!`;
+    expect(title120).toHaveLength(120);
+
+    render(<PageEditor object={{ ...page, title: title120 }} />);
+    const input = titleInput();
+    expect(input.tagName).toBe("TEXTAREA");
+    expect(input.value).toBe(title120);
+    expect(input.getAttribute("title")).toBe(title120);
+    expect(input.className).toContain("break-words");
+  });
+
+  it("opens the ⋯ actions menu with click, Enter and Space, and closes with Escape and outside click restoring focus (#105)", () => {
+    render(<PageEditor object={page} />);
+    const moreBtn = screen.getByRole("button", { name: "Más acciones" });
+    expect(moreBtn.getAttribute("aria-expanded")).toBe("false");
+
+    // Open with click, close with Escape -> focus returns to ⋯ button
+    fireEvent.click(moreBtn);
+    expect(moreBtn.getAttribute("aria-expanded")).toBe("true");
+    const menu = screen.getByRole("menu", { name: "Más acciones" });
+    expect(menu).not.toBeNull();
+    const firstItem = screen.getByRole("menuitem", { name: "Exportar Markdown" });
+    expect(document.activeElement).toBe(firstItem);
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(moreBtn.getAttribute("aria-expanded")).toBe("false");
+    expect(document.activeElement).toBe(moreBtn);
+
+    // Open with Enter, close with outside click -> focus returns to ⋯ button
+    fireEvent.keyDown(moreBtn, { key: "Enter" });
+    expect(screen.getByRole("menu", { name: "Más acciones" })).not.toBeNull();
+    fireEvent.mouseDown(document.body);
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(document.activeElement).toBe(moreBtn);
+
+    // Open with Space (" ")
+    fireEvent.keyDown(moreBtn, { key: " " });
+    expect(screen.getByRole("menu", { name: "Más acciones" })).not.toBeNull();
+  });
+
+  it("navigates ⋯ menu actions with ArrowDown/ArrowUp and executes with Enter (#105)", () => {
+    const printSpy = vi.spyOn(window, "print").mockImplementation(() => {});
+    render(<PageEditor object={page} />);
+    const moreBtn = screen.getByRole("button", { name: "Más acciones" });
+
+    fireEvent.click(moreBtn);
+    const items = screen.getAllByRole("menuitem");
+    expect(items.map((el) => el.textContent)).toEqual([
+      "Exportar Markdown",
+      "Exportar PDF",
+      "Copiar enlace",
+    ]);
+    const mdItem = screen.getByRole("menuitem", { name: "Exportar Markdown" });
+    const pdfItem = screen.getByRole("menuitem", { name: "Exportar PDF" });
+    const copyItem = screen.getByRole("menuitem", { name: "Copiar enlace" });
+    expect(document.activeElement).toBe(mdItem);
+
+    // ArrowDown moves focus to "Exportar PDF"
+    fireEvent.keyDown(mdItem, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(pdfItem);
+
+    // ArrowDown again moves to "Copiar enlace", ArrowUp moves back to "Exportar PDF"
+    fireEvent.keyDown(pdfItem, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(copyItem);
+    fireEvent.keyDown(copyItem, { key: "ArrowUp" });
+    expect(document.activeElement).toBe(pdfItem);
+
+    // Enter executes "Exportar PDF", closes the menu and restores focus to ⋯ button
+    fireEvent.keyDown(pdfItem, { key: "Enter" });
+    expect(printSpy).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(document.activeElement).toBe(moreBtn);
+    printSpy.mockRestore();
+  });
 });

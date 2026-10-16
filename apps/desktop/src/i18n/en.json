@@ -17,17 +17,33 @@
   },
   "sidebar": {
     "label": "Pages",
+    "quickOpen": "Go to page…",
+    "quickOpenShortcut": "Ctrl+P",
     "newPage": "New page",
     "today": "Today",
     "settings": "Settings",
     "loading": "Loading…",
-    "empty": "No pages yet. Create the first one with “New page”."
+    "empty": "No pages yet. Create the first one with “New page”.",
+    "expand": "Expand {{title}}",
+    "collapse": "Collapse {{title}}"
+  },
+  "tabs": {
+    "listLabel": "Open tabs",
+    "newTab": "New tab",
+    "back": "Back",
+    "forward": "Forward",
+    "pin": "Pin tab",
+    "unpin": "Unpin tab",
+    "close": "Close tab",
+    "pinnedBadge": "Pinned"
   },
   "editor": {
     "emptyTitle": "No page open",
     "emptyBody": "Pick a page from the list or create a new one.",
     "titleLabel": "Page title",
     "untitled": "Untitled",
+    "moreActions": "More actions",
+    "copyLink": "Copy link",
     "exportMarkdown": "Export Markdown",
     "exportPdf": "Export PDF",
     "exportFailed": "The page could not be exported. Try again.",
@@ -89,7 +105,7 @@
     "shortcuts": "Keyboard shortcuts",
     "shortcutPalette": "Command palette",
     "shortcutQuickOpen": "Quick switcher",
-    "shortcutCapture": "Global quick capture"
+    "shortcutCapture": "Quick capture"
   },
   "backlinks": {
     "panelLabel": "Backlinks panel",
@@ -146,6 +162,18 @@
     "rejectProposal": "Reject",
     "proposalConfirmed": "Inserted into page",
     "proposalRejected": "Proposal discarded"
+  },
+  "capture": {
+    "placeholder": "Write a quick note… (Enter to save, Esc to close)",
+    "paste": "Paste clipboard",
+    "save": "Save to Today",
+    "savedIn": "Saved in Journal · {{title}}",
+    "shortcutSave": "Save shortcut",
+    "shortcutConflict": "Windows or another app is already using “{{shortcut}}”. Choose another shortcut.",
+    "shortcutInvalid": "Invalid shortcut (use e.g. Win+Shift+F or Ctrl+Alt+K).",
+    "trayOpen": "Open Fossil",
+    "trayNew": "New capture",
+    "trayQuit": "Quit"
   },
   "error": {
     "notImplemented": "This feature is not available yet.",

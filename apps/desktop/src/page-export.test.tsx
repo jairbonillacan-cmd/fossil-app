@@ -55,7 +55,8 @@ describe("Export Markdown", () => {
   it("downloads exactly what object_export_markdown returns, body included", async () => {
     vi.mocked(commands.objectExportMarkdown).mockResolvedValue({ status: "ok", data: MIRROR });
     render(<PageEditor object={page} />);
-    fireEvent.click(screen.getByRole("button", { name: "Exportar Markdown" }));
+    fireEvent.click(screen.getByRole("button", { name: "Más acciones" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Exportar Markdown" }));
     await vi.waitFor(() => expect(clicked).toHaveLength(1));
     expect(commands.objectExportMarkdown).toHaveBeenCalledWith("obj-1");
     expect(clicked[0]?.download).toBe("Plan- Q4.md");
@@ -70,7 +71,8 @@ describe("Export Markdown", () => {
       error: { ObjectNotFound: "obj-1" },
     });
     render(<PageEditor object={page} />);
-    fireEvent.click(screen.getByRole("button", { name: "Exportar Markdown" }));
+    fireEvent.click(screen.getByRole("button", { name: "Más acciones" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Exportar Markdown" }));
     expect((await screen.findByRole("alert")).textContent).toContain("No se pudo exportar");
     expect(clicked).toHaveLength(0);
   });
@@ -82,7 +84,8 @@ describe("Export Markdown", () => {
       themeWhilePrinting = document.documentElement.dataset.theme;
     });
     render(<PageEditor object={page} />);
-    fireEvent.click(screen.getByRole("button", { name: "Exportar PDF" }));
+    fireEvent.click(screen.getByRole("button", { name: "Más acciones" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Exportar PDF" }));
     expect(print).toHaveBeenCalledOnce();
     expect(themeWhilePrinting).toBe("light");
     expect(document.documentElement.dataset.theme).toBe("dark");
@@ -117,7 +120,8 @@ describe("Export Markdown", () => {
     render(<PageEditor object={page} />);
     const input = screen.getByRole("textbox", { name: "Título de la página" });
     fireEvent.change(input, { target: { value: "Plan final" } });
-    fireEvent.click(screen.getByRole("button", { name: "Exportar Markdown" }));
+    fireEvent.click(screen.getByRole("button", { name: "Más acciones" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Exportar Markdown" }));
     expect(order).toEqual(["save:start"]);
     expect(commands.objectExportMarkdown).not.toHaveBeenCalled();
 
