@@ -26,9 +26,6 @@ Cómo escribir aquí:
 - **Exportar PDF** en la cabecera de cada página: abre la impresión para guardarla como PDF, siempre en tema claro y sin la barra lateral.
 - **Asistente de IA**: chat en un panel con el contexto de tu página y acciones sobre el texto seleccionado. Antes de enviar puedes ver la vista previa del contexto, y funciona con modelos locales o con tu suscripción existente.
 
-### Mejoras
-- **Barra de desplazamiento discreta** en toda la app: casi invisible en reposo, se resalta al usarla y vive junto al borde de la ventana, no junto a la columna de lectura, en claro y en oscuro.
-
 ### Ya no falla
 - Al abrir la app con el tema oscuro ya no aparece un destello blanco antes de cargar la ventana.
 - Deshacer ya revierte un pegado de varios bloques y un salto de bloque con `Enter`, que antes se quedaban en el documento.
