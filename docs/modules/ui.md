@@ -28,6 +28,8 @@
 
 ## Shell de la app (apps/desktop, issues #26 y #31)
 
+**Línea base R1.5:** `docs/specs/r1-interface-design-map.md` documenta las pantallas actuales con capturas de referencia claro/oscuro; es el «antes» con el que comparan los ítems r1-scrollbar, r1-page-header, r1-tabs-ui y r1-sidebar-tree.
+
 **Flujo de primer arranque:** `app.tsx` guarda la bóveda abierta (`VaultInfo`); sin bóveda muestra `vault-screen.tsx` (crear/abrir con diálogo nativo y recientes vía `vault_recent`, usando `<AppIcon />` y `<Wordmark />` de `@fossil/ui`). Textos en i18next (`src/i18n/`, es-MX por defecto); claves del carril shell: `vault.*`, `sidebar.*`, `editor.*`, `settings.*` y `error.*`.
 
 **Espacio de trabajo (bóveda abierta):**
