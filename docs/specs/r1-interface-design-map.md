@@ -26,7 +26,7 @@ base para comparar el antes y el después de cada ítem.
 | Página | `file-text` | Tipo `Page` |
 | Bitácora | `calendar-days` | Journals (título `YYYY-MM-DD`) |
 | Carpeta (página con hijas) | `folder` | «Carpeta» = Página que contiene otras; nunca texto visible |
-| Cambio rápido de página (`Ctrl+P`) | `search` | Campo arriba del árbol |
+| Paleta de comandos (`Ctrl+P`, modo cambio rápido de página) | `search` | Campo arriba del árbol (la UI actual rotula «Cambio rápido de página») |
 
 Los journals hoy muestran su `object.icon` (emoji) si existe; el set de arriba es el objetivo del
 ítem y queda fijado aquí para poder contrastar la captura de referencia con la implementación.
@@ -77,7 +77,7 @@ Esquema de regiones previsto (una fila sobre el editor):
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────┐
-│ [📌 Plan Acme] [Campaña Q4 ×] [Bitácora ×] … ←scroll→   [+]  [◀] [▶] │
+│ [[pin] Plan Acme] [Campaña Q4 ×] [Bitácora ×] … ←scroll→  [+]  [◀] [▶] │
 ├────────────────────────────────────────────────────────────────────────┤
 │  encabezado de página (§ 2.3)                                          │
 │  editor (§ 2.4)                                                        │
@@ -86,7 +86,7 @@ Esquema de regiones previsto (una fila sobre el editor):
 
 | Región | Contenido | Comportamiento previsto |
 |---|---|---|
-| Pestañas | Título truncado + botón cerrar; fijada con marca 📌 | Reordenar arrastrando; desbordamiento con scroll |
+| Pestañas | Título truncado + botón cerrar; fijada con ícono `[pin]` de Lucide (`docs/DESIGN.md`) | Reordenar arrastrando; desbordamiento con scroll |
 | Acciones | `+` (nueva pestaña), atrás / adelante | `+` siempre visible; extremos deshabilitados |
 
 Pendiente de captura: se captura al cerrar r1-tabs-ui.
@@ -101,8 +101,8 @@ Diálogo modal con foco atrapado (Tab dentro; `Esc` o clic fuera cierran y devue
 | Espacio | Espacio activo (nombre; «Acme» en las capturas) |
 | Apariencia | Tema (Sistema / Claro / Oscuro), densidad (Cómoda / Compacta) |
 | Idioma | Español (MX) / English |
-| Atajos | Ctrl+K Paleta de comandos, Ctrl+P Cambio rápido de página, Win+Shift+F Captura rápida global (referencia) |
-| Diagnóstico | `<AppInfoPanel />`: versión y carpeta de datos («Datos: …») |
+| Atajos | `Ctrl+K` **Paleta de comandos**, `Ctrl+P` **Paleta de comandos** (modo cambio rápido de página; en la UI actual aparece como «Cambio rápido de página»), `Win+Shift+F` **Captura rápida global** (referencia) |
+| Diagnóstico | `<AppInfoPanel />`: versión y carpeta de datos («Datos: `%APPDATA%\Fossil`») |
 
 Capturas: `103-settings-light.png` · `103-settings-dark.png`
 
@@ -124,8 +124,16 @@ Capturas: `103-settings-light.png` · `103-settings-dark.png`
 | Exportación fallida | Aviso en cabecera; no se descarga nada | Fallo de `object_export_markdown` | **pendiente de captura** |
 | Imagen no cargada | Estado `error` del nodo de imagen (`editor.image.error`) | Adjunto ilegible | **pendiente de captura** (r1-images) |
 
-Los estados de error se describen en la spec (§ correspondiente) y se capturarán en la fase de
-pruebas visuales del ítem que los implemente, sin romper el Espacio de ejemplo.
+Los estados de error se describen en `docs/specs/r1-interface-design.md` (§ 1) y sus capturas quedan
+vinculadas a la verificación visual de los ítems de implementación de R1.5 (`r1-page-header`,
+`r1-sidebar-tree`, `r1-images`), sin forzar fallos artificiales sobre el Espacio de ejemplo.
+
+## 7. Defectos conocidos de línea base (observados en las capturas)
+
+- **Corte en el panel derecho (`103-workspace-*`, `103-settings-*`):** el encabezado `"MENCIONES SIN ENLACE"` y el texto `"Ninguna otra página enlaz…"` se cortan en el borde derecho de la ventana sin elipsis ni salto de línea.
+- **Margen respecto a Mica (`103-empty-*`, `103-workspace-*`, `103-settings-*`):** la raíz de la interfaz queda separada ~40 px a la izquierda y ~70 px arriba respecto al contenedor Mica, y al pie de la barra lateral asoma un borde de tarjeta recortado.
+- **Uso de monoespaciada fuera de bloques de código:** el contador `"9 palabras · 51 caracteres"` y el valor `"Acme"` de **Espacio activo** usan `JetBrains Mono`, que `docs/DESIGN.md` reserva para código.
+- **Nomenclatura pre-R1.5 y datos de muestra:** la interfaz aún muestra `"bóveda"` en lugar de **Espacio** (ADR-0017), el título de ejemplo `"Campana Acme Q4"` aparece sin `ñ`, y entre claro y oscuro varía el conteo de palabras del párrafo de muestra.
 
 ---
 
@@ -146,13 +154,12 @@ Tomadas con `scripts/capture-window.ps1` en una ventana enfocada, con datos de e
 «Acme» en `$env:PUBLIC\FossilCaptures\Acme`) y sin rutas personales. Cada pantalla se capturó
 en claro y en oscuro. Método (por transparencia):
 
-- Binario de captura construido desde esta rama con identificador
-  `io.github.jairbonillacan-cmd.fossil.capture`, para no interferir con la instancia única de la
-  app en ejecución; el pie de **Ajustes** muestra esa ruta de datos.
-- Entorno aislado (configuración y perfil en `$env:PUBLIC\FossilCaptureAppData`), de modo que
-  ninguna ruta visible contiene un nombre de usuario.
-- Cada captura se verificó automáticamente: huella distinta, tema correcto por nombre y texto
-  reconocido (OCR) que corresponde a Fossil y no a otra ventana.
+- En las capturas de **Ajustes** (`103-settings-light.png` y `103-settings-dark.png`), la ruta de
+  datos del pie (`Versión 0.1.1 · Datos: %APPDATA%\Fossil`) está anonimizada con `%APPDATA%\Fossil`
+  para no exponer nombres de usuario de Windows ni identificadores de cuenta.
+- Las rutas de Espacios recientes en la Pantalla de Espacio usan el directorio público
+  (`$env:PUBLIC\FossilCaptures\Acme`), de modo que ninguna ruta visible contiene un nombre de usuario.
+- Cada captura se verificó automáticamente y con revisión visual en claro y oscuro.
 
 | Archivo | Pantalla / estado |
 |---|---|
