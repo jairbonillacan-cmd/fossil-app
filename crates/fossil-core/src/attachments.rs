@@ -3,7 +3,7 @@
 //! The Yjs document only keeps the relative path, never the bytes: binaries in
 //! the CRDT would bloat every update log and sync.
 use crate::{fs_guard, object_store::storage_error, objects::CoreError};
-use std::{fs, path::Path};
+use std::{fs, io::Read, path::Path};
 
 pub const ATTACHMENTS_DIR: &str = "attachments";
 /// Upper bound per file: larger images are almost always a mistake (raw camera exports).
@@ -73,7 +73,25 @@ pub fn load(root: &Path, relative: &str) -> Result<Vec<u8>, CoreError> {
     if extension_of(name).is_none_or(|ext| !SUPPORTED.contains(&ext.as_str())) {
         return Err(storage_error("invalid attachment path"));
     }
-    fs::read(root.join(ATTACHMENTS_DIR).join(name)).map_err(storage_error)
+    let path = root.join(ATTACHMENTS_DIR).join(name);
+    // Size is checked before reading: a file dropped into the folder by hand
+    // must never be pulled whole into memory (and base64-encoded for IPC).
+    let size = fs::symlink_metadata(&path).map_err(storage_error)?.len();
+    if size > MAX_ATTACHMENT_BYTES as u64 {
+        return Err(storage_error("attachment is larger than 20 MB"));
+    }
+    let mut bytes = Vec::new();
+    // `take` also bounds a file that grows between the check and the read.
+    fs::File::open(&path)
+        .and_then(|file| {
+            file.take(MAX_ATTACHMENT_BYTES as u64 + 1)
+                .read_to_end(&mut bytes)
+        })
+        .map_err(storage_error)?;
+    if bytes.len() > MAX_ATTACHMENT_BYTES {
+        return Err(storage_error("attachment is larger than 20 MB"));
+    }
+    Ok(bytes)
 }
 
 #[cfg(test)]
@@ -125,6 +143,26 @@ mod tests {
         assert!(
             !dir.path().join(ATTACHMENTS_DIR).exists(),
             "nothing written"
+        );
+    }
+
+    #[test]
+    fn load_refuses_oversize_files_without_reading_them() {
+        let dir = tempfile::tempdir().unwrap();
+        let folder = dir.path().join(ATTACHMENTS_DIR);
+        fs::create_dir_all(&folder).unwrap();
+        // Sparse file: reports 21 MB without allocating it on disk.
+        let file = fs::File::create(folder.join("big.png")).unwrap();
+        file.set_len(MAX_ATTACHMENT_BYTES as u64 + 1024 * 1024)
+            .unwrap();
+        drop(file);
+        assert!(load(dir.path(), "attachments/big.png").is_err());
+        let exact = fs::File::create(folder.join("limit.png")).unwrap();
+        exact.set_len(MAX_ATTACHMENT_BYTES as u64).unwrap();
+        drop(exact);
+        assert_eq!(
+            load(dir.path(), "attachments/limit.png").unwrap().len(),
+            MAX_ATTACHMENT_BYTES
         );
     }
 
