@@ -6,8 +6,7 @@ pub const MAIN_WINDOW_LABEL: &str = "main";
 
 fn focus_main_window(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
-        let _ = window.unminimize();
-        let _ = window.set_focus();
+        let _ = (window.show(), window.unminimize(), window.set_focus());
     }
 }
 
@@ -94,9 +93,33 @@ fn build_app() -> tauri::Builder<tauri::Wry> {
             )));
             app.manage(commands::objects::IdleCompaction::default());
             app.manage(commands::objects::MirrorDebounce::default());
+            commands::os::setup(app.handle());
             Ok(())
         })
-        .plugin(tauri_plugin_window_state::Builder::default().build())
+        .on_window_event(|win, ev| {
+            if win.label() == MAIN_WINDOW_LABEL
+                && let tauri::WindowEvent::CloseRequested { api, .. } = ev
+            {
+                api.prevent_close();
+                let _ = win.hide();
+            }
+        })
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, _sc, ev| {
+                    if ev.state() == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                        let _ = commands::os::show_capture_window(app);
+                    }
+                })
+                .build(),
+        )
+        .plugin({
+            use tauri_plugin_window_state::{Builder, StateFlags};
+            Builder::default()
+                .with_denylist(&[commands::os::CAPTURE_WINDOW_LABEL])
+                .with_state_flags(StateFlags::all() & !StateFlags::VISIBLE)
+                .build()
+        })
         .plugin(tauri_plugin_dialog::init())
 }
 

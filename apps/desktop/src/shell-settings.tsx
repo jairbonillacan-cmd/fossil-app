@@ -1,13 +1,13 @@
-import { Button } from "@fossil/ui";
+import { Button, Input } from "@fossil/ui";
 import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AppInfoPanel } from "./app-info";
+import { commands } from "./bindings";
 import { applyDensity, applyLanguage, applyTheme, readShellPreferences } from "./shell-prefs";
 
 const SHORTCUTS = [
   ["settings.shortcutPalette", "Ctrl+K"],
   ["settings.shortcutQuickOpen", "Ctrl+P"],
-  ["settings.shortcutCapture", "Win+Shift+F"],
 ] as const;
 
 function OptionRow<T extends string>(props: {
@@ -43,6 +43,7 @@ function OptionRow<T extends string>(props: {
 }
 
 const FOCUSABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+const toWin = (s: string) => s.replace(/^Super\+/i, "Win+");
 
 /**
  * Settings dialog (#31): vault, theme, density, language, shortcuts and app
@@ -52,6 +53,8 @@ const FOCUSABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabi
 export function ShellSettings(props: { open: boolean; vaultName: string; onClose: () => void }) {
   const { t } = useTranslation();
   const [prefs, setPrefs] = useState(readShellPreferences);
+  const [captureKey, setCaptureKey] = useState("Win+Shift+F");
+  const [shortcutErr, setShortcutErr] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const { open, onClose } = props;
   const titleId = useId();
@@ -60,8 +63,26 @@ export function ShellSettings(props: { open: boolean; vaultName: string; onClose
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
+  const syncShortcut = (r: Awaited<ReturnType<typeof commands.captureShortcutGet>>, fb = "") => {
+    const busy =
+      r.status === "error" && typeof r.error === "object" && "ShortcutConflict" in r.error
+        ? r.error.ShortcutConflict
+        : null;
+    const k = toWin(r.status === "ok" ? r.data : fb || busy || "");
+    if (k) setCaptureKey(k);
+    const msg =
+      busy !== null ? t("capture.shortcutConflict", { shortcut: k }) : t("capture.shortcutInvalid");
+    setShortcutErr(r.status === "ok" ? null : msg);
+  };
+  const syncRef = useRef(syncShortcut);
+  syncRef.current = syncShortcut;
+  const saveKey = () =>
+    void commands.captureShortcutSet(toWin(captureKey)).then((r) => syncShortcut(r, captureKey));
+
   useEffect(() => {
     if (!open) return undefined;
+    // Partial vi.mock("./bindings") in app.test.tsx omits captureShortcutGet.
+    void commands.captureShortcutGet?.()?.then((res) => syncRef.current(res));
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     dialogRef.current?.querySelector<HTMLElement>(FOCUSABLE)?.focus();
     const onKey = (e: KeyboardEvent) => {
@@ -170,6 +191,26 @@ export function ShellSettings(props: { open: boolean; vaultName: string; onClose
               </kbd>
             </div>
           ))}
+          <div className="flex items-center justify-between gap-2 py-0.5">
+            <span className="text-[color:var(--fg)]">{t("settings.shortcutCapture")}</span>
+            <div className="flex items-center gap-1.5">
+              <Input
+                value={captureKey}
+                aria-label={t("settings.shortcutCapture")}
+                invalid={shortcutErr !== null}
+                onChange={(e) => setCaptureKey(e.target.value)}
+                className="w-36 px-2 py-1 font-mono text-xs"
+              />
+              <Button variant="secondary" onClick={saveKey}>
+                {t("capture.shortcutSave")}
+              </Button>
+            </div>
+          </div>
+          {shortcutErr && (
+            <p role="alert" className="text-[color:var(--danger)]">
+              {shortcutErr}
+            </p>
+          )}
         </section>
 
         <footer className="pt-3">
