@@ -49,7 +49,58 @@ pub async fn emit(tx: &Sender<ChatEvent>, event: ChatEvent) -> Result<(), Provid
     tx.send(event).await.map_err(|_| ProviderError::Cancelled)
 }
 
+/// Replaces API keys echoed back by a provider (`sk-…`, `AIza…`) so an error
+/// message shown in the UI or written to a log never carries a secret.
+pub(crate) fn redact_secrets(text: &str) -> String {
+    const PREFIXES: [(&str, usize); 2] = [("sk-", 8), ("AIza", 20)];
+    let is_key_char = |c: char| c.is_ascii_alphanumeric() || c == '_' || c == '-';
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    'scan: while let Some(c) = rest.chars().next() {
+        let at_word_start = out.chars().next_back().is_none_or(|p| !is_key_char(p));
+        if at_word_start {
+            for (prefix, min_len) in PREFIXES {
+                if let Some(after) = rest.strip_prefix(prefix) {
+                    let len = after.find(|c: char| !is_key_char(c)).unwrap_or(after.len());
+                    if len >= min_len {
+                        out.push_str(prefix);
+                        out.push_str("[redactado]");
+                        rest = &after[len..];
+                        continue 'scan;
+                    }
+                }
+            }
+        }
+        out.push(c);
+        rest = &rest[c.len_utf8()..];
+    }
+    out
+}
+
+fn redact_error(error: ProviderError) -> ProviderError {
+    match error {
+        ProviderError::Failed(msg) => ProviderError::Failed(redact_secrets(&msg)),
+        ProviderError::Unavailable(msg) => ProviderError::Unavailable(redact_secrets(&msg)),
+        ProviderError::Unsupported(msg) => ProviderError::Unsupported(redact_secrets(&msg)),
+        other => other,
+    }
+}
+
+/// Streams an SSE/NDJSON response; every error it returns is redacted.
 pub async fn post_sse(
+    req: reqwest::RequestBuilder,
+    chat_req: &ChatRequest,
+    id: ProviderId,
+    model: String,
+    tx: &Sender<ChatEvent>,
+    on_frame: SseParser,
+) -> Result<ChatSummary, ProviderError> {
+    stream_sse(req, chat_req, id, model, tx, on_frame)
+        .await
+        .map_err(redact_error)
+}
+
+async fn stream_sse(
     req: reqwest::RequestBuilder,
     chat_req: &ChatRequest,
     id: ProviderId,
@@ -226,5 +277,44 @@ mod tests {
         }
         assert!(!out.contains('\u{FFFD}'));
         assert_eq!(out, "¡Hola niño 🚀!");
+    }
+
+    #[tokio::test]
+    async fn provider_error_messages_never_echo_keys() {
+        let keys = [
+            "sk-ant-api03-FAKEabc123_def-456",
+            "sk-proj-FAKE0123456789abcdef",
+            "AIzaFAKE0123456789abcdefghijklmnop",
+        ];
+        for key in keys {
+            let body = format!("data: {{\"error\":\"invalid key {key} for Acme\"}}\n\n");
+            let url = spawn_mock_http(200, &body).await;
+            let req = reqwest::Client::new().post(url);
+            let (tx, _rx) = tokio::sync::mpsc::channel(16);
+            let parser: SseParser = |v, _, _| {
+                Err(ProviderError::Failed(
+                    json_str(v, "/error").unwrap_or("").into(),
+                ))
+            };
+            let err = post_sse(
+                req,
+                &ChatRequest::default(),
+                ProviderId::OpenAi,
+                "m".into(),
+                &tx,
+                parser,
+            )
+            .await
+            .unwrap_err()
+            .to_string();
+            let secret = &key[key.len() - 8..];
+            assert!(!err.contains(secret), "{err}");
+            assert!(
+                err.contains("for Acme"),
+                "the rest of the message is kept: {err}"
+            );
+        }
+        assert_eq!(redact_secrets("sin claves aquí"), "sin claves aquí");
+        assert_eq!(redact_secrets("task-1 y skill"), "task-1 y skill");
     }
 }
