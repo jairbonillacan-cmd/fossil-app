@@ -75,6 +75,46 @@ jobs:
         run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/perf.ps1
         continue-on-error: true
 
+      # perf-report.json has a fixed schema (schema_version 1): runs on main
+      # are the baseline every PR compares itself against.
+      - name: Upload perf report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-report
+          path: perf-report.json
+          if-no-files-found: ignore
+
+      - name: Compare against the latest main baseline
+        if: always() && github.event_name == 'pull_request'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $runId = gh run list --workflow perf.yml --branch main --status success --limit 1 --json databaseId --jq '.[0].databaseId'
+          if (-not $runId) { Write-Output "No main baseline yet; the comparison lands once perf runs on main."; exit 0 }
+          New-Item -ItemType Directory -Force baseline-perf | Out-Null
+          gh run download $runId -n perf-report -D baseline-perf
+          $baseline = "baseline-perf/perf-report.json"
+          if (-not (Test-Path $baseline)) { Write-Output "Main run $runId has no perf-report artifact."; exit 0 }
+          $base = Get-Content $baseline -Raw | ConvertFrom-Json
+          $head = Get-Content perf-report.json -Raw | ConvertFrom-Json
+          $lines = @("", "### Comparison against main (p50)", "", "| Metric | main p50 | PR p50 | Delta p50 |", "|---|---|---|---|")
+          foreach ($prop in $head.metrics.psobject.Properties) {
+            $m = $prop.Value
+            $b = $base.metrics.($prop.Name)
+            if ($null -eq $m.p50 -or $null -eq $b -or $null -eq $b.p50) { continue }
+            $delta = "n/a"
+            if ($b.p50 -gt 0) { $delta = "{0} %" -f [math]::Round((($m.p50 - $b.p50) / $b.p50) * 100, 1) }
+            $lines += ("| {0} | {1} {2} | {3} {4} | {5} |" -f $prop.Name, $b.p50, $b.unit, $m.p50, $m.unit, $delta)
+          }
+          $baseHw = "$($base.hardware.cpu) ($($base.hardware.cores_physical)/$($base.hardware.cores_logical) cores, $($base.hardware.ram_total_gb) GB, $($base.hardware.disk_types), $($base.hardware.os))"
+          $headHw = "$($head.hardware.cpu) ($($head.hardware.cores_physical)/$($head.hardware.cores_logical) cores, $($head.hardware.ram_total_gb) GB, $($head.hardware.disk_types), $($head.hardware.os))"
+          if ($baseHw -ne $headHw) {
+            $lines += @("", "> **Warning (hardware mismatch):** main baseline ran on ``$baseHw``; this PR ran on ``$headHw``.")
+          }
+          Add-Content -Path perf-report.md -Value ($lines -join [Environment]::NewLine)
+
       - name: Comment metrics on PR
         if: always() && github.event_name == 'pull_request'
         # PRs from forks get a read-only token: the table is also in the job log.

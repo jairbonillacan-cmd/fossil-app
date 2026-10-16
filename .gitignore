@@ -12,3 +12,7 @@ Thumbs.db
 .idea/
 coverage/
 apps/desktop/src-tauri/gen/schemas/
+
+# Local perf measurement outputs (scripts/perf.ps1)
+perf-report.md
+perf-report.json

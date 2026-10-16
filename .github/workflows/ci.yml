@@ -85,11 +85,29 @@ jobs:
         with:
           tool: cargo-nextest
 
+      # A published version must match its tag: needs the tags (#79).
+      - name: Fetch tags
+        run: |
+          git fetch --tags --force --quiet
+          $global:LASTEXITCODE = 0
+
+      - name: release trace (CHANGELOG vs tags)
+        run: |
+          if (Test-Path scripts/check-release-trace.ps1) {
+            powershell -NoProfile -ExecutionPolicy Bypass -File scripts/tests/release-trace.tests.ps1
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check-release-trace.ps1
+          }
+
       # Windows PowerShell 5.1, the same shell agents use to run the gate.
       # Always runs: it is fast and needs no dependencies.
       - name: merge gate tests
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/tests/merge-gate.tests.ps1
+
+      - name: perf script tests
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/tests/perf.tests.ps1
 
       - name: pnpm check (biome + typecheck + vitest)
         if: steps.changes.outputs.js == 'true'
