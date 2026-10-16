@@ -17,6 +17,7 @@ vi.mock("./bindings", () => ({
     objectList: vi.fn(),
     objectCreate: vi.fn(),
     objectUpdateMeta: vi.fn(),
+    objectMove: vi.fn(),
     journalToday: vi.fn(),
   },
   events: {
@@ -40,6 +41,7 @@ const page: ObjectMeta = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  window.localStorage.clear();
   vi.mocked(commands.appInfo).mockResolvedValue({
     status: "ok",
     data: { version: "0.0.1", data_dir: "C:\\Data" },
@@ -56,7 +58,7 @@ describe("Sidebar & PageEditor", () => {
     const onSelect = vi.fn();
     render(<Sidebar vaultName="Acme" selectedId="obj-1" onSelect={onSelect} />);
     const row = await screen.findByRole("button", { name: "Launch checklist" });
-    expect(row.getAttribute("aria-current")).toBe("true");
+    expect(row.getAttribute("aria-current")).toBe("page");
     fireEvent.click(row);
     expect(onSelect).toHaveBeenCalledWith(page);
     expect(
@@ -154,5 +156,84 @@ describe("Sidebar edge cases", () => {
     render(<Sidebar vaultName="Acme" selectedId={null} onSelect={vi.fn()} />);
     const row = await screen.findByRole("button", { name: longTitle });
     expect(row.textContent).toBe(longTitle);
+  });
+});
+
+describe("Sidebar tree (#107)", () => {
+  const folder: ObjectMeta = { ...page, id: "fld-1", title: "Campañas Q4", parent: null };
+  const child: ObjectMeta = { ...page, id: "pg-child", title: "Plan de medios", parent: "fld-1" };
+  const loose: ObjectMeta = { ...page, id: "pg-loose", title: "Notas sueltas", parent: null };
+
+  it("remembers expanded/collapsed state across mounts, highlights active page, and opens Ctrl+P from top button", async () => {
+    vi.mocked(commands.objectList).mockResolvedValue({
+      status: "ok",
+      data: [folder, child, loose],
+    });
+    const onSelect = vi.fn();
+    const { unmount } = render(
+      <Sidebar vaultName="Acme" selectedId="pg-child" onSelect={onSelect} />,
+    );
+
+    const folderBtn = await screen.findByRole("button", { name: "Campañas Q4" });
+    const childBtn = await screen.findByRole("button", { name: "Plan de medios" });
+    expect(folderBtn.querySelector('[data-icon="folder"]')).not.toBeNull();
+    expect(childBtn.querySelector('[data-icon="page"]')).not.toBeNull();
+    expect(childBtn.getAttribute("aria-current")).toBe("page");
+    expect(folderBtn.getAttribute("aria-current")).toBeNull();
+
+    // Collapse folder and verify persistence across unmount/remount
+    const collapseBtn = screen.getByRole("button", { name: "Contraer Campañas Q4" });
+    expect(collapseBtn.getAttribute("aria-expanded")).toBe("true");
+    fireEvent.click(collapseBtn);
+    expect(screen.queryByRole("button", { name: "Plan de medios" })).toBeNull();
+
+    unmount();
+    render(<Sidebar vaultName="Acme" selectedId="pg-child" onSelect={onSelect} />);
+    const expandBtn = await screen.findByRole("button", { name: "Expandir Campañas Q4" });
+    expect(expandBtn.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByRole("button", { name: "Plan de medios" })).toBeNull();
+
+    fireEvent.click(expandBtn);
+    expect(await screen.findByRole("button", { name: "Plan de medios" })).not.toBeNull();
+
+    // Top Ctrl+P button opens the quick switcher and jumps to chosen page
+    fireEvent.click(screen.getByRole("button", { name: /Ir a página.*Ctrl\+P/i }));
+    const switcherInput = await screen.findByRole("combobox", { name: "Cambio rápido de página" });
+    fireEvent.change(switcherInput, { target: { value: "Notas sueltas" } });
+    fireEvent.keyDown(switcherInput, { key: "Enter" });
+    expect(onSelect).toHaveBeenCalledWith(loose);
+  });
+
+  it("moves a page or folder with drag-and-drop and shows the drop target indicator", async () => {
+    vi.mocked(commands.objectList).mockResolvedValue({
+      status: "ok",
+      data: [folder, child, loose],
+    });
+    vi.mocked(commands.objectMove).mockResolvedValue({
+      status: "ok",
+      data: { ...loose, parent: "fld-1" },
+    });
+
+    render(<Sidebar vaultName="Acme" selectedId={null} onSelect={vi.fn()} />);
+    const looseBtn = await screen.findByRole("button", { name: "Notas sueltas" });
+    const folderBtn = await screen.findByRole("button", { name: "Campañas Q4" });
+
+    fireEvent.dragStart(looseBtn);
+    fireEvent.dragOver(folderBtn);
+    expect(folderBtn.getAttribute("data-drop-target")).toBe("true");
+    fireEvent.drop(folderBtn);
+
+    await vi.waitFor(() => expect(commands.objectMove).toHaveBeenCalledWith("pg-loose", "fld-1"));
+    expect(folderBtn.getAttribute("data-drop-target")).toBeNull();
+
+    // Drag nested child to the root list to move to root (parent: null)
+    const childBtn = screen.getByRole("button", { name: "Plan de medios" });
+    const rootList = screen.getByTestId("sidebar-tree-root");
+    fireEvent.dragStart(childBtn);
+    fireEvent.dragOver(rootList);
+    expect(rootList.getAttribute("data-drop-target")).toBe("true");
+    fireEvent.drop(rootList);
+
+    await vi.waitFor(() => expect(commands.objectMove).toHaveBeenCalledWith("pg-child", null));
   });
 });
