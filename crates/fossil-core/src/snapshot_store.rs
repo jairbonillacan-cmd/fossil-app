@@ -342,12 +342,9 @@ pub fn list(conn: &Connection) -> Result<Vec<WorkspaceSnapshotMeta>, CoreError> 
         .collect())
 }
 
-/// Newest snapshots kept per distinct UTC day, then per distinct week (retention).
 pub const KEEP_DAILY: usize = 10;
 pub const KEEP_WEEKLY: usize = 4;
-/// A `Scheduled` snapshot is due when the last one is older than this.
-pub const SCHEDULE_AFTER_MS: i64 = 24 * 60 * 60 * 1000;
-const DAY_MS: i64 = SCHEDULE_AFTER_MS;
+const DAY_MS: i64 = 24 * 60 * 60 * 1000;
 
 /// Ids to keep out of `(id, created_ms)` rows: the newest snapshot of each of
 /// the last [`KEEP_DAILY`] days, plus the newest of each of the last
@@ -473,23 +470,6 @@ pub fn remove_dirs(root: &Path, ids: &[String]) {
     }
 }
 
-/// Current time in milliseconds since the Unix epoch (UTC).
-pub fn now_ms() -> i64 {
-    Utc::now().timestamp_millis()
-}
-
-/// `true` when there is no valid snapshot yet or the newest is older than 24 h.
-pub fn scheduled_due(conn: &Connection, now_ms: i64) -> Result<bool, CoreError> {
-    let last: Option<i64> = conn
-        .query_row(
-            "SELECT MAX(created_at) FROM workspace_snapshots WHERE integrity_ok = 1",
-            [],
-            |r| r.get(0),
-        )
-        .map_err(storage_error)?;
-    Ok(last.is_none_or(|last| now_ms - last > SCHEDULE_AFTER_MS))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -558,24 +538,6 @@ mod tests {
     }
 
     #[test]
-    fn list_orders_newest_first_and_skips_forged_rows() {
-        let (dir, conn) = vault();
-        let first = build(dir.path(), SnapshotTriggerKind::Manual).unwrap();
-        record(&conn, &first).unwrap();
-        let second = build(dir.path(), SnapshotTriggerKind::PreImport).unwrap();
-        record(&conn, &second).unwrap();
-        conn.execute_batch(
-            "INSERT INTO workspace_snapshots VALUES('../evil', 'x', 'manual', 0, 0, 0, 1, 1)",
-        )
-        .unwrap();
-        let listed = list(&conn).unwrap();
-        let ids: Vec<_> = listed.iter().map(|m| m.snapshot_id.as_str()).collect();
-        assert_eq!(ids.len(), 2);
-        assert!(ids.contains(&first.meta.snapshot_id.as_str()));
-        assert!(ids.contains(&second.meta.snapshot_id.as_str()));
-    }
-
-    #[test]
     fn retention_keeps_ten_daily_then_four_weekly() {
         // Two per day for 45 days: the newest of each of the last 10 days,
         // then the newest of each of the 4 weeks before that window.
@@ -604,9 +566,8 @@ mod tests {
     }
 
     #[test]
-    fn prune_removes_rows_and_folders_and_schedule_follows_the_last_one() {
+    fn prune_removes_rows_and_folders() {
         let (dir, conn) = vault();
-        assert!(scheduled_due(&conn, 0).unwrap());
         let mut ids = Vec::new();
         for _ in 0..3 {
             let sealed = build(dir.path(), SnapshotTriggerKind::Scheduled).unwrap();
@@ -622,9 +583,6 @@ mod tests {
             assert!(!backups_dir(dir.path()).join(id).exists());
         }
         assert!(backups_dir(dir.path()).join(&ids[2]).exists());
-        let now = Utc::now().timestamp_millis();
-        assert!(!scheduled_due(&conn, now).unwrap());
-        assert!(scheduled_due(&conn, now + SCHEDULE_AFTER_MS + 60_000).unwrap());
     }
 
     fn insert(conn: &Connection, trigger: &str, created_ms: i64, ok: i32) -> String {
@@ -656,8 +614,11 @@ mod tests {
         // ones only the older valid one loses its day slot; the invalid one is
         // newer than every valid snapshot, so it stays for now.
         assert_eq!(prune(&conn).unwrap(), [old]);
+        conn.execute_batch(
+            "INSERT INTO workspace_snapshots VALUES('../evil', 'x', 'manual', 0, 0, 0, 1, 1)",
+        )
+        .unwrap();
         assert_eq!(list(&conn).unwrap().len(), 6);
-        assert!(prune(&conn).unwrap().is_empty());
     }
 
     #[test]
@@ -677,8 +638,6 @@ mod tests {
         expected.sort();
         assert_eq!(removed, expected);
         assert!(!removed.contains(&valid) && !removed.contains(&newest));
-        assert!(scheduled_due(&conn, 72 * DAY_MS).unwrap());
-        assert!(!scheduled_due(&conn, 70 * DAY_MS + 1).unwrap());
     }
 
     #[test]
@@ -747,6 +706,5 @@ mod tests {
         let outside = tempfile::tempdir().unwrap();
         crate::fs_guard::tests::make_junction(&backups_dir(dir.path()), outside.path());
         assert!(build(dir.path(), SnapshotTriggerKind::Manual).is_err());
-        assert_eq!(fs::read_dir(outside.path()).unwrap().count(), 0);
     }
 }

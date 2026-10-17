@@ -18,7 +18,6 @@ use fossil_core::snapshots::{
     SnapshotTriggerKind, WorkspaceSnapshotMeta,
 };
 use std::path::Path;
-use tauri::Manager;
 
 macro_rules! stub {
     ($(#[$meta:meta])* $vis:vis fn $name:ident($($arg:ident: $ty:ty),*) -> $ret:ty) => {
@@ -71,24 +70,6 @@ pub fn snapshot_list(
     with_session(state, |session| {
         session.with_connection(|conn| snapshot_store::list(conn))
     })
-}
-
-/// After opening an Espacio: take a `Scheduled` snapshot in the background if
-/// the last one is older than 24 h (or there is none). Failures are only logged.
-pub(crate) fn schedule_on_open(app: &tauri::AppHandle) {
-    let app = app.clone();
-    tauri::async_runtime::spawn_blocking(move || {
-        let due = with_session(app.state::<VaultState>(), |session| {
-            session.with_connection(|conn| {
-                snapshot_store::scheduled_due(conn, snapshot_store::now_ms())
-            })
-        });
-        if matches!(due, Ok(true))
-            && let Err(error) = create(app.state::<VaultState>(), SnapshotTriggerKind::Scheduled)
-        {
-            eprintln!("scheduled snapshot failed: {error}");
-        }
-    });
 }
 
 stub!(
