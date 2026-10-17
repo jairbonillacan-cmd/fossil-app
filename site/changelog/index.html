@@ -4,11 +4,17 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="light dark" />
-    <title>Fossil Changelog</title>
+    <meta
+      name="description"
+      content="Changelog de Fossil: lo que cambia en cada versión de la app para Windows, con novedades, mejoras y correcciones."
+    />
+    <title>Changelog · Fossil</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="../base.css" />
     <link rel="stylesheet" href="./changelog.css" />
   </head>
   <body>
+    <a class="skip-link" href="#contenido">Saltar al contenido</a>
     <header class="top">
       <div class="top-inner">
         <a class="wordmark" href="/">Fossil</a>
@@ -18,12 +24,12 @@
         </nav>
       </div>
     </header>
-    <main class="page">
+    <main class="page" id="contenido" tabindex="-1">
       <div class="intro">
         <h1>Changelog</h1>
         <p>Lo que cambia en cada versión de Fossil para escritorio. Lo que sigue está en el <a href="/roadmap/">roadmap</a>.</p>
       </div>
-      <div id="entries" class="entries" aria-live="polite"></div>
+      <div id="entries" class="entries"></div>
     </main>
     <footer class="foot">
       <div class="foot-inner">

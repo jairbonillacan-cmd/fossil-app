@@ -44,7 +44,7 @@ const applyRelease = (release, asset) => {
     link.textContent = "Descargar para Windows";
     link.setAttribute(
       "aria-label",
-      `Descargar Fossil ${version} para Windows (${size || "instalador"})`,
+      `Descargar para Windows: Fossil ${version}${size ? `, ${size}` : ""}`,
     );
   }
   for (const meta of document.querySelectorAll("[data-download-meta]")) {

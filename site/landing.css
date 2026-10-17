@@ -246,6 +246,10 @@
   display: none;
 }
 
+.shot-pane:focus-visible {
+  outline-offset: -3px;
+}
+
 .mock-side {
   display: flex;
   flex-direction: column;

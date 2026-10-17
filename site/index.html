@@ -9,10 +9,12 @@
       content="Fossil: notas, tareas y contenido conectados entre sí en una app de escritorio local y rápida para Windows 10 y 11 de 64 bits."
     />
     <title>Fossil</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="./base.css" />
     <link rel="stylesheet" href="./landing.css" />
   </head>
   <body>
+    <a class="skip-link" href="#contenido">Saltar al contenido</a>
     <header class="top">
       <div class="top-inner">
         <a class="wordmark" href="/">Fossil</a>
@@ -29,7 +31,7 @@
       </div>
     </header>
 
-    <main>
+    <main id="contenido" tabindex="-1">
       <section class="hero">
         <p class="eyebrow">Alpha para Windows 10 y 11 de 64 bits</p>
         <h1>El trabajo de tu equipo, en un solo grafo.</h1>
@@ -58,11 +60,12 @@
       </section>
 
       <section class="shot" aria-label="Demostración interactiva de Fossil">
-        <div class="shot-tabs" role="tablist" aria-label="Vistas de demostración">
+        <div class="shot-tabs" role="tablist" aria-label="Vistas de demostración" data-tabs>
           <button
             type="button"
             class="shot-tab is-active"
             role="tab"
+            tabindex="0"
             aria-selected="true"
             aria-controls="pane-editor"
             id="tab-editor"
@@ -74,6 +77,7 @@
             type="button"
             class="shot-tab"
             role="tab"
+            tabindex="-1"
             aria-selected="false"
             aria-controls="pane-search"
             id="tab-search"
@@ -85,6 +89,7 @@
             type="button"
             class="shot-tab"
             role="tab"
+            tabindex="-1"
             aria-selected="false"
             aria-controls="pane-content"
             id="tab-content"
@@ -96,6 +101,7 @@
             type="button"
             class="shot-tab"
             role="tab"
+            tabindex="-1"
             aria-selected="false"
             aria-controls="pane-commerce"
             id="tab-commerce"
@@ -1012,24 +1018,6 @@ updated_at: "2026-10-15T15:30:00Z"
     </footer>
 
     <script type="module" src="./download.js"></script>
-    <script type="module">
-      const tabs = document.querySelectorAll(".shot-tab");
-      const panes = document.querySelectorAll(".shot-pane");
-      for (const tab of tabs) {
-        tab.addEventListener("click", () => {
-          const target = tab.dataset.pane;
-          for (const t of tabs) {
-            const active = t === tab;
-            t.classList.toggle("is-active", active);
-            t.setAttribute("aria-selected", String(active));
-          }
-          for (const p of panes) {
-            const active = p.id === target;
-            p.classList.toggle("is-active", active);
-            p.hidden = !active;
-          }
-        });
-      }
-    </script>
+    <script type="module" src="./tabs.js"></script>
   </body>
 </html>
