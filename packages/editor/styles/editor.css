@@ -170,16 +170,19 @@
   font-size: 14px;
 }
 
-/* Code blocks (#144): language selector */
+/* Code blocks (#144): language selector + lazy syntax highlighting, grayscale ramp (DESIGN.md) */
 .fossil-editor pre {
   position: relative;
+  --tok-fg: var(--fg);
+  --tok-soft: var(--fg-muted);
+  --tok-faint: light-dark(#737373, #8a8a8a);
 }
 
 .fossil-code-bar {
   position: absolute;
   top: 4px;
   right: 4px;
-  opacity: 0;
+  opacity: 0.7;
   transition: opacity 120ms ease-out;
 }
 
@@ -202,6 +205,33 @@
 .fossil-code-language:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
+}
+
+.fossil-tok-keyword,
+.fossil-tok-function {
+  color: var(--tok-fg);
+  font-weight: 700;
+}
+
+.fossil-tok-string,
+.fossil-tok-string-expression {
+  color: var(--tok-soft);
+}
+
+.fossil-tok-constant,
+.fossil-tok-parameter,
+.fossil-tok-link {
+  color: var(--tok-soft);
+  font-style: italic;
+}
+
+.fossil-tok-comment,
+.fossil-tok-punctuation {
+  color: var(--tok-faint);
+}
+
+.fossil-tok-comment {
+  font-style: italic;
 }
 
 @media (prefers-reduced-motion: reduce) {

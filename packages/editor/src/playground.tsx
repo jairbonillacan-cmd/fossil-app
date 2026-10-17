@@ -126,6 +126,7 @@ const buildSampleUpdate = (openLinks = false): Uint8Array => {
       "codeBlock",
       "blk_code",
       'const body = doc.getXmlFragment("body");\nY.applyUpdate(doc, snapshot);',
+      { language: "typescript" },
     ),
     textEl("paragraph", "blk_slash", openLinks ? "Enlazar [[Campaña Acme" : "/enc"),
   ]);
