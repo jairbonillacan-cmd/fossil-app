@@ -56,10 +56,7 @@ fn create(
     // The copy runs outside the session lock: the editor keeps saving meanwhile.
     let sealed = snapshot_store::build(&root, trigger)?;
     let removed = with_session(state, |session| {
-        session.with_connection(|conn| {
-            snapshot_store::record(conn, &sealed)?;
-            snapshot_store::prune(conn)
-        })
+        snapshot_store::commit(session, &root, &sealed)
     })?;
     snapshot_store::remove_dirs(&root, &removed);
     Ok(sealed.meta)

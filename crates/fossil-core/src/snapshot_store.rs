@@ -12,6 +12,7 @@ use crate::{
     object_store::storage_error,
     objects::CoreError,
     snapshots::{SnapshotTriggerKind, WorkspaceSnapshotMeta},
+    vault::VaultSession,
 };
 use chrono::{DateTime, SecondsFormat, Utc};
 use rusqlite::{Connection, OpenFlags, params};
@@ -380,30 +381,81 @@ pub(crate) fn retained(rows: &[(String, i64)]) -> HashSet<String> {
     keep
 }
 
-/// Deletes the rows retention does not keep and returns their ids; remove the
+/// `(id, created_ms, is_scheduled, is_valid)` of a `workspace_snapshots` row.
+type Row = (String, i64, bool, bool);
+
+/// Ids retention may delete. Only `Scheduled` snapshots rotate: `Manual`,
+/// `PreImport` and `PreRestore` are safety nets and are never pruned here.
+/// Only valid (`integrity_ok = 1`) ones fill the daily/weekly slots, the newest
+/// valid snapshot of any kind is never deleted, and an invalid scheduled one is
+/// dropped only once a newer valid snapshot exists.
+pub(crate) fn doomed(rows: &[Row]) -> Vec<String> {
+    let slots: Vec<_> = rows
+        .iter()
+        .filter(|row| row.2 && row.3)
+        .map(|row| (row.0.clone(), row.1))
+        .collect();
+    let keep = retained(&slots);
+    let newest_valid = rows
+        .iter()
+        .filter(|row| row.3)
+        .max_by_key(|row| (row.1, &row.0));
+    rows.iter()
+        .filter(|row| row.2 && newest_valid.is_none_or(|newest| newest.0 != row.0))
+        .filter(|row| {
+            if row.3 {
+                !keep.contains(&row.0)
+            } else {
+                newest_valid.is_some_and(|newest| newest.1 > row.1)
+            }
+        })
+        .map(|row| row.0.clone())
+        .collect()
+}
+
+/// Deletes the rows [`doomed`] selects and returns their ids; remove the
 /// folders with [`remove_dirs`] (outside any lock).
 pub fn prune(conn: &Connection) -> Result<Vec<String>, CoreError> {
     let mut stmt = conn
-        .prepare("SELECT snapshot_id, created_at FROM workspace_snapshots")
+        .prepare(
+            "SELECT snapshot_id, created_at, trigger_kind = 'scheduled', integrity_ok = 1
+             FROM workspace_snapshots",
+        )
         .map_err(storage_error)?;
     let rows = stmt
         .query_map([], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
         })
         .map_err(storage_error)?
-        .collect::<rusqlite::Result<Vec<_>>>()
+        .collect::<rusqlite::Result<Vec<Row>>>()
         .map_err(storage_error)?;
-    let keep = retained(&rows);
-    let mut removed = Vec::new();
-    for (id, _) in rows.into_iter().filter(|(id, _)| !keep.contains(id)) {
-        conn.execute(
-            "DELETE FROM workspace_snapshots WHERE snapshot_id=?1",
-            [&id],
-        )
-        .map_err(storage_error)?;
-        removed.push(id);
+    let removed = doomed(&rows);
+    for id in &removed {
+        conn.execute("DELETE FROM workspace_snapshots WHERE snapshot_id=?1", [id])
+            .map_err(storage_error)?;
     }
     Ok(removed)
+}
+
+/// Records a freshly built snapshot and prunes, but only if `session` still has
+/// `root` open: the copy ran without the lock, and the user may have switched
+/// Espacio meanwhile. Otherwise the snapshot folder is discarded and nothing is
+/// written to the other Espacio. Returns the ids to [`remove_dirs`].
+pub fn commit(
+    session: &mut VaultSession,
+    root: &Path,
+    sealed: &SealedSnapshot,
+) -> Result<Vec<String>, CoreError> {
+    if session.root() != Some(root) {
+        remove_dirs(root, std::slice::from_ref(&sealed.meta.snapshot_id));
+        return Err(storage_error(
+            "the open Espacio changed during the snapshot",
+        ));
+    }
+    session.with_connection(|conn| {
+        record(conn, sealed)?;
+        prune(conn)
+    })
 }
 
 /// Best-effort removal of snapshot folders; ids that are not canonical Ulids
@@ -426,12 +478,14 @@ pub fn now_ms() -> i64 {
     Utc::now().timestamp_millis()
 }
 
-/// `true` when there is no snapshot yet or the newest is older than 24 h.
+/// `true` when there is no valid snapshot yet or the newest is older than 24 h.
 pub fn scheduled_due(conn: &Connection, now_ms: i64) -> Result<bool, CoreError> {
     let last: Option<i64> = conn
-        .query_row("SELECT MAX(created_at) FROM workspace_snapshots", [], |r| {
-            r.get(0)
-        })
+        .query_row(
+            "SELECT MAX(created_at) FROM workspace_snapshots WHERE integrity_ok = 1",
+            [],
+            |r| r.get(0),
+        )
         .map_err(storage_error)?;
     Ok(last.is_none_or(|last| now_ms - last > SCHEDULE_AFTER_MS))
 }
@@ -523,7 +577,7 @@ mod tests {
 
     #[test]
     fn retention_keeps_ten_daily_then_four_weekly() {
-        // Two per day for 30 days: the newest of each of the last 10 days,
+        // Two per day for 45 days: the newest of each of the last 10 days,
         // then the newest of each of the 4 weeks before that window.
         let rows: Vec<_> = (0..45)
             .flat_map(|d| {
@@ -571,6 +625,78 @@ mod tests {
         let now = Utc::now().timestamp_millis();
         assert!(!scheduled_due(&conn, now).unwrap());
         assert!(scheduled_due(&conn, now + SCHEDULE_AFTER_MS + 60_000).unwrap());
+    }
+
+    fn insert(conn: &Connection, trigger: &str, created_ms: i64, ok: i32) -> String {
+        let id = ulid::Ulid::generate().to_string();
+        conn.execute(
+            "INSERT INTO workspace_snapshots VALUES(?1, 'x', ?2, 0, 0, 0, ?3, ?4)",
+            params![id, trigger, ok, created_ms],
+        )
+        .unwrap();
+        id
+    }
+
+    #[test]
+    fn only_valid_scheduled_snapshots_rotate() {
+        let (_dir, conn) = vault();
+        let day = 40 * DAY_MS;
+        for (trigger, at) in [
+            ("manual", 0),
+            ("manual", 1),
+            ("pre_restore", 2),
+            ("pre_import", 3),
+        ] {
+            insert(&conn, trigger, day + at, 1);
+        }
+        let old = insert(&conn, "scheduled", day + 4, 1);
+        insert(&conn, "scheduled", day + 5, 1);
+        insert(&conn, "scheduled", day + 6, 0);
+        // Same-day Manual/PreRestore/PreImport all survive. Of the scheduled
+        // ones only the older valid one loses its day slot; the invalid one is
+        // newer than every valid snapshot, so it stays for now.
+        assert_eq!(prune(&conn).unwrap(), [old]);
+        assert_eq!(list(&conn).unwrap().len(), 6);
+        assert!(prune(&conn).unwrap().is_empty());
+    }
+
+    #[test]
+    fn an_invalid_snapshot_never_displaces_the_last_valid_one() {
+        let (_dir, conn) = vault();
+        let valid = insert(&conn, "scheduled", 0, 1);
+        let invalid: Vec<_> = (50..61)
+            .map(|d| insert(&conn, "scheduled", d * DAY_MS, 0))
+            .collect();
+        assert!(prune(&conn).unwrap().is_empty());
+        // A newer valid snapshot lets the invalid ones go; the old valid one keeps
+        // its slot and is never the one deleted.
+        let newest = insert(&conn, "manual", 70 * DAY_MS, 1);
+        let mut removed = prune(&conn).unwrap();
+        removed.sort();
+        let mut expected = invalid.clone();
+        expected.sort();
+        assert_eq!(removed, expected);
+        assert!(!removed.contains(&valid) && !removed.contains(&newest));
+        assert!(scheduled_due(&conn, 72 * DAY_MS).unwrap());
+        assert!(!scheduled_due(&conn, 70 * DAY_MS + 1).unwrap());
+    }
+
+    #[test]
+    fn a_snapshot_is_not_recorded_in_another_espacio() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut session = VaultSession::new(dir.path().join("config.json"));
+        let (a, b) = (dir.path().join("a"), dir.path().join("b"));
+        for path in [&a, &b] {
+            fs::create_dir(path).unwrap();
+        }
+        session.create(&a, "A".into()).unwrap();
+        let root_a = session.root().unwrap().to_path_buf();
+        let sealed = build(&root_a, SnapshotTriggerKind::Manual).unwrap();
+        session.create(&b, "B".into()).unwrap();
+        assert!(commit(&mut session, &root_a, &sealed).is_err());
+        assert!(!backups_dir(&root_a).join(&sealed.meta.snapshot_id).exists());
+        let rows = session.with_connection(|conn| list(conn)).unwrap().len();
+        assert_eq!(rows, 0);
     }
 
     #[test]
