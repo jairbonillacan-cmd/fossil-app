@@ -1,9 +1,9 @@
-import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { ObjectMeta, SearchHit } from "./bindings";
 import { commands } from "./bindings";
 import { type FuzzyMatch, fuzzyMatch, listCommands } from "./shell-commands";
-import { listRecents, pushRecent } from "./shell-recents";
+import { listRecents, pruneRecents, pushRecent } from "./shell-recents";
 import { formatObjectTitle, selectWorkspaceObject } from "./sidebar";
 
 export type PaletteMode = "palette" | "switcher";
@@ -26,6 +26,7 @@ function renderHighlighted(text: string, indices: number[]) {
   );
 }
 
+const FEW_HITS = 5;
 const EMPTY_SEARCH = { type_key: null, tag: null, updated_from: null, updated_to: null, limit: 20 };
 const INPUT_CLS =
   "w-full rounded border border-[color:var(--border)] bg-[color:var(--bg)] px-3 py-2 text-sm text-[color:var(--fg)] placeholder:text-[color:var(--fg-muted)] focus-visible:outline-2 focus-visible:outline-[color:var(--accent)]";
@@ -71,7 +72,11 @@ export function ShellPalette(props: { onSelect?: ((object: ObjectMeta) => void) 
     inputRef.current?.focus();
     void commands
       .objectList?.({ include_archived: false, type_key: null, parent: null, query: null })
-      ?.then((res) => setObjects(res.status === "ok" ? res.data : []));
+      ?.then((res) => {
+        const data = res.status === "ok" ? res.data : [];
+        if (res.status === "ok") pruneRecents("pages", new Set(data.map((o) => o.id)));
+        setObjects(data);
+      });
   }, [mode]);
 
   useEffect(() => {
@@ -85,6 +90,29 @@ export function ShellPalette(props: { onSelect?: ((object: ObjectMeta) => void) 
       alive = false;
     };
   }, [mode, query]);
+
+  // Matching is memoized so arrow keys do not rescan every page. Typo tolerance only
+  // kicks in for pages when the exact pass finds few hits (keeps 10 000 pages fast).
+  const objMatches = useMemo(() => {
+    if (mode === null) return [];
+    const source =
+      mode === "palette" && ftsHits
+        ? ftsHits.map(
+            (h) =>
+              objects.find((o) => o.id === h.object_id) ??
+              ({ id: h.object_id, types: ["Page"], title: h.title, icon: null } as ObjectMeta),
+          )
+        : objects;
+    const untitled = t("editor.untitled");
+    const rows = source.map((o) => {
+      const lbl = formatObjectTitle(o, i18n.language, untitled);
+      return { o, lbl, m: fuzzyMatch(query, lbl, { typo: false }) };
+    });
+    if (!ftsHits && query.trim() !== "" && rows.filter((r) => r.m).length < FEW_HITS) {
+      for (const r of rows) if (!r.m) r.m = fuzzyMatch(query, r.lbl);
+    }
+    return rows;
+  }, [mode, query, objects, ftsHits, t, i18n.language]);
 
   if (mode === null) return null;
   const close = () => setMode(null);
@@ -121,20 +149,10 @@ export function ShellPalette(props: { onSelect?: ((object: ObjectMeta) => void) 
           })
           .sort((a, b) => b.score - a.score);
 
-  const objSource =
-    mode === "palette" && ftsHits
-      ? ftsHits.map(
-          (h) =>
-            objects.find((o) => o.id === h.object_id) ??
-            ({ id: h.object_id, types: ["Page"], title: h.title, icon: null } as ObjectMeta),
-        )
-      : objects;
-  const objEntries = objSource
-    .flatMap((o) => {
-      const lbl = formatObjectTitle(o, i18n.language, t("editor.untitled"));
-      const m = fuzzyMatch(query, lbl);
-      return ftsHits || m ? [mkEntry(`obj:${o.id}`, lbl, objBadge, m, () => openObj(o))] : [];
-    })
+  const objEntries = objMatches
+    .flatMap(({ o, lbl, m }) =>
+      ftsHits || m ? [mkEntry(`obj:${o.id}`, lbl, objBadge, m, () => openObj(o))] : [],
+    )
     .sort((a, b) => (ftsHits ? 0 : b.score - a.score));
 
   const all = [...cmdEntries, ...objEntries];

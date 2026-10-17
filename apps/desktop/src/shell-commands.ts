@@ -30,7 +30,11 @@ const foldChar = (ch: string) =>
     .toLowerCase();
 
 /** Diacritic-insensitive subsequence matcher (#27) returning score and matched indices. */
-export function fuzzyMatch(query: string, target: string): FuzzyMatch | null {
+export function fuzzyMatch(
+  query: string,
+  target: string,
+  opts: { typo?: boolean } = {},
+): FuzzyMatch | null {
   const qChars = Array.from(query.trim(), foldChar).filter((c) => c !== "");
   if (qChars.length === 0) return { score: 0, indices: [] };
   const tChars = Array.from(target, foldChar);
@@ -49,23 +53,11 @@ export function fuzzyMatch(query: string, target: string): FuzzyMatch | null {
     }
   }
   if (qi === qChars.length) return { score, indices };
-  return typoMatch(qChars.join(""), tChars);
+  return opts.typo === false ? null : typoMatch(qChars.join(""), tChars);
 }
 
-const wordsOf = (chars: string[]) => {
-  const words: { text: string; start: number }[] = [];
-  let start = -1;
-  chars.forEach((ch, i) => {
-    const isSep = /[\s\-_/]/.test(ch);
-    if (!isSep && start < 0) start = i;
-    if ((isSep || i === chars.length - 1) && start >= 0) {
-      const end = isSep ? i : i + 1;
-      words.push({ text: chars.slice(start, end).join(""), start });
-      start = -1;
-    }
-  });
-  return words;
-};
+const wordsOf = (folded: string) =>
+  Array.from(folded.matchAll(/[^\s\-_/]+/g), (m) => ({ text: m[0], start: m.index ?? 0 }));
 
 /** Optimal string alignment distance: insert, delete, replace and swap of neighbours cost 1. */
 export function editDistance(a: string, b: string): number {
@@ -90,13 +82,14 @@ export function editDistance(a: string, b: string): number {
   return (rows[a.length] as number[])[b.length] as number;
 }
 
-const tolerance = (len: number) => (len <= 3 ? 0 : len <= 5 ? 1 : 2);
+// Two errors only from 8 letters; the first letter must always match (avoids "exportar" ~ "importar").
+const tolerance = (len: number) => (len <= 3 ? 0 : len < 8 ? 1 : 2);
 
 /** Typo fallback (#86): every query word must be within edit distance of a target word or its prefix. */
 function typoMatch(query: string, tChars: string[]): FuzzyMatch | null {
   const tokens = query.split(/[\s\-_/]+/).filter(Boolean);
   if (tokens.length === 0) return null;
-  const words = wordsOf(tChars);
+  const words = wordsOf(tChars.join(""));
   const used = new Set<number>();
   const indices: number[] = [];
   let penalty = 0;
@@ -104,8 +97,9 @@ function typoMatch(query: string, tChars: string[]): FuzzyMatch | null {
     const max = tolerance(token.length);
     let best: { at: number; dist: number; len: number } | null = null;
     words.forEach((w, at) => {
-      if (used.has(at)) return;
-      for (const len of [token.length, token.length - 1, token.length + 1, w.text.length]) {
+      // Cheap rejects before any edit distance: first letter and length gap.
+      if (used.has(at) || w.text[0] !== token[0] || w.text.length < token.length - max) return;
+      for (const len of [token.length, token.length - 1, token.length + 1]) {
         if (len < 1 || len > w.text.length) continue;
         const dist = editDistance(token, w.text.slice(0, len));
         if (dist <= max && (best === null || dist < best.dist)) best = { at, dist, len };

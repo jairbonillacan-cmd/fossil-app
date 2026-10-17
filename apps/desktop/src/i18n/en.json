@@ -122,10 +122,10 @@
     "search": "Search Space",
     "capture": "Open quick capture",
     "settings": "Open settings",
-    "exportMarkdown": "Export to Markdown",
-    "exportPdf": "Export to PDF",
+    "exportMarkdown": "Export Markdown",
+    "exportPdf": "Export PDF",
     "copyLink": "Copy link",
-    "toggleBacklinks": "Show linked from"
+    "toggleBacklinks": "Toggle linked from"
   },
   "palette": {
     "commandLabel": "Command palette",

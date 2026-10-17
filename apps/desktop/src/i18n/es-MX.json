@@ -122,10 +122,10 @@
     "search": "Buscar en el Espacio",
     "capture": "Abrir captura rápida",
     "settings": "Abrir ajustes",
-    "exportMarkdown": "Exportar a Markdown",
-    "exportPdf": "Exportar a PDF",
+    "exportMarkdown": "Exportar Markdown",
+    "exportPdf": "Exportar PDF",
     "copyLink": "Copiar enlace",
-    "toggleBacklinks": "Mostrar enlazada desde"
+    "toggleBacklinks": "Alternar enlazada desde"
   },
   "palette": {
     "commandLabel": "Paleta de comandos",

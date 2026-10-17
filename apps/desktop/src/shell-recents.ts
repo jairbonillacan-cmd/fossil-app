@@ -48,6 +48,15 @@ export function clearRecents(kind: RecentKind): void {
   write(kind, []);
 }
 
+/** Drops ids that no longer exist so the list keeps showing up to its limit. */
+export function pruneRecents(kind: RecentKind, validIds: ReadonlySet<string>): void {
+  const cur = listRecents(kind);
+  const next = cur.filter((id) => validIds.has(id));
+  if (next.length === cur.length) return;
+  session[kind] = next;
+  write(kind, next);
+}
+
 /** Test helper: forgets the in-memory copy so the next read hits storage again. */
 export function resetRecentsCache(): void {
   session.actions = null;
