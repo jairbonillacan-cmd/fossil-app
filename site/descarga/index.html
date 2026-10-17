@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="es-MX">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <meta
+      name="description"
+      content="Descarga Fossil para Windows 10 y 11: requisitos, tamaño del instalador y cómo pasar el aviso de SmartScreen de esta alfa sin firma de código."
+    />
+    <title>Descargar Fossil para Windows</title>
+    <link rel="canonical" href="__PAGE_URL__" />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)" />
+    <meta property="og:site_name" content="Fossil" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="es_MX" />
+    <meta property="og:title" content="Descargar Fossil para Windows" />
+    <meta
+      property="og:description"
+      content="Descarga Fossil para Windows 10 y 11: requisitos, tamaño del instalador y cómo pasar el aviso de SmartScreen de esta alfa sin firma de código."
+    />
+    <meta property="og:url" content="__PAGE_URL__" />
+    <meta property="og:image" content="__SITE_URL__/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Fossil, app de escritorio para Windows" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Descargar Fossil para Windows" />
+    <meta
+      name="twitter:description"
+      content="Descarga Fossil para Windows 10 y 11: requisitos, tamaño del instalador y cómo pasar el aviso de SmartScreen de esta alfa sin firma de código."
+    />
+    <meta name="twitter:image" content="__SITE_URL__/og-image.png" />
+    <meta name="twitter:image:alt" content="Fossil, app de escritorio para Windows" />
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="stylesheet" href="../base.css" />
+    <link rel="stylesheet" href="./descarga.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#contenido">Saltar al contenido</a>
+    <header class="top">
+      <div class="top-inner">
+        <a class="wordmark" href="/">Fossil</a>
+        <nav class="top-nav" aria-label="Secciones">
+          <a href="/descarga/" aria-current="page">Descargar</a>
+          <a href="/roadmap/">Roadmap</a>
+          <a href="/changelog/">Changelog</a>
+        </nav>
+      </div>
+    </header>
+    <main class="page" id="contenido" tabindex="-1">
+      <div class="intro">
+        <h1>Descargar Fossil para Windows</h1>
+        <p>
+          Una versión alfa para Windows 10 y 11 de 64 bits. Se instala como cualquier programa y
+          guarda tus páginas en una carpeta de tu computadora.
+        </p>
+      </div>
+
+      <section class="dl-card" aria-labelledby="ultima">
+        <h2 id="ultima">Última versión</h2>
+        <p class="dl-status" data-download-status role="status" hidden></p>
+        <dl class="dl-facts">
+          <div>
+            <dt>Versión</dt>
+            <dd data-dl-field="version">—</dd>
+          </div>
+          <div>
+            <dt>Tamaño del instalador</dt>
+            <dd data-dl-field="size">—</dd>
+          </div>
+          <div>
+            <dt>Publicada</dt>
+            <dd data-dl-field="date">—</dd>
+          </div>
+          <div>
+            <dt>Archivo</dt>
+            <dd data-dl-field="file">—</dd>
+          </div>
+          <div>
+            <dt>Sistema</dt>
+            <dd>Windows 10 u 11, 64 bits</dd>
+          </div>
+        </dl>
+        <div class="dl-actions">
+          <a
+            class="button primary"
+            data-download
+            href="https://github.com/jairbonillacan-cmd/fossil-app/releases"
+            >Ver versiones</a
+          >
+        </div>
+        <p class="download-meta" data-download-meta hidden></p>
+        <p class="download-note" data-download-note hidden>
+          Versión de prueba: puede tener errores. Conviene respaldar tu Espacio antes de instalarla.
+        </p>
+      </section>
+
+      <section class="dl-section" aria-labelledby="requisitos">
+        <h2 id="requisitos">Requisitos</h2>
+        <ul>
+          <li>Windows 10 u 11 de 64 bits (x64). Por ahora no hay versión para otros sistemas.</li>
+          <li>
+            No necesitas una cuenta ni conexión para usarla. Solo hace falta conexión para descargar
+            el instalador.
+          </li>
+          <li>
+            Fossil usa WebView2, un componente de Microsoft que viene con Windows 11 y, normalmente,
+            con Windows 10. Si tu equipo no lo tiene, el instalador lo descarga.
+          </li>
+        </ul>
+      </section>
+
+      <section class="dl-section" id="alfa" aria-labelledby="alfa-titulo">
+        <h2 id="alfa-titulo">Es una alfa y no tiene firma de código</h2>
+        <p>
+          Fossil está en alfa: puede fallar y cambiar de una versión a otra. Antes de instalarla,
+          copia la carpeta de tu Espacio como respaldo. Tus páginas también se guardan como archivos
+          Markdown, así que puedes abrirlas con cualquier editor.
+        </p>
+        <p>
+          El instalador todavía no está firmado con un certificado de código (la firma está
+          <a href="/roadmap/">en el roadmap</a>). Por eso Windows SmartScreen puede mostrar el aviso
+          «Windows protegió su PC» al abrirlo. No quiere decir que encontró un problema: quiere
+          decir que no reconoce a quien lo publica.
+        </p>
+        <h3>Cómo pasar el aviso de SmartScreen</h3>
+        <ol>
+          <li>Abre el instalador que descargaste.</li>
+          <li>
+            En el aviso «Windows protegió su PC», haz clic en <strong>Más información</strong>.
+          </li>
+          <li>Haz clic en <strong>Ejecutar de todas formas</strong>.</li>
+          <li>Sigue el asistente de instalación.</li>
+        </ol>
+        <p>
+          Si prefieres no saltarte el aviso, el código de Fossil es abierto (licencia AGPL) y puedes
+          revisarlo en
+          <a href="https://github.com/jairbonillacan-cmd/fossil-app">GitHub</a>.
+        </p>
+      </section>
+
+      <section class="dl-section" aria-labelledby="siguiente">
+        <h2 id="siguiente">Qué trae y qué viene</h2>
+        <p>
+          Lo que cambia en cada versión está en el <a href="/changelog/">changelog</a>; lo que sigue,
+          en el <a href="/roadmap/">roadmap</a>.
+        </p>
+      </section>
+    </main>
+    <footer class="foot">
+      <div class="foot-inner">
+        <span class="wordmark small">Fossil</span>
+        <nav aria-label="Pie">
+          <a href="/">Inicio</a>
+          <a href="/roadmap/">Roadmap</a>
+          <a href="/changelog/">Changelog</a>
+        </nav>
+      </div>
+    </footer>
+    <script type="module" src="../download.js"></script>
+  </body>
+</html>
