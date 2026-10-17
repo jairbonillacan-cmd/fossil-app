@@ -68,7 +68,6 @@ pub fn snapshot_list(
 }
 
 /// Restores the whole Espacio into a new local folder (never over the original).
-/// The restored Espacio is not opened: the UI opens it with `vault_open`.
 #[tauri::command]
 #[specta::specta]
 pub fn snapshot_restore_workspace(
@@ -77,6 +76,7 @@ pub fn snapshot_restore_workspace(
     target_dir: String,
 ) -> Result<VaultInfo, CoreError> {
     let root = vault_root(state.clone())?;
+    // Does not open the restored Espacio: the UI opens it with `vault_open`.
     // Safety copy first; best effort, because a damaged live database is exactly
     // why someone restores (and restoring never modifies the original).
     if let Err(error) = create(state, SnapshotTriggerKind::PreRestore) {
