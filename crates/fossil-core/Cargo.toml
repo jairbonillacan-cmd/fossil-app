@@ -24,6 +24,8 @@ rusqlite = { version = "0.40", features = ["bundled"] }
 # Yjs (CRDT) documents: update merging/validation for persistence (ADR-0003).
 yrs = "0.28"
 rusqlite_migration = "2.6"
+# SHA-256 of every file in a snapshot manifest (MIT/Apache-2.0; already in the lockfile via other crates).
+sha2 = "0.10"
 
 [dev-dependencies]
 tempfile = "3"

@@ -14,6 +14,7 @@ pub mod object_store;
 pub mod objects;
 pub mod saved_filters;
 pub mod search;
+pub mod snapshot_store;
 pub mod snapshots;
 pub mod storage;
 pub mod vault;
