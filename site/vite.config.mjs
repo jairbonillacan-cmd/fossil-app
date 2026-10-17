@@ -11,9 +11,12 @@ import { fileURLToPath } from "node:url";
 const SITE_URL = "https://auralisgo.com";
 
 const site = (path) => fileURLToPath(new URL(path, import.meta.url));
-const pages = ["index.html", "roadmap/index.html", "changelog/index.html"].filter((p) =>
-  existsSync(site(p)),
-);
+const pages = [
+  "index.html",
+  "descarga/index.html",
+  "roadmap/index.html",
+  "changelog/index.html",
+].filter((p) => existsSync(site(p)));
 const pagePath = (p) => `/${p.replace(/index\.html$/, "")}`;
 
 /** Fills __SITE_URL__ / __PAGE_URL__ in the HTML and emits sitemap.xml and robots.txt. */

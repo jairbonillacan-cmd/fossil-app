@@ -18,7 +18,21 @@ const formatDate = (iso) => {
 const isTrial = (release) =>
   release.prerelease === true || /-(alpha|beta|rc)(\.|$)/i.test(release.tag_name ?? "");
 
-const applyFallback = () => {
+// What the download page says when there is nothing to download. Only /descarga/ has the
+// [data-download-status] element; the other pages just get the "Ver versiones" link.
+const STATUS = {
+  none: "Todavía no hay una versión publicada para descargar. Cuando la haya, aquí verás su versión y su tamaño.",
+  noasset: "La última versión publicada todavía no incluye un instalador para Windows.",
+  error: "No pudimos consultar la última versión. Puedes ver todas las versiones en GitHub.",
+};
+
+const setFields = (values) => {
+  for (const el of document.querySelectorAll("[data-dl-field]")) {
+    el.textContent = values[el.dataset.dlField] || "—";
+  }
+};
+
+const applyFallback = (reason) => {
   for (const link of document.querySelectorAll("[data-download]")) {
     link.href = RELEASES_PAGE;
     link.textContent = "Ver versiones";
@@ -31,6 +45,11 @@ const applyFallback = () => {
   for (const el of document.querySelectorAll("[data-download-note]")) {
     el.hidden = true;
   }
+  for (const el of document.querySelectorAll("[data-download-status]")) {
+    el.textContent = STATUS[reason] ?? STATUS.error;
+    el.hidden = false;
+  }
+  setFields({});
 };
 
 const applyRelease = (release, asset) => {
@@ -66,6 +85,11 @@ const applyRelease = (release, asset) => {
   for (const note of document.querySelectorAll("[data-download-note]")) {
     note.hidden = !trial;
   }
+  for (const el of document.querySelectorAll("[data-download-status]")) {
+    el.hidden = true;
+    el.textContent = "";
+  }
+  setFields({ version, size, date, file: asset.name });
 };
 
 const loadRelease = async () => {
@@ -77,22 +101,24 @@ const loadRelease = async () => {
     const releases = await res.json();
     if (!Array.isArray(releases)) throw new Error("releases payload");
     release = releases.find((r) => r && r.draft === false) ?? null;
-    asset =
-      release && Array.isArray(release.assets)
-        ? (release.assets.find((a) => a && typeof a.name === "string" && /\.exe$/i.test(a.name)) ??
-          null)
-        : null;
+    if (!release) {
+      applyFallback("none");
+      return;
+    }
+    asset = Array.isArray(release.assets)
+      ? (release.assets.find((a) => a && typeof a.name === "string" && /\.exe$/i.test(a.name)) ??
+        null)
+      : null;
     if (
-      !release ||
       !asset ||
       typeof asset.browser_download_url !== "string" ||
       !asset.browser_download_url.startsWith(DOWNLOAD_PREFIX)
     ) {
-      applyFallback();
+      applyFallback("noasset");
       return;
     }
   } catch {
-    applyFallback();
+    applyFallback("error");
     return;
   }
   applyRelease(release, asset);

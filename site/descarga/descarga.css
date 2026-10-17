@@ -1,0 +1,92 @@
+/* Download page */
+
+.dl-card {
+  margin-top: 40px;
+  padding: 24px 28px;
+  border: 1px solid var(--fg);
+  border-radius: 10px;
+}
+
+.dl-card h2,
+.dl-section h2 {
+  margin: 0 0 12px;
+  font: 600 22px / 1.3 var(--display);
+  letter-spacing: -0.01em;
+}
+
+.dl-status {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--fg);
+  border-radius: 6px;
+  background: var(--bg-soft);
+  font-size: 14px;
+}
+
+.dl-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 16px 24px;
+  margin: 0 0 24px;
+}
+
+.dl-facts div {
+  min-width: 0;
+}
+
+.dl-facts dt {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+
+.dl-facts dd {
+  margin: 2px 0 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.dl-card .download-meta,
+.dl-card .download-note {
+  max-width: none;
+  margin-left: 0;
+}
+
+.dl-section {
+  max-width: 680px;
+  margin-top: 48px;
+  padding-top: 40px;
+  border-top: 1px solid var(--border);
+}
+
+.dl-section h3 {
+  margin: 28px 0 8px;
+  font: 600 17px / 1.35 var(--display);
+}
+
+.dl-section p,
+.dl-section li {
+  color: var(--fg-muted);
+}
+
+.dl-section li {
+  margin: 8px 0;
+}
+
+.dl-section strong {
+  color: var(--fg);
+}
+
+.dl-section ul,
+.dl-section ol {
+  padding-left: 22px;
+}
+
+@media (max-width: 760px) {
+  .dl-card {
+    padding: 20px;
+  }
+}
