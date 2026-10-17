@@ -12,6 +12,7 @@ pub mod markdown;
 pub mod mirror;
 pub mod object_store;
 pub mod objects;
+pub mod saved_filters;
 pub mod search;
 pub mod snapshots;
 pub mod storage;

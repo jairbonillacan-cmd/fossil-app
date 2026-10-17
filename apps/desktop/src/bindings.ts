@@ -47,6 +47,12 @@ export const commands = {
 	attachmentLoad: (path: string) => typedError<number[], CoreError>(__TAURI_INVOKE("attachment_load", { path })),
 	/**  Searches the open vault using FTS5 and inline operators. */
 	searchQuery: (query: SearchQuery) => typedError<SearchHit[], SearchError>(__TAURI_INVOKE("search_query", { query })),
+	/**  Lists the saved search filters of the open Espacio, ordered by name. */
+	searchFiltersList: () => typedError<SavedFilter[], SearchError>(__TAURI_INVOKE("search_filters_list")),
+	/**  Creates (`id: null`) or replaces a saved search filter by id. */
+	searchFiltersSave: (filter: SavedFilterDraft) => typedError<SavedFilter, SearchError>(__TAURI_INVOKE("search_filters_save", { filter })),
+	/**  Deletes a saved search filter. */
+	searchFiltersDelete: (id: SavedFilterId) => typedError<null, SearchError>(__TAURI_INVOKE("search_filters_delete", { id })),
 	/**  Lists every known provider with capabilities and (lazy) health. */
 	aiProviders: () => typedError<ProviderInfo[], AiError>(__TAURI_INVOKE("ai_providers")),
 	/**  Starts a chat request; the answer streams via `ai:event`. */
@@ -387,10 +393,35 @@ export type SaveStatus = {
 /**  State of the Yjs transport batcher shown as Guardado / Guardando / Error. */
 export type SaveStatusKind = "Saved" | "Saving" | "Error";
 
+/**  A named search stored in the Espacio. */
+export type SavedFilter = {
+	id: SavedFilterId,
+	name: string,
+	query: SearchQuery,
+};
+
+/**
+ *  Payload of `search_filters_save`: `id: None` creates a filter, `Some(id)`
+ *  replaces that filter (rename and/or new query).
+ */
+export type SavedFilterDraft = {
+	id: SavedFilterId | null,
+	name: string,
+	query: SearchQuery,
+};
+
+export type SavedFilterId = string;
+
 /**  Typed errors returned by the search subsystem and `search_query` IPC command. */
 export type SearchError = 
 /**  Fixed in contract #92; implementation arrives in #20. */
-"NotImplemented" | "VaultNotOpen" | ({ InvalidQuery: string }) & { Storage?: never } | ({ Storage: string }) & { InvalidQuery?: never };
+"NotImplemented" | "VaultNotOpen" | ({ InvalidQuery: string }) & { DuplicateFilterName?: never; FilterNotFound?: never; InvalidFilterName?: never; Storage?: never } | ({ Storage: string }) & { DuplicateFilterName?: never; FilterNotFound?: never; InvalidFilterName?: never; InvalidQuery?: never } | 
+/**  Saved filter name is empty, too long or has control characters (#127). */
+({ InvalidFilterName: string }) & { DuplicateFilterName?: never; FilterNotFound?: never; InvalidQuery?: never; Storage?: never } | 
+/**  Another saved filter already uses this name (case-insensitive, #127). */
+({ DuplicateFilterName: string }) & { FilterNotFound?: never; InvalidFilterName?: never; InvalidQuery?: never; Storage?: never } | 
+/**  No saved filter with this id in the open vault (#127). */
+({ FilterNotFound: string }) & { DuplicateFilterName?: never; InvalidFilterName?: never; InvalidQuery?: never; Storage?: never };
 
 /**  A single vault object matching a [`SearchQuery`]. */
 export type SearchHit = {
