@@ -25,7 +25,7 @@
       ]
     },
     "shell": {
-      "agents": ["zcode-a", "antigravity"],
+      "agents": ["zcode-a", "antigravity", "claude"],
       "paths": [
         "apps/desktop/src/vault-screen*",
         "apps/desktop/src/sidebar*",
@@ -38,7 +38,7 @@
       ]
     },
     "editor": {
-      "agents": ["zcode-b", "antigravity-b"],
+      "agents": ["zcode-b", "antigravity-b", "claude"],
       "paths": [
         "packages/editor/*",
         "docs/modules/editor.md",

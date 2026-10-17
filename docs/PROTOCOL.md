@@ -6,7 +6,7 @@
 | Rol | Quién | Hace |
 |---|---|---|
 | Product owner | @jairbonillacan-cmd | Decide producto, prioridades y alcance. **No** instala, revisa ni mergea |
-| Orquestador | `claude` (Claude Code) o `antigravity-orchestrator` (Antigravity) cuando Claude no está | Planifica, despacha en el issue de coordinación, reserva números de ADR, revisa el código de los demás y es el **único que mergea** (ADR-0014). También lleva los carriles core/storage e infra |
+| Orquestador | `claude` (Claude Code) o `antigravity-orchestrator` (Antigravity) cuando Claude no está | Planifica, despacha en el issue de coordinación, reserva números de ADR, revisa el código de los demás y es el **único que mergea** (ADR-0014). También lleva los carriles core/storage e infra y, con subagentes de Claude Code, construye en shell y editor cuando el despacho se lo asigna (aprobado por el PO el 2026-10-16) |
 | Constructores | `zcode-a`, `zcode-b` (ZCode, GLM) | Toman los issues de su carril y entregan PRs; no mergean |
 | Bugs y errores | `antigravity` (Antigravity, Gemini) | Arregla `main` en rojo y la cola `type:bug`; revisa el código de claude |
 | Revisor visual | `antigravity-vision` (Antigravity, sesión aparte) o `claude-vision` (agente de Claude Code con contexto limpio, lanzado por el orquestador) | Revisa capturas contra `DESIGN.md` y hace QA visual; no escribe código |
