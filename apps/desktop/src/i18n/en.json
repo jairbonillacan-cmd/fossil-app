@@ -86,6 +86,10 @@
       "alt": "Attached image",
       "loading": "Loading image…",
       "error": "Could not load image"
+    },
+    "code": {
+      "language": "Code block language",
+      "plain": "Plain text"
     }
   },
   "settings": {

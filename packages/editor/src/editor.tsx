@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import * as Y from "yjs";
 import { BlockId } from "./block-id";
 import { Callout, TABLE_EXTENSIONS } from "./blocks";
+import { CodeBlockLanguage } from "./code-block";
 import { DragHandle, EditorWordCount } from "./controls";
 import { defaultEditorTranslator, type EditorTranslator } from "./i18n";
 import { ImageAttachment } from "./image-attachment";
@@ -64,9 +65,10 @@ function BoundEditor({ doc, transport, t, onReady, className, ...rest }: BoundEd
         StarterKit.configure({
           undoRedo: false,
           heading: { levels: [1, 2, 3] },
-          codeBlock: { HTMLAttributes: { spellcheck: "false" } },
+          codeBlock: false,
           link: false,
         }),
+        CodeBlockLanguage.configure({ t }),
         SafeLink,
         TaskList,
         TaskItem.configure({ nested: true }),

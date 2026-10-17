@@ -10,6 +10,8 @@ export {
   TableHeader,
   TableRow,
 } from "./blocks";
+export { CodeBlockLanguage } from "./code-block";
+export { CODE_LANGUAGES, detectLanguage, normalizeLanguage } from "./code-languages";
 export type { EditorDocumentStats } from "./controls";
 export {
   countDocumentStats,

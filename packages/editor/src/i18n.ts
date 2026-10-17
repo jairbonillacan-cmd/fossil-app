@@ -25,7 +25,9 @@ export type EditorTranslationKey =
   | "editor.tag.label"
   | "editor.image.alt"
   | "editor.image.loading"
-  | "editor.image.error";
+  | "editor.image.error"
+  | "editor.code.language"
+  | "editor.code.plain";
 
 /** Translator function passed to `<FossilEditor t={t} />` by the host application. */
 export type EditorTranslator = (key: EditorTranslationKey) => string;
@@ -61,6 +63,8 @@ export const EDITOR_MESSAGES_ES_MX: EditorMessages = {
   "editor.image.alt": "Imagen adjunta",
   "editor.image.loading": "Cargando imagen…",
   "editor.image.error": "No se pudo cargar la imagen",
+  "editor.code.language": "Lenguaje del bloque de código",
+  "editor.code.plain": "Texto plano",
 };
 
 /** Default (es-MX) message catalog with all enumerable keys. */
@@ -94,6 +98,8 @@ export const EDITOR_MESSAGES_EN: EditorMessages = {
   "editor.image.alt": "Attached image",
   "editor.image.loading": "Loading image…",
   "editor.image.error": "Could not load image",
+  "editor.code.language": "Code block language",
+  "editor.code.plain": "Plain text",
 };
 
 /** Fallback translator (es-MX) when the host does not pass `t`. */

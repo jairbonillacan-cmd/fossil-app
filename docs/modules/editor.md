@@ -13,6 +13,7 @@ con bloques referenciables por ID (ADR-0005) y escritura rápida en documentos g
 - `src/image-attachment.ts`: nodo de bloque `image` (`ImageAttachment`, #5) conectado a `saveAttachment`/`loadAttachment` en `DocTransport`; valida que `src` viva dentro de `attachments/<nombre>.<ext>` (`png`, `jpg`, `jpeg`, `gif`, `webp`) y guarda solo la ruta relativa en Yjs.
 - `src/links.tsx`: `LinksExtension` y `<LinkAutocompleteMenu />` (#24: wikilinks `[[Título]]` con autocompletado, opción `"Crear «X»"` vía `onCreateObject`, apertura en pestaña nueva con `Ctrl+clic`/`Cmd+clic` vía `onOpenObject(target, { newTab: true })`, y autocompletado/decoración de tags `#etiqueta` y anidados `#marca/acme` conservados como texto plano en `Y.XmlText` para `fossil-core::indexer`).
 - `src/outliner.ts`: extensión `Outliner` (#25: sangría `Tab`/`Shift+Tab` `indent` `0..6`, plegado de bloques/secciones `collapsed` y pegado limpio `cleanPastedHTML`/`cleanPastedText`).
+- `src/code-block.ts` y `src/code-languages.ts` (#144): `CodeBlockLanguage` (`codeBlock` con selector de lenguaje y detección al pegar), `CODE_LANGUAGES`, `normalizeLanguage` y `detectLanguage`.
 - `src/slash-menu.tsx` y `src/i18n.ts`: menú `/` filtrable con teclado y claves `editor.*` (`EditorTranslationKey`, `EditorTranslator`, `EDITOR_MESSAGES_ES_MX`, `EDITOR_MESSAGES_EN`) inyectables vía `t`.
 - `styles/editor.css` (`@fossil/editor/styles.css`) y `src/playground.tsx` (`pnpm.cmd --filter @fossil/editor dev`, puerto 1430).
 - El harness del spike vive en `apps/desktop/spike-editor/` (rama `spike/13-block-editor`; nunca se mergea).
@@ -29,6 +30,8 @@ schema de TipTap — `paragraph`/`heading` → texto; `listItem` → `paragraph`
 `blockquote`/`callout` → `paragraph` → texto; `horizontalRule` (hoja);
 `table` → `tableRow` → `tableHeader`/`tableCell` → `paragraph` → texto. Si un elemento no calza, y-prosemirror lo **borra
 del doc Yjs** sin error visible (spike #13: 758 de 5 000 bloques).
+
+**Bloque de código (#144, para el espejo Markdown #148):** `codeBlock` → texto plano (sin marcas ni hijos). Atributos del `Y.XmlElement`: `language` (cadena o ausente/`null` = texto plano; id canónico de `CODE_LANGUAGES`, p. ej. `typescript`, `sql`, `bash`; un pegado desde VS Code puede traer alias como `ts`/`typescriptreact`: normalizar con `normalizeLanguage`), más `blockId`, `indent` y `collapsed` como en cualquier bloque. Mapeo sugerido a Markdown: ```` ```<language> ````.
 
 **Gotchas (verificados en el spike #13 y en #23):**
 - **Abrir no escribe:** `transport.load()` se aplica al `Y.Doc` antes de montar el binding `ySyncPlugin` y de suscribir `doc.on("update")`, y `BlockId` ignora transacciones con `ySyncPluginKey` para no disparar `apply` al abrir un cuerpo existente o vacío.
