@@ -256,7 +256,7 @@ const renderBtn = (
 const navCls = "fui-button fui-button--secondary px-2 py-1 text-xs disabled:opacity-40";
 const newCls = "fui-button fui-button--secondary shrink-0 px-2.5 py-1 text-xs";
 const iconCls =
-  "shrink-0 rounded px-1 py-0.5 text-[11px] leading-none focus-visible:outline-2 focus-visible:outline-[color:var(--accent)]";
+  "shrink-0 rounded px-1 py-0.5 text-[11px] leading-none transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-[color:var(--accent)]";
 const closeCls = `${iconCls} text-[color:var(--fg-muted)] hover:text-[color:var(--fg)] disabled:pointer-events-none disabled:opacity-25`;
 const badgeCls =
   "shrink-0 rounded border border-[color:var(--border)] px-1 font-mono text-[10px] leading-tight text-[color:var(--fg)]";
@@ -376,7 +376,7 @@ export function ShellTabs(p: ShellTabsProps) {
             ? formatObjectTitle(tab.object, i18n.language, t("editor.untitled"))
             : newTxt;
           const isDrop = drag !== null && drag[1] === i && drag[0] !== i;
-          const pinCls = `${iconCls} ${tab.pinned ? "font-bold text-[color:var(--fg)]" : "text-[color:var(--fg-muted)] opacity-70 hover:opacity-100"}`;
+          const pinCls = `${iconCls} ${tab.pinned ? "font-bold text-[color:var(--fg)]" : "text-[color:var(--fg-muted)] hover:text-[color:var(--fg)]"}`;
           const pinTxt = t(tab.pinned ? "tabs.unpin" : "tabs.pin");
           return (
             <div key={tab.id} {...rowProps(tab, i, isDrop, isActive)}>
