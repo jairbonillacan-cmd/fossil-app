@@ -1,30 +1,36 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useLayoutEffect, useRef } from "react";
 import type { ObjectMeta } from "./bindings";
 
-/** Recoverable tabs session per Espacio, stored in the frontend's localStorage (#29). */
-export const SESSION_VERSION = 1;
+/** Recoverable tabs session per Espacio, stored in the frontend's localStorage (#29, #173). */
+export const SESSION_VERSION = 2;
 const MAX_TABS = 200;
 const MAX_HISTORY = 500;
 
 export interface SessionTab {
   objectId: string | null;
   pinned: boolean;
+  /** Back/forward history of this tab (page ids) and the index of the page it shows. */
+  history: string[];
+  historyIndex: number;
 }
 
 export interface TabsSession {
   v: typeof SESSION_VERSION;
   tabs: SessionTab[];
   active: number | null;
-  history: string[];
-  historyIndex: number;
   scroll: Record<string, number>;
 }
 
-export interface RestoredTabs {
-  tabs: Array<{ object: ObjectMeta | null; pinned: boolean }>;
-  active: number | null;
+export interface RestoredTab {
+  object: ObjectMeta | null;
+  pinned: boolean;
   history: ObjectMeta[];
   historyIndex: number;
+}
+
+export interface RestoredTabs {
+  tabs: RestoredTab[];
+  active: number | null;
 }
 
 const storageKey = (vault: string) => `fossil.tabs.session:${vault}`;
@@ -33,7 +39,48 @@ const isObj = (x: unknown): x is Record<string, unknown> =>
   typeof x === "object" && x !== null && !Array.isArray(x);
 const isId = (x: unknown): x is string => typeof x === "string" && x.length > 0 && x.length < 200;
 
-/** Validates untrusted JSON; returns null for corrupt or other-version data. */
+/** Keeps only scroll offsets of pages that still have a live tab or history entry. */
+export function trimScroll(
+  scroll: Record<string, number>,
+  tabs: SessionTab[],
+): Record<string, number> {
+  const live = new Set<string>();
+  for (const t of tabs) {
+    if (t.objectId) live.add(t.objectId);
+    for (const id of t.history) live.add(id);
+  }
+  const out: Record<string, number> = {};
+  for (const [k, y] of Object.entries(scroll)) {
+    if (live.has(k) && typeof y === "number" && Number.isFinite(y) && y > 0) out[k] = Math.round(y);
+  }
+  return out;
+}
+
+function parseTab(t: unknown, version: number): SessionTab | null {
+  if (!isObj(t) || !(t.objectId === null || isId(t.objectId))) return null;
+  const pinned = t.pinned === true;
+  if (version === 1) {
+    // v1 kept one history for the whole bar: discard it, seed each tab with its own page.
+    return {
+      objectId: t.objectId,
+      pinned,
+      history: t.objectId ? [t.objectId] : [],
+      historyIndex: t.objectId ? 0 : -1,
+    };
+  }
+  if (!Array.isArray(t.history)) return null;
+  const history = t.history.slice(0, MAX_HISTORY);
+  if (!history.every(isId)) return null;
+  const hi = typeof t.historyIndex === "number" ? Math.trunc(t.historyIndex) : -1;
+  return {
+    objectId: t.objectId,
+    pinned,
+    history: history as string[],
+    historyIndex: Math.min(Math.max(hi, -1), history.length - 1),
+  };
+}
+
+/** Validates untrusted JSON; returns null for corrupt data. Migrates v1 (global history) to v2. */
 export function parseSession(raw: string | null): TabsSession | null {
   if (!raw) return null;
   let data: unknown;
@@ -42,34 +89,20 @@ export function parseSession(raw: string | null): TabsSession | null {
   } catch {
     return null;
   }
-  if (!isObj(data) || data.v !== SESSION_VERSION) return null;
-  if (!Array.isArray(data.tabs) || !Array.isArray(data.history)) return null;
+  if (!isObj(data) || (data.v !== 1 && data.v !== SESSION_VERSION)) return null;
+  if (!Array.isArray(data.tabs)) return null;
   const tabs: SessionTab[] = [];
-  for (const t of data.tabs.slice(0, MAX_TABS)) {
-    if (!isObj(t) || !(t.objectId === null || isId(t.objectId))) return null;
-    tabs.push({ objectId: t.objectId, pinned: t.pinned === true });
+  for (const raw of data.tabs.slice(0, MAX_TABS)) {
+    const tab = parseTab(raw, data.v);
+    if (!tab) return null;
+    tabs.push(tab);
   }
-  const history = data.history.slice(0, MAX_HISTORY);
-  if (!history.every(isId)) return null;
   const active =
     typeof data.active === "number" && Number.isInteger(data.active) && data.active < tabs.length
       ? Math.max(data.active, 0)
       : null;
-  const hi = typeof data.historyIndex === "number" ? Math.trunc(data.historyIndex) : -1;
-  const scroll: Record<string, number> = {};
-  if (isObj(data.scroll)) {
-    for (const [k, y] of Object.entries(data.scroll)) {
-      if (typeof y === "number" && Number.isFinite(y) && y > 0) scroll[k] = Math.round(y);
-    }
-  }
-  return {
-    v: SESSION_VERSION,
-    tabs,
-    active,
-    history: history as string[],
-    historyIndex: Math.min(Math.max(hi, -1), history.length - 1),
-    scroll,
-  };
+  const scroll = isObj(data.scroll) ? trimScroll(data.scroll as Record<string, number>, tabs) : {};
+  return { v: SESSION_VERSION, tabs, active, scroll };
 }
 
 export function loadSession(vault: string): TabsSession | null {
@@ -91,25 +124,32 @@ export function saveSession(vault: string, session: TabsSession): void {
 /** Rebuilds tabs from a saved session, dropping pages deleted or archived since. */
 export function restoreSession(session: TabsSession, objects: ObjectMeta[]): RestoredTabs {
   const byId = new Map(objects.filter((o) => !o.archived).map((o) => [o.id, o]));
-  const tabs: RestoredTabs["tabs"] = [];
+  const tabs: RestoredTab[] = [];
   let active: number | null = null;
   session.tabs.forEach((t, i) => {
     const object = t.objectId === null ? null : (byId.get(t.objectId) ?? undefined);
     if (object === undefined) return;
+    let history: ObjectMeta[] = [];
+    let historyIndex = -1;
+    t.history.forEach((id, h) => {
+      const o = byId.get(id);
+      if (!o) return;
+      history.push(o);
+      if (h <= t.historyIndex) historyIndex = history.length - 1;
+    });
+    if (historyIndex === -1 && history.length > 0) historyIndex = 0;
+    if (object && history[historyIndex]?.id !== object.id) {
+      history = [object];
+      historyIndex = 0;
+    } else if (!object) {
+      history = [];
+      historyIndex = -1;
+    }
     if (i === session.active) active = tabs.length;
-    tabs.push({ object, pinned: t.pinned });
+    tabs.push({ object, pinned: t.pinned, history, historyIndex });
   });
   if (active === null && tabs.length > 0) active = tabs.length - 1;
-  const history: ObjectMeta[] = [];
-  let historyIndex = -1;
-  session.history.forEach((id, i) => {
-    const o = byId.get(id);
-    if (!o) return;
-    history.push(o);
-    if (i <= session.historyIndex) historyIndex = history.length - 1;
-  });
-  if (historyIndex === -1 && history.length > 0) historyIndex = 0;
-  return { tabs, active, history, historyIndex };
+  return { tabs, active };
 }
 
 // Scroll offsets live outside React state: scroll events are too frequent to re-render.
@@ -136,7 +176,9 @@ export function usePageScroll(objectId: string | null) {
   const elRef = useRef<HTMLDivElement | null>(null);
   const restoring = useRef(true);
 
-  useEffect(() => {
+  // Layout effect: mark restoring before paint so the height change when switching pages
+  // cannot record a clipped scroll under the new id.
+  useLayoutEffect(() => {
     restoring.current = true;
     const target = objectId ? (scrollOffsets[objectId] ?? 0) : 0;
     let frame = 0;
