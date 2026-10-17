@@ -114,7 +114,7 @@ pub(crate) fn copy_hashed(src: &Path, dst: Option<&Path>) -> Result<(String, u64
     Ok((hex(&hasher.finalize()), total))
 }
 
-fn read_only(path: &Path) -> Result<Connection, CoreError> {
+pub(crate) fn read_only(path: &Path) -> Result<Connection, CoreError> {
     let conn = Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY)
         .map_err(storage_error)?;
     conn.busy_timeout(Duration::from_millis(5_000))
