@@ -73,6 +73,10 @@
         "docs/modules/ai.md",
         "docs/specs/r1-ai-router-bridge.md"
       ]
+    },
+    "site": {
+      "agents": ["antigravity-site"],
+      "paths": ["site/*", "ROADMAP.md", "CHANGELOG.md"]
     }
   },
   "hot": [
