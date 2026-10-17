@@ -1,6 +1,7 @@
 import { getRenderedAttributes } from "@tiptap/core";
 import { CodeBlock } from "@tiptap/extension-code-block";
 import { Plugin } from "@tiptap/pm/state";
+import { CodeHighlight } from "./code-highlight";
 import { CODE_LANGUAGES, detectLanguage, normalizeLanguage } from "./code-languages";
 import { defaultEditorTranslator, type EditorTranslator } from "./i18n";
 
@@ -15,6 +16,10 @@ export interface CodeBlockOptions {
 export const CodeBlockLanguage = CodeBlock.extend<CodeBlockOptions>({
   addOptions() {
     return { ...this.parent?.(), t: defaultEditorTranslator };
+  },
+
+  addExtensions() {
+    return [CodeHighlight];
   },
 
   addNodeView() {
