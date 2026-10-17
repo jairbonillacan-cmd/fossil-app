@@ -58,6 +58,21 @@ describe("ShellTabs (#106)", () => {
     expect(screen.getAllByRole("tab")).toHaveLength(16);
   });
 
+  it("styles unpinned pin button with muted fg and hover fg without opacity reduction (#174)", () => {
+    render(<Harness count={2} />);
+    const pinBtns = screen.getAllByRole("button", { name: "Fijar pestaña" });
+    const firstPin = pinBtns[0] as HTMLElement;
+    expect(firstPin.className).toContain("text-[color:var(--fg-muted)]");
+    expect(firstPin.className).toContain("hover:text-[color:var(--fg)]");
+    expect(firstPin.className).not.toContain("opacity-70");
+
+    fireEvent.click(firstPin);
+    const unpinBtn = screen.getByRole("button", { name: "Desfijar pestaña" });
+    expect(unpinBtn.className).toContain("font-bold");
+    expect(unpinBtn.className).toContain("text-[color:var(--fg)]");
+    expect(unpinBtn.className).not.toContain("text-[color:var(--fg-muted)]");
+  });
+
   it("keeps an independent Back/Forward history per tab (#173)", () => {
     const [a, b, c] = ["a", "b", "c"].map((id) => ({ ...baseObj, id, title: `P-${id}` })) as [
       ObjectMeta,
