@@ -1,3 +1,20 @@
+/* Brand fonts, self-hosted and subset to Latin (see docs/modules/infra.md). Licences: fonts/OFL-*.txt */
+@font-face {
+  font-family: "Inter";
+  src: url("./fonts/inter-latin.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("./fonts/jetbrains-mono-latin.woff2") format("woff2");
+  font-weight: 400 600;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --bg: #ffffff;
   --bg-soft: #f6f6f6;
@@ -7,9 +24,9 @@
   --border: #e6e6e6;
   --code-bg: #f1f1f1;
   --shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 12px 40px rgb(0 0 0 / 0.08);
-  --font: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
-  --display: "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, sans-serif;
-  --mono: "Cascadia Code", "Cascadia Mono", Consolas, ui-monospace, monospace;
+  --font: "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --display: "Inter", "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --mono: "JetBrains Mono", "Cascadia Code", "Cascadia Mono", Consolas, ui-monospace, monospace;
   --max: 1040px;
   color-scheme: light;
 }
@@ -176,7 +193,7 @@ code {
 }
 
 .wordmark {
-  font: 700 18px / 1 var(--display);
+  font: 600 18px / 1 var(--display);
   letter-spacing: -0.02em;
   text-decoration: none;
 }
