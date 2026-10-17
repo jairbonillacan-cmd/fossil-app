@@ -12,11 +12,11 @@
 use super::objects::{VaultInfo, VaultState, with_session};
 use fossil_core::ids::ObjectId;
 use fossil_core::objects::{CoreError, ObjectMeta};
-use fossil_core::snapshot_store;
 use fossil_core::snapshots::{
     MirrorRoundtripReport, PageVersionDiff, PageVersionSummary, RestoreConflictPolicy,
     SnapshotTriggerKind, WorkspaceSnapshotMeta,
 };
+use fossil_core::{snapshot_restore, snapshot_store};
 use std::path::Path;
 
 macro_rules! stub {
@@ -46,12 +46,7 @@ fn create(
     state: tauri::State<'_, VaultState>,
     trigger: SnapshotTriggerKind,
 ) -> Result<WorkspaceSnapshotMeta, CoreError> {
-    let root = with_session(state.clone(), |session| {
-        session
-            .root()
-            .map(Path::to_path_buf)
-            .ok_or(CoreError::VaultNotOpen)
-    })?;
+    let root = vault_root(state.clone())?;
     // The copy runs outside the session lock: the editor keeps saving meanwhile.
     let sealed = snapshot_store::build(&root, trigger)?;
     let removed = with_session(state, |session| {
@@ -72,10 +67,46 @@ pub fn snapshot_list(
     })
 }
 
-stub!(
-    /// Restores the whole Espacio into a new local folder (never over the original).
-    pub fn snapshot_restore_workspace(snapshot_id: String, target_dir: String) -> Result<VaultInfo, CoreError>
-);
+/// Restores the whole Espacio into a new local folder (never over the original).
+#[tauri::command]
+#[specta::specta]
+pub fn snapshot_restore_workspace(
+    state: tauri::State<'_, VaultState>,
+    snapshot_id: String,
+    target_dir: String,
+) -> Result<VaultInfo, CoreError> {
+    let root = vault_root(state.clone())?;
+    // Does not open the restored Espacio: the UI opens it with `vault_open`.
+    // Safety copy first; best effort, because a damaged live database is exactly
+    // why someone restores (and restoring never modifies the original).
+    if let Err(error) = create(state, SnapshotTriggerKind::PreRestore) {
+        eprintln!("pre-restore snapshot skipped: {error}");
+    }
+    let restored =
+        snapshot_restore::restore_workspace(&root, &snapshot_id, Path::new(&target_dir))?;
+    let name = std::fs::read(restored.join(".fossil/vault.json"))
+        .ok()
+        .and_then(|bytes| serde_json::from_slice::<String>(&bytes).ok())
+        .or_else(|| {
+            restored
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+        })
+        .unwrap_or_default();
+    Ok(VaultInfo {
+        path: restored.to_string_lossy().into_owned(),
+        name,
+    })
+}
+
+fn vault_root(state: tauri::State<'_, VaultState>) -> Result<std::path::PathBuf, CoreError> {
+    with_session(state, |session| {
+        session
+            .root()
+            .map(Path::to_path_buf)
+            .ok_or(CoreError::VaultNotOpen)
+    })
+}
 stub!(
     /// Restores one page from a snapshot following `policy`.
     pub fn snapshot_restore_page(snapshot_id: String, object_id: ObjectId, policy: RestoreConflictPolicy) -> Result<ObjectMeta, CoreError>
@@ -110,7 +141,6 @@ mod tests {
         let id = ObjectId::new;
         let s = String::new;
         let errors = [
-            snapshot_restore_workspace(s(), s()).err(),
             snapshot_restore_page(s(), id(), RestoreConflictPolicy::CreateCopy).err(),
             snapshot_restore_attachment(s(), "../x.png".into()).err(),
             page_version_list(id()).err(),
