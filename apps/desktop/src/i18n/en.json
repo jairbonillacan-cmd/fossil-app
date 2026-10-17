@@ -47,6 +47,13 @@
     "exportMarkdown": "Export Markdown",
     "exportPdf": "Export PDF",
     "exportFailed": "The page could not be exported. Try again.",
+    "saveStatus": {
+      "saved": "Saved",
+      "saving": "Saving…",
+      "error": "Save error",
+      "retry": "Retry",
+      "confirmClose": "This page has unsaved changes. Close anyway?"
+    },
     "placeholder": "Type something or press “/” to insert a block",
     "outliner": {
       "collapse": "Collapse section",

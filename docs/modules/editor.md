@@ -6,7 +6,7 @@ con bloques referenciables por ID (ADR-0005) y escritura rápida en documentos g
 
 **Rutas:** `packages/editor` (`@fossil/editor`, issues #5, #23, #24, #25, #105):
 - `src/editor.tsx`: `<FossilEditor />`, `getBodyFragment` y extensiones MIT (`StarterKit`, `TaskList`, `TaskItem`, `Callout`, `TABLE_EXTENSIONS`, `ImageAttachment`, `BlockId`, `Outliner`, `DragHandle`, `LinksExtension`, `EditorWordCount`, `SlashMenu`, `LinkAutocompleteMenu`).
-- `src/transport.ts`: `DocTransport` y `createUpdateBatcher` (agrupa `Y.mergeUpdates` cada 250 ms y encadena promesas).
+- `src/transport.ts`: `DocTransport`, `SaveStatus` y `createUpdateBatcher` (agrupa `Y.mergeUpdates` cada 250 ms, encadena promesas y expone `status()`/`retry()`/`onStatusChange`, #164).
 - `src/block-id.ts`: extensión `BlockId` (`data-block-id` con `crypto.randomUUID()` en bloques de primer nivel nuevos o divididos).
 - `src/blocks.ts`: bloques `Callout` (`aside[data-type="callout"]`, atajos `>! `, `> ! `, `:::callout `) y tabla simple (`Table`, `TableRow`, `TableHeader`, `TableCell`, atajo `| col | ` y navegación `Tab`/`Shift-Tab`).
 - `src/controls.tsx`: `DragHandle`, `moveTopBlock`/`moveCurrentTopBlock` (reordena bloques conservando `blockId`) y `<EditorWordCount />` (`countDocumentStats`, claves `editor.stats.words` y `editor.stats.characters`).
@@ -20,7 +20,7 @@ con bloques referenciables por ID (ADR-0005) y escritura rápida en documentos g
 - El harness del spike vive en `apps/desktop/spike-editor/` (rama `spike/13-block-editor`; nunca se mergea).
 
 **Contratos públicos:**
-- `<FossilEditor doc={Y.Doc} transport={DocTransport} t?: EditorTranslator onSearchObjects? onCreateObject? onOpenObject? onSearchTags? onReady?: (editor) => void />` con
+- `<FossilEditor doc={Y.Doc} transport={DocTransport} t?: EditorTranslator onSearchObjects? onCreateObject? onOpenObject? onSearchTags? onSaveStatusChange?: (status, retry) => void onReady?: (editor) => void />` con
   `interface DocTransport { load(): Promise<Uint8Array>; apply(update: Uint8Array): Promise<void>; saveAttachment?(fileName: string, bytes: Uint8Array): Promise<string>; loadAttachment?(path: string): Promise<Uint8Array> }`.
   La app conecta el transporte real a `object_load_doc` / `object_apply_update` y `attachment_save` / `attachment_load`; el paquete no depende de la persistencia.
 - Cada bloque de primer nivel es un `Y.XmlElement` con atributo `blockId`
@@ -43,7 +43,7 @@ del doc Yjs** sin error visible (spike #13: 758 de 5 000 bloques).
   5 000 bloques una pulsación cuesta ~15 ms (límite del presupuesto de 16 ms). Para no romperlo, `DragHandle` mapea su `DecorationSet` (`prev.map`) cuando no cambian los bloques de primer nivel, `BlockId` toma vía rápida si `childCount` e IDs existentes se mantienen y `EditorWordCount` escucha `"update"` con conteo en una sola pasada sin `textBetween`.
 - Undo/redo va con `Y.UndoManager`; el history de TipTap se desactiva (`undoRedo: false`). y-prosemirror lee `addToHistory` de la **última** transacción del lote: ningún `appendTransaction` (p. ej. `BlockId`) debe marcar `addToHistory: false`, o el pegado/Enter completo deja de ser deshacible (#77). Un bloque heredado sin ID queda sin ID tras deshacer hasta la siguiente edición.
 - Mover bloques: `moveTopBranch`/`stepTopBranch` llevan la rama (bloque + siguientes con `indent` mayor, `branchEnd`) y reutilizan los nodos, así que los `blockId` no cambian; `moveTopBlock` sigue moviendo un solo bloque. `Alt+↑/↓`, el asa y el arrastre usan la rama. Las secciones de encabezado no se mueven como rama (solo `indent`).
-- `createUpdateBatcher` reencola el lote en `pending` si `transport.apply` falla (para no romper el reloj lógico de Yjs), evita `Y.mergeUpdates` con un solo delta y hace `flush()` en `pagehide`/`dispose()`.
+- `createUpdateBatcher` expone `SaveStatus` (`Saved`, `Saving`, `Error` con `failed_seq` y `last_error`, #164) a partir de los deltas enviados frente a los confirmados, reencola el lote en orden de secuencia si `transport.apply` falla (para no romper el reloj lógico de Yjs ni reportar `Saved` tras un fallo; `retry()` persiste todos los updates pendientes), evita `Y.mergeUpdates` con un solo delta y hace `flush()` en `pagehide`/`dispose()`.
 - En `cleanPastedHTML`, normaliza `\u00a0` en los nodos de texto del DOM antes de serializar `innerHTML` (que convierte `\u00a0` en `&nbsp;`), filtra controles de formulario salvo `input[type="checkbox"]` y acota `indent` a `[0, 6]` tanto en `parseHTML` como en `renderHTML`.
 - Todas las claves de `EDITOR_MESSAGES_ES_MX`/`EDITOR_MESSAGES_EN` (`defaultEditorMessages`) deben ser propiedades propias enumerables (nunca en el prototipo) y existir en `apps/desktop/src/i18n/{es-MX,en}.json`.
 - `DragHandle` identifica arrastres propios con el MIME `application/x-fossil-block-index` y limpia el índice en `dragend`; la regla `| a | b |` de `Table` reemplaza solo `$from.before($from.depth)` para no destruir contenedores padre.
