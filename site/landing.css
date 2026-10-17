@@ -7,15 +7,6 @@
   text-align: center;
 }
 
-.eyebrow {
-  margin: 0 0 14px;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--fg-muted);
-}
-
 .hero h1 {
   margin: 0;
   font: 700 clamp(40px, 6.2vw, 66px) / 1.04 var(--display);
