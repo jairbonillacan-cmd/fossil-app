@@ -69,6 +69,15 @@ pub enum SearchError {
     InvalidQuery(String),
     #[error("storage error: {0}")]
     Storage(String),
+    /// Saved filter name is empty, too long or has control characters (#127).
+    #[error("invalid filter name: {0}")]
+    InvalidFilterName(String),
+    /// Another saved filter already uses this name (case-insensitive, #127).
+    #[error("a saved filter named '{0}' already exists")]
+    DuplicateFilterName(String),
+    /// No saved filter with this id in the open vault (#127).
+    #[error("saved filter {0} not found")]
+    FilterNotFound(String),
 }
 
 impl From<CoreError> for SearchError {
@@ -101,7 +110,7 @@ pub struct ParsedQuery {
     pub types: Vec<TypeKey>,
 }
 
-fn clean_tag(raw: &str) -> Option<String> {
+pub(crate) fn clean_tag(raw: &str) -> Option<String> {
     let t = raw.trim().trim_start_matches('#').trim_end_matches('/');
     (!t.is_empty() && t.split('/').all(|s| !s.is_empty())).then(|| t.to_lowercase())
 }
@@ -179,7 +188,7 @@ fn fts_phrase(term: impl AsRef<str>) -> Option<String> {
         .then(|| format!("\"{}\"", s.replace('"', "\"\"")))
 }
 
-fn parse_iso_ms(raw: &Option<String>) -> Result<Option<i64>, SearchError> {
+pub(crate) fn parse_iso_ms(raw: &Option<String>) -> Result<Option<i64>, SearchError> {
     let Some(s) = raw.as_deref().map(str::trim).filter(|s| !s.is_empty()) else {
         return Ok(None);
     };

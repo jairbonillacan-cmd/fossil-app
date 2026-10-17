@@ -1,7 +1,7 @@
 # search
 **Propósito:** contrato de búsqueda de texto completo (FTS5), indexación en background y motor con parser de operadores (`docs/specs/r1-search.md`, #92, #20).
 **Rutas:** `crates/fossil-core/src/search.rs`, `crates/fossil-core/benches/search_10k.rs`, `crates/fossil-core/migrations/0002_fts_search.sql`, `apps/desktop/src-tauri/src/commands/search.rs`.
-**Contratos públicos:** `commands.searchQuery(query: SearchQuery) -> Result<SearchHit[], SearchError>` en `apps/desktop/src/bindings.ts`.
+**Contratos públicos:** `commands.searchQuery(query: SearchQuery) -> Result<SearchHit[], SearchError>` y los filtros guardados `searchFiltersList/Save/Delete` (§Filtros guardados) en `apps/desktop/src/bindings.ts`.
 
 ## Indexador en background (#19, `crates/fossil-core/src/indexer.rs`)
 - `extract_blocks(object_id, state)` recorre `Y.XmlFragment("body")` (ADR-0015) con `blockId` o fallback `<object_id>:<sort_order>`.
@@ -18,7 +18,15 @@
 - `SearchQuery`: `text: String`, `type_key: Option<TypeKey>`, `tag: Option<String>`, `updated_from: Option<String>`, `updated_to: Option<String>`, `limit: Option<u32>` (`DEFAULT_SEARCH_LIMIT = 50`, `MAX_SEARCH_LIMIT = 200`).
 - `SnippetPart`: `text: String`, `matched: bool` (segmentos de texto plano para renderizar resaltado en React sin `dangerouslySetInnerHTML`).
 - `SearchHit`: `object_id: ObjectId`, `title: String`, `snippet: Vec<SnippetPart>`, `score: f64` (`-bm25`, mayor = más relevante).
-- `SearchError`: `NotImplemented` (stub hasta #20), `VaultNotOpen`, `InvalidQuery(String)`, `Storage(String)`.
+- `SearchError`: `NotImplemented` (stub hasta #20), `VaultNotOpen`, `InvalidQuery(String)`, `Storage(String)`, y para filtros guardados `InvalidFilterName(String)`, `DuplicateFilterName(String)`, `FilterNotFound(String)`.
+
+## Filtros guardados (#127, `crates/fossil-core/src/saved_filters.rs`)
+- **Son del Espacio**, no de la persona: tabla `saved_search_filters` (migración `0004`) dentro de la bóveda; con la sincronización (R3) los verá todo el equipo.
+- **Tipos:** `SavedFilter { id: SavedFilterId /* Ulid */, name, query: SearchQuery }` y `SavedFilterDraft { id: SavedFilterId | null, name, query }`.
+- **Comandos:** `search_filters_list() -> SavedFilter[]` (orden por nombre sin mayúsculas, luego id) · `search_filters_save(filter: SavedFilterDraft) -> SavedFilter` (`id: null` crea con Ulid nuevo; `id` existente reemplaza nombre y consulta; `id` desconocido o mal formado → `FilterNotFound`) · `search_filters_delete(id)` (`FilterNotFound` si no existe).
+- **Nombre:** se recorta; vacío, con caracteres de control o con más de `MAX_FILTER_NAME_CHARS` (80) caracteres → `InvalidFilterName`. Duplicado sin distinguir mayúsculas (Unicode: `Campaña` = `CAMPAÑA`, columna `name_key` única) → `DuplicateFilterName`; renombrar el mismo filtro cambiando solo mayúsculas sí vale.
+- **Consulta** (`normalize_query`, → `InvalidQuery`): `text` ≤ `MAX_FILTER_TEXT_CHARS` (1000); `tag` y la clave de `Builtin`/`Custom` de 1 a 100 caracteres imprimibles, y el tag debe pasar `clean_tag`; fechas ISO-8601 válidas con `updated_from <= updated_to`; `limit: 0` se rechaza y `limit` mayor que `MAX_SEARCH_LIMIT` se acota a 200, igual que en `search_query`. Se guarda ya normalizada (JSON, `CHECK json_valid`).
+- **Trampa:** `list` salta filas con id que no es Ulid o JSON que no deserializa (dato hostil) en lugar de fallar toda la lista. Guardar va en transacción `Immediate`: un rechazo no escribe nada.
 
 ## Esquema FTS5 (`0002_fts_search.sql`)
 Recreación de `fts_objects(object_id UNINDEXED, title, body)` con `tokenize = 'unicode61 remove_diacritics 2'` (para que `"campaña"` coincida con `"campana"`) y `rank = 'bm25(10.0, 1.0)'` (título con 10× más peso que el cuerpo).

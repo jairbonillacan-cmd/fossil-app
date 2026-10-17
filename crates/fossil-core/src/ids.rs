@@ -43,6 +43,7 @@ macro_rules! string_id {
 
 string_id!(ObjectId);
 string_id!(BlockId);
+string_id!(SavedFilterId);
 
 #[cfg(test)]
 mod tests {

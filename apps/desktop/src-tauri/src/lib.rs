@@ -22,7 +22,9 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         CaptureRequested, capture_append, capture_shortcut_get, capture_shortcut_set,
         capture_window_hide, capture_window_show,
     };
-    use commands::search::search_query;
+    use commands::search::{
+        search_filters_delete, search_filters_list, search_filters_save, search_query,
+    };
     use commands::snapshots::{
         mirror_roundtrip_verify, page_version_diff, page_version_list, page_version_restore,
         snapshot_create, snapshot_list, snapshot_restore_attachment, snapshot_restore_page,
@@ -50,6 +52,9 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             attachment_save,
             attachment_load,
             search_query,
+            search_filters_list,
+            search_filters_save,
+            search_filters_delete,
             ai_providers,
             ai_chat,
             ai_cancel,

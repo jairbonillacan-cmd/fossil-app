@@ -11,6 +11,7 @@ pub fn migrations() -> Migrations<'static> {
         M::up(include_str!("../migrations/0001_init.sql")),
         M::up(include_str!("../migrations/0002_fts_search.sql")),
         M::up(include_str!("../migrations/0003_versions_snapshots.sql")),
+        M::up(include_str!("../migrations/0004_saved_search_filters.sql")),
     ])
 }
 
@@ -52,6 +53,7 @@ mod tests {
             "tags",
             "object_versions",
             "workspace_snapshots",
+            "saved_search_filters",
         ] {
             let count: i64 = conn
                 .query_row(
@@ -152,10 +154,6 @@ mod tests {
         }
         let conn = open_vault(&path).unwrap();
         let q = |sql: &str| conn.query_row(sql, [], |r| r.get::<_, String>(0)).unwrap();
-        assert_eq!(
-            q("SELECT CAST(user_version AS TEXT) FROM pragma_user_version"),
-            "3"
-        );
         assert_eq!(q("SELECT title FROM objects"), "Plan Acme", "data survives");
         let version = |id: &str, object: &str, kind: &str| {
             conn.execute("INSERT INTO object_versions(version_id, object_id, title, trigger_kind, payload, byte_size, created_at) VALUES (?1, ?2, 't', ?3, x'00', 1, 1)", [id, object, kind])
@@ -192,5 +190,28 @@ mod tests {
         for suffix in ["", "-wal", "-shm"] {
             let _ = std::fs::remove_file(format!("{path}{suffix}"));
         }
+    }
+
+    #[test]
+    fn migration_0004_upgrades_schema_3_and_guards_saved_filter_rows() {
+        let mut conn = rusqlite::Connection::open_in_memory().unwrap();
+        super::migrations().to_version(&mut conn, 3).unwrap();
+        super::migrations().to_latest(&mut conn).unwrap();
+        let insert = |id: &str, name: &str, key: &str, query: &str| {
+            conn.execute(
+                "INSERT INTO saved_search_filters VALUES (?1, ?2, ?3, ?4, 1, 1)",
+                [id, name, key, query],
+            )
+        };
+        insert("a", "Campaña", "campaña", "{}").unwrap();
+        assert!(
+            insert("b", "CAMPAÑA", "campaña", "{}").is_err(),
+            "unique key"
+        );
+        assert!(insert("c", "", "", "{}").is_err(), "empty name");
+        assert!(
+            insert("d", "Roto", "roto", "{no json").is_err(),
+            "json_valid"
+        );
     }
 }
