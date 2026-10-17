@@ -11,6 +11,15 @@ export function inline(text) {
     .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2">$1</a>');
 }
 
+/** Anchor id: lowercase, no accents, dots kept ("0.1.1-alpha.2", "matematicas-diagramas"). */
+export const slug = (text) =>
+  text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9.]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
 /** Drops the authoring notes (HTML comments) and splits into lines. */
 export const lines = (md) => md.replace(/<!--[\s\S]*?-->/g, "").split(/\r?\n/);
 

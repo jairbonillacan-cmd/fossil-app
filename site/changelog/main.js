@@ -1,7 +1,10 @@
 // Renders CHANGELOG.md (repo root) as the changelog page. The dev server
 // re-renders it on every save of the Markdown file (import.meta.hot).
+// A "Ver" list filters the page down to one version; every version keeps its own anchor.
 import source from "../../CHANGELOG.md?raw";
-import { escapeHtml, formatDate, inline, lines } from "../md.js";
+import { escapeHtml, formatDate, inline, lines, slug } from "../md.js";
+
+const ALL = "todas";
 
 /** Splits the file into versions: "## <version> · <date>" + body lines. */
 function parse(md) {
@@ -51,22 +54,54 @@ function body(source) {
   return html;
 }
 
+const entries = document.getElementById("entries");
+const bar = document.getElementById("changelog-filter");
+const status = document.getElementById("changelog-status");
+let current = ALL;
+
+function show(id) {
+  const items = [...entries.querySelectorAll(".entry")];
+  current = items.some((el) => el.id === id) ? id : ALL;
+  for (const el of items) el.hidden = current !== ALL && el.id !== current;
+  const select = bar.querySelector("select");
+  if (select) select.value = current;
+  const visible = items.filter((el) => !el.hidden).length;
+  status.textContent = `Mostrando ${visible} de ${items.length} ${items.length === 1 ? "versión" : "versiones"}.`;
+}
+
 function render(md) {
-  document.getElementById("entries").innerHTML = parse(md)
+  const versions = parse(md);
+  entries.innerHTML = versions
     .map((v) => {
       const unreleased = v.date === null;
       const title = unreleased ? escapeHtml(v.name) : `Fossil ${escapeHtml(v.name)}`;
       const meta = unreleased
         ? '<span class="badge">Próxima versión</span>'
         : `<time datetime="${v.date}">${formatDate(v.date)}</time>`;
-      const id = escapeHtml(v.name.toLowerCase().replace(/[^a-z0-9.-]+/g, "-"));
+      const id = escapeHtml(slug(v.name));
       return `<article class="entry" id="${id}">
   <div class="entry-meta"><h2><a href="#${id}">${title}</a></h2>${meta}<span class="platform">Escritorio · Windows 10/11 (64 bits)</span></div>
   <div class="entry-body">${body(v.lines)}</div>
 </article>`;
     })
     .join("");
+
+  bar.innerHTML = `<label for="changelog-version">Ver</label>
+<select id="changelog-version" class="select">
+  <option value="${ALL}">Todas las versiones</option>
+  ${versions.map((v) => `<option value="${escapeHtml(slug(v.name))}">${escapeHtml(v.name)}</option>`).join("")}
+</select>`;
+
+  show(current);
+  const target = location.hash
+    ? document.getElementById(decodeURIComponent(location.hash.slice(1)))
+    : null;
+  if (target) target.scrollIntoView();
 }
+
+bar.addEventListener("change", (event) => {
+  if (event.target.matches("select")) show(event.target.value);
+});
 
 render(source);
 

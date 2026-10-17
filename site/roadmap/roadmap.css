@@ -1,7 +1,7 @@
 /* Roadmap */
 
 .roadmap {
-  margin-top: 48px;
+  margin-top: 24px;
   min-height: 100vh;
 }
 
@@ -75,4 +75,39 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--fg-muted);
+}
+
+.permalink {
+  color: inherit;
+  text-decoration: none;
+}
+
+.permalink:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+a.tag {
+  text-decoration: none;
+}
+
+a.tag:hover {
+  border-color: var(--fg);
+  color: var(--fg);
+}
+
+.card.is-target {
+  outline: 2px solid var(--fg);
+  outline-offset: 2px;
+}
+
+@media (max-width: 760px) {
+  /* One row that scrolls sideways instead of wrapping into several. */
+  .filter-bar {
+    flex-wrap: nowrap;
+    margin-right: -16px;
+    padding-right: 16px;
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
 }
