@@ -42,7 +42,7 @@ describe("language detection", () => {
   });
 });
 
-const paste = (ed: Editor, text: string): boolean | undefined => {
+const paste = (ed: Editor, text: string): boolean | undefined | void => {
   const event = new Event("paste") as ClipboardEvent;
   Object.defineProperty(event, "clipboardData", {
     value: { getData: (t: string) => (t === "text/plain" ? text : "") },
