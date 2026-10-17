@@ -56,24 +56,28 @@ pub fn save(root: &Path, file_name: &str, bytes: &[u8]) -> Result<String, CoreEr
     Ok(format!("{ATTACHMENTS_DIR}/{name}"))
 }
 
+/// `attachments/<name>` → `<name>` when it is a well-formed attachment path:
+/// one flat component of `[A-Za-z0-9._-]`, no leading dot, no device name and
+/// a supported image extension. Shared by `load` and the snapshot engine.
+pub(crate) fn valid_relative(relative: &str) -> Option<&str> {
+    let name = relative.strip_prefix("attachments/").filter(|name| {
+        !name.is_empty()
+            && !name.starts_with('.')
+            && !fs_guard::is_reserved_device(name)
+            && name
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_')
+    })?;
+    extension_of(name)
+        .is_some_and(|ext| SUPPORTED.contains(&ext.as_str()))
+        .then_some(name)
+}
+
 /// Reads an attachment by the relative path [`save`] returned. Anything else
 /// (other folders, `..`, nested paths) is rejected, so the webview can never
 /// read arbitrary files through this command.
 pub fn load(root: &Path, relative: &str) -> Result<Vec<u8>, CoreError> {
-    let name = relative
-        .strip_prefix("attachments/")
-        .filter(|name| {
-            !name.is_empty()
-                && !name.starts_with('.')
-                && !fs_guard::is_reserved_device(name)
-                && name
-                    .chars()
-                    .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_')
-        })
-        .ok_or_else(|| storage_error("invalid attachment path"))?;
-    if extension_of(name).is_none_or(|ext| !SUPPORTED.contains(&ext.as_str())) {
-        return Err(storage_error("invalid attachment path"));
-    }
+    let name = valid_relative(relative).ok_or_else(|| storage_error("invalid attachment path"))?;
     fs_guard::reject_link(&root.join(ATTACHMENTS_DIR))?;
     let path = root.join(ATTACHMENTS_DIR).join(name);
     fs_guard::reject_link(&path)?;
