@@ -2,6 +2,7 @@
 
 .entries {
   margin-top: 48px;
+  min-height: 100vh;
 }
 
 .entry {

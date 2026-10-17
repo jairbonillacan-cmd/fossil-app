@@ -2,6 +2,7 @@
 
 .roadmap {
   margin-top: 48px;
+  min-height: 100vh;
 }
 
 .stage {

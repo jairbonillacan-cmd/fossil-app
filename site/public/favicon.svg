@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Fossil">
+  <title>Fossil</title>
+  <!-- Provisional Fossil favicon: white "F" on a black rounded square (docs/DESIGN.md). -->
+  <rect width="1024" height="1024" rx="192" fill="#000000"/>
+  <rect x="320" y="192" width="128" height="640" fill="#ffffff"/>
+  <rect x="320" y="192" width="384" height="128" fill="#ffffff"/>
+  <rect x="320" y="448" width="320" height="128" fill="#ffffff"/>
+</svg>
