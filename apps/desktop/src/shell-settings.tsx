@@ -25,6 +25,24 @@ function OptionRow<T extends string>(props: {
       <fieldset
         aria-labelledby={labelId}
         className="m-0 inline-flex min-w-0 gap-1 rounded-md border border-[color:var(--border)] bg-[color:var(--bg)] p-1"
+        onKeyDown={(e) => {
+          if (
+            e.key !== "ArrowRight" &&
+            e.key !== "ArrowLeft" &&
+            e.key !== "ArrowDown" &&
+            e.key !== "ArrowUp"
+          )
+            return;
+          const btns = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>("button"));
+          const idx = btns.indexOf(document.activeElement as HTMLButtonElement);
+          if (idx === -1 || btns.length === 0) return;
+          e.preventDefault();
+          const step = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : -1;
+          const nextIdx = (idx + step + btns.length) % btns.length;
+          btns[nextIdx]?.focus();
+          const nextOpt = props.options[nextIdx]?.[0];
+          if (nextOpt !== undefined) props.onSelect(nextOpt);
+        }}
       >
         {props.options.map(([opt, text]) => (
           <Button
@@ -42,7 +60,8 @@ function OptionRow<T extends string>(props: {
   );
 }
 
-const FOCUSABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+const FOCUSABLE =
+  'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])';
 const toWin = (s: string) => s.replace(/^Super\+/i, "Win+");
 
 /**
@@ -83,7 +102,10 @@ export function ShellSettings(props: { open: boolean; vaultName: string; onClose
     if (!open) return undefined;
     // Partial vi.mock("./bindings") in app.test.tsx omits captureShortcutGet.
     void commands.captureShortcutGet?.()?.then((res) => syncRef.current(res));
-    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const opener =
+      document.activeElement instanceof HTMLElement && document.activeElement !== document.body
+        ? document.activeElement
+        : null;
     dialogRef.current?.querySelector<HTMLElement>(FOCUSABLE)?.focus();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -106,7 +128,8 @@ export function ShellSettings(props: { open: boolean; vaultName: string; onClose
     window.addEventListener("keydown", onKey);
     return () => {
       window.removeEventListener("keydown", onKey);
-      opener?.focus();
+      if (opener?.isConnected) opener.focus();
+      else document.querySelector<HTMLElement>(FOCUSABLE)?.focus();
     };
   }, [open]);
 

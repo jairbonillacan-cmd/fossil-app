@@ -77,11 +77,24 @@
 
 /* Keyboard focus is always visible; the invalid state uses the danger ring. */
 .fui-button:focus-visible,
-.fui-input:focus-visible {
+.fui-input:focus-visible,
+:where(
+  button,
+  input,
+  select,
+  textarea,
+  a[href],
+  [role="button"],
+  [role="tab"],
+  [role="option"],
+  [role="menuitem"],
+  [tabindex]:not([tabindex="-1"])
+):focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
-.fui-input[aria-invalid="true"]:focus-visible {
+.fui-input[aria-invalid="true"]:focus-visible,
+:where(input, select, textarea)[aria-invalid="true"]:focus-visible {
   outline-color: var(--danger);
 }
 

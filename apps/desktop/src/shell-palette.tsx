@@ -26,10 +26,12 @@ function renderHighlighted(text: string, indices: number[]) {
 }
 
 const EMPTY_SEARCH = { type_key: null, tag: null, updated_from: null, updated_to: null, limit: 20 };
+const FOCUSABLE =
+  'button:not(:disabled), [href], input:not(:disabled), [tabindex]:not([tabindex="-1"])';
 const INPUT_CLS =
   "w-full rounded border border-[color:var(--border)] bg-[color:var(--bg)] px-3 py-2 text-sm text-[color:var(--fg)] placeholder:text-[color:var(--fg-muted)] focus-visible:outline-2 focus-visible:outline-[color:var(--accent)]";
 const OPTION_CLS =
-  "flex w-full cursor-pointer items-center justify-between gap-2 rounded px-2.5 py-1.5 text-left text-sm aria-selected:bg-[color-mix(in_srgb,var(--accent)_10%,var(--bg))] aria-selected:font-medium";
+  "flex w-full cursor-pointer items-center justify-between gap-2 rounded px-2.5 py-1.5 text-left text-sm focus-visible:outline-2 focus-visible:outline-[color:var(--accent)] aria-selected:bg-[color-mix(in_srgb,var(--accent)_10%,var(--bg))] aria-selected:font-medium";
 
 /** Command palette (`Ctrl+K`) and fuzzy quick switcher (`Ctrl+P`) (#27). */
 export function ShellPalette(props: { onSelect?: ((object: ObjectMeta) => void) | undefined }) {
@@ -65,13 +67,20 @@ export function ShellPalette(props: { onSelect?: ((object: ObjectMeta) => void) 
     return () => window.removeEventListener("keydown", onKey);
   }, [openMode]);
 
+  const isOpen = mode !== null;
   useEffect(() => {
-    if (mode === null) return void openerRef.current?.focus();
+    if (!isOpen) return undefined;
     inputRef.current?.focus();
     void commands
       .objectList?.({ include_archived: false, type_key: null, parent: null, query: null })
       ?.then((res) => setObjects(res.status === "ok" ? res.data : []));
-  }, [mode]);
+    return () => {
+      const opener = openerRef.current;
+      openerRef.current = null;
+      if (opener && opener !== document.body && opener.isConnected) opener.focus();
+      else document.querySelector<HTMLElement>(FOCUSABLE)?.focus();
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     if (mode !== "palette" || query.trim() === "" || !commands.searchQuery)

@@ -9,6 +9,8 @@ export const SEARCH_DEBOUNCE_MS = 80;
 
 const INPUT_CLS =
   "rounded border border-[color:var(--border)] bg-[color:var(--bg)] px-2.5 py-1.5 text-sm text-[color:var(--fg)] placeholder:text-[color:var(--fg-muted)] focus-visible:outline-2 focus-visible:outline-[color:var(--accent)]";
+const FOCUSABLE =
+  'button:not(:disabled), [href], input:not(:disabled), [tabindex]:not([tabindex="-1"])';
 const INIT_FILTERS = { q: "", type: null as "Page" | "Journal" | null, tag: "", from: "", to: "" };
 const TYPES = [null, "Page", "Journal"] as const;
 const foldStr = (s: string) =>
@@ -93,7 +95,12 @@ export function PageFindBar({ containerRef }: { containerRef: RefObject<HTMLElem
         {count === 0 ? "0 / 0" : `${safeIdx + 1} / ${count}`}
       </span>
       {([-1, 1, 0] as const).map((d) => (
-        <Button key={d} variant="secondary" onClick={() => act(d)}>
+        <Button
+          key={d}
+          variant="secondary"
+          aria-label={d < 0 ? t("search.findPrev") : d > 0 ? t("search.findNext") : undefined}
+          onClick={() => act(d)}
+        >
           {d < 0 ? "↑" : d > 0 ? "↓" : t("settings.close")}
         </Button>
       ))}
@@ -113,15 +120,22 @@ export function ShellSearch(props: {
   const [objects, setObjects] = useState<ObjectMeta[]>([]);
   const [hits, setHits] = useState<SearchHit[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
-  const openerRef = useRef<HTMLElement | null>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!open) return void openerRef.current?.focus();
-    if (document.activeElement instanceof HTMLElement) openerRef.current = document.activeElement;
+    if (!open) return undefined;
+    const opener =
+      document.activeElement instanceof HTMLElement && document.activeElement !== document.body
+        ? document.activeElement
+        : null;
     inputRef.current?.focus();
     void commands
       .objectList?.({ include_archived: false, type_key: null, parent: null, query: null })
       ?.then((res) => setObjects(res.status === "ok" ? res.data : []));
+    return () => {
+      if (opener?.isConnected) opener.focus();
+      else document.querySelector<HTMLElement>(FOCUSABLE)?.focus();
+    };
   }, [open]);
 
   useEffect(() => {
@@ -174,11 +188,55 @@ export function ShellSearch(props: {
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label={t("search.title")}
         className="flex max-h-[82dvh] w-full max-w-2xl flex-col gap-3 rounded-lg border border-[color:var(--border)] bg-[color:var(--bg-elevated)] p-4 text-[color:var(--fg)]"
-        onKeyDown={(e) => e.key === "Escape" && onClose()}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            e.preventDefault();
+            onClose();
+            return;
+          }
+          const root = dialogRef.current;
+          if (!root) return;
+          if (e.key === "Tab") {
+            const items = Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE));
+            if (items.length === 0) return;
+            const first = items[0];
+            const last = items[items.length - 1];
+            if (
+              e.shiftKey &&
+              (document.activeElement === first || !root.contains(document.activeElement))
+            ) {
+              e.preventDefault();
+              last?.focus();
+            } else if (!e.shiftKey && document.activeElement === last) {
+              e.preventDefault();
+              first?.focus();
+            }
+          } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+            const res = Array.from(
+              root.querySelectorAll<HTMLButtonElement>("[data-search-result]"),
+            );
+            if (res.length === 0) return;
+            e.preventDefault();
+            const cur = res.indexOf(document.activeElement as HTMLButtonElement);
+            const next =
+              e.key === "ArrowDown"
+                ? res[(cur + 1) % res.length]
+                : res[(cur < 0 ? res.length - 1 : cur - 1 + res.length) % res.length];
+            next?.focus();
+          } else if (
+            e.key === "Enter" &&
+            document.activeElement === inputRef.current &&
+            mapped[0]
+          ) {
+            e.preventDefault();
+            pick(mapped[0].obj);
+          }
+        }}
       >
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-base font-semibold">{t("search.title")}</h2>
@@ -196,13 +254,25 @@ export function ShellSearch(props: {
           className={`${INPUT_CLS} w-full`}
         />
         <div className="flex flex-wrap items-center gap-2 text-xs">
-          {TYPES.map((key) => (
+          {TYPES.map((key, idx) => (
             <button
               key={key ?? "all"}
               type="button"
+              data-search-type={key ?? "all"}
               aria-pressed={f.type === key}
               onClick={() => setF((s) => ({ ...s, type: key }))}
-              className="rounded border border-[color:var(--border)] px-2.5 py-1 aria-pressed:bg-[color:var(--accent)] aria-pressed:font-semibold aria-pressed:text-[color:var(--accent-fg)]"
+              onKeyDown={(e) => {
+                if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+                e.preventDefault();
+                const nextIdx =
+                  (idx + (e.key === "ArrowRight" ? 1 : -1) + TYPES.length) % TYPES.length;
+                const nextKey = TYPES[nextIdx] ?? null;
+                setF((s) => ({ ...s, type: nextKey }));
+                dialogRef.current
+                  ?.querySelector<HTMLElement>(`[data-search-type="${nextKey ?? "all"}"]`)
+                  ?.focus();
+              }}
+              className="rounded border border-[color:var(--border)] px-2.5 py-1 focus-visible:outline-2 focus-visible:outline-[color:var(--accent)] aria-pressed:bg-[color:var(--accent)] aria-pressed:font-semibold aria-pressed:text-[color:var(--accent-fg)]"
             >
               {t(key === "Page" ? "sidebar.label" : `search.${key ?? "all"}`)}
             </button>
@@ -234,8 +304,9 @@ export function ShellSearch(props: {
                   <button
                     key={hit.object_id}
                     type="button"
+                    data-search-result={hit.object_id}
                     onClick={() => pick(obj)}
-                    className="flex flex-col gap-0.5 rounded border border-[color:var(--border)] bg-[color:var(--bg)] p-2.5 text-left text-sm hover:border-[color:var(--accent)]"
+                    className="flex flex-col gap-0.5 rounded border border-[color:var(--border)] bg-[color:var(--bg)] p-2.5 text-left text-sm hover:border-[color:var(--accent)] focus-visible:outline-2 focus-visible:outline-[color:var(--accent)]"
                   >
                     <span className="font-medium">
                       {formatObjectTitle(obj, i18n.language, t("editor.untitled"))}

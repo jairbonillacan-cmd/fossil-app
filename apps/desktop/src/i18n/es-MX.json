@@ -139,7 +139,9 @@
     "tag": "Etiqueta",
     "from": "Desde",
     "to": "Hasta",
-    "findLabel": "Buscar en la página"
+    "findLabel": "Buscar en la página",
+    "findPrev": "Coincidencia anterior",
+    "findNext": "Coincidencia siguiente"
   },
   "ai": {
     "panelLabel": "Panel de IA",

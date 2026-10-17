@@ -256,7 +256,28 @@ export function Sidebar({
           <button
             type="button"
             draggable
+            data-sidebar-item={object.id}
             onClick={() => onSelect(object)}
+            onKeyDown={(e) => {
+              if (e.key === "ArrowRight" && hasChildren) {
+                e.preventDefault();
+                if (!isExpanded) setNodeExpanded(object.id, true);
+                else
+                  document
+                    .querySelector<HTMLElement>(`[data-sidebar-item="${children[0]?.object.id}"]`)
+                    ?.focus();
+              } else if (e.key === "ArrowLeft") {
+                if (hasChildren && isExpanded) {
+                  e.preventDefault();
+                  setNodeExpanded(object.id, false);
+                } else if (object.parent !== null) {
+                  e.preventDefault();
+                  document
+                    .querySelector<HTMLElement>(`[data-sidebar-item="${object.parent}"]`)
+                    ?.focus();
+                }
+              }
+            }}
             onDragStart={(e) => {
               setDraggedId(object.id);
               e.dataTransfer?.setData("text/plain", object.id);
@@ -358,6 +379,18 @@ export function Sidebar({
           <ul
             data-testid="sidebar-tree-root"
             data-drop-target={dropTarget === "root" ? "true" : undefined}
+            onKeyDown={(e) => {
+              if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+              const items = Array.from(
+                e.currentTarget.querySelectorAll<HTMLButtonElement>("[data-sidebar-item]"),
+              );
+              if (items.length === 0) return;
+              e.preventDefault();
+              const cur = items.indexOf(document.activeElement as HTMLButtonElement);
+              const step = e.key === "ArrowDown" ? 1 : -1;
+              const next = items[(cur + step + items.length) % items.length];
+              next?.focus();
+            }}
             onDragOver={(e) => {
               e.preventDefault();
               setDropTarget("root");

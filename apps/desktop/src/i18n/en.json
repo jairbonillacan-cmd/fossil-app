@@ -139,7 +139,9 @@
     "tag": "Tag",
     "from": "From",
     "to": "To",
-    "findLabel": "Find in page"
+    "findLabel": "Find in page",
+    "findPrev": "Previous match",
+    "findNext": "Next match"
   },
   "ai": {
     "panelLabel": "AI panel",
