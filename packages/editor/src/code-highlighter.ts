@@ -35,6 +35,9 @@ const LOADERS: Readonly<Record<string, GrammarLoader>> = {
   php: () => import("shiki/dist/langs/php.mjs"),
 };
 
+/** Language ids that have a grammar loader (checked against `CODE_LANGUAGES` in tests). */
+export const HIGHLIGHT_LANGUAGES: readonly string[] = Object.keys(LOADERS);
+
 /** A highlighted run, relative to the start of the code text. `kind` is the token class suffix. */
 export interface CodeSpan {
   from: number;

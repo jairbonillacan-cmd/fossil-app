@@ -47,7 +47,7 @@ const buildPlanUpdate = (): Uint8Array => {
 };
 
 /** Builds a deterministic, neutral sample Yjs document showcasing all alpha block types. */
-const buildSampleUpdate = (openLinks = false): Uint8Array => {
+const buildSampleUpdate = (openLinks = false, showSlash = true): Uint8Array => {
   const doc = new Y.Doc();
   const bullets = new Y.XmlElement("bulletList");
   setAttr(bullets, "blockId", "blk_ul");
@@ -125,10 +125,14 @@ const buildSampleUpdate = (openLinks = false): Uint8Array => {
     textEl(
       "codeBlock",
       "blk_code",
-      'const body = doc.getXmlFragment("body");\nY.applyUpdate(doc, snapshot);',
+      'const body = doc.getXmlFragment("body");\n// apply the stored snapshot\nY.applyUpdate(doc, snapshot);',
       { language: "typescript" },
     ),
-    textEl("paragraph", "blk_slash", openLinks ? "Enlazar [[Campaña Acme" : "/enc"),
+    textEl(
+      "paragraph",
+      "blk_slash",
+      openLinks ? "Enlazar [[Campaña Acme" : showSlash ? "/enc" : "",
+    ),
   ]);
   return Y.encodeStateAsUpdate(doc);
 };
@@ -145,16 +149,17 @@ function PlaygroundApp() {
     params.get("theme") === "dark" ? "dark" : "light",
   );
   const openLinks = params.get("links") === "1";
+  const showSlash = params.get("slash") !== "0";
   const plan = params.get("plan") === "1";
-  const openMenu = !plan && (openLinks || params.get("slash") !== "0");
+  const openMenu = !plan && (openLinks || showSlash);
 
   const doc = useMemo(() => new Y.Doc(), []);
   const transport = useMemo<DocTransport>(
     () => ({
-      load: async () => (plan ? buildPlanUpdate() : buildSampleUpdate(openLinks)),
+      load: async () => (plan ? buildPlanUpdate() : buildSampleUpdate(openLinks, showSlash)),
       apply: async () => {},
     }),
-    [openLinks, plan],
+    [openLinks, plan, showSlash],
   );
 
   const handleReady = (editor: Editor) => {
@@ -192,5 +197,13 @@ if (rootEl !== null) {
     <StrictMode>
       <PlaygroundApp />
     </StrictMode>,
+  );
+}
+
+// `?focus=code` focuses the first code block language selector (focus capture, #144).
+if (new URLSearchParams(window.location.search).get("focus") === "code") {
+  window.setTimeout(
+    () => document.querySelector<HTMLSelectElement>(".fossil-code-language")?.focus(),
+    800,
   );
 }

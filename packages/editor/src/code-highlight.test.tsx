@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import * as Y from "yjs";
 import { CodeBlockLanguage } from "./code-block";
 import { codeHighlightKey } from "./code-highlight";
+import { CODE_LANGUAGES } from "./code-languages";
 import { getBodyFragment } from "./editor";
 import { YSync } from "./y-sync";
 
@@ -42,5 +43,13 @@ describe("lazy highlighter (#144)", () => {
         timeout: 15_000,
       },
     );
+  });
+});
+
+describe("grammar coverage (#144)", () => {
+  it("has a loader for every language the selector offers", async () => {
+    const { HIGHLIGHT_LANGUAGES } =
+      await vi.importActual<typeof import("./code-highlighter")>("./code-highlighter");
+    expect([...HIGHLIGHT_LANGUAGES].sort()).toEqual(CODE_LANGUAGES.map((l) => l.id).sort());
   });
 });

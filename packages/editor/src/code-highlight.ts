@@ -25,6 +25,9 @@ export const codeHighlightKey = new PluginKey<HighlightState>("fossilCodeHighlig
 
 let engine: CodeEngine | null = null;
 let enginePromise: Promise<CodeEngine> | null = null;
+let engineFailed = false;
+/** Grammars that failed to load: they stay plain instead of retrying on every transaction. */
+const failedLanguages = new Set<string>();
 
 /** Loads the highlighter on first use; the dynamic import keeps it out of the initial chunk. */
 function loadEngine(): Promise<CodeEngine> {
@@ -54,7 +57,7 @@ function compute(state: EditorState): HighlightState {
     if (node.type.name !== "codeBlock") return node.isTextblock ? false : true;
     hasCode = true;
     const lang = normalizeLanguage(node.attrs.language);
-    if (lang === null || node.content.size === 0) return false;
+    if (lang === null || node.content.size === 0 || failedLanguages.has(lang)) return false;
     if (engine === null || !engine.has(lang)) {
       missing.add(lang);
       return false;
@@ -94,23 +97,29 @@ export const CodeHighlight = Extension.create({
           let pending = false;
           const ensure = () => {
             const s = codeHighlightKey.getState(view.state);
-            if (s === undefined || !s.hasCode || pending) return;
-            if (engine !== null && s.missing.size === 0) return;
+            // Only blocks with a supported language need the engine; plain text never loads it.
+            if (s === undefined || s.missing.size === 0 || pending || engineFailed) return;
             pending = true;
             void loadEngine()
               .then(async (eng) => {
                 const wanted = codeHighlightKey.getState(view.state)?.missing ?? new Set<string>();
-                await Promise.all([...wanted].map((l) => eng.load(l)));
+                await Promise.all(
+                  [...wanted].map((l) =>
+                    eng.load(l).catch(() => {
+                      /* cosmetic: that language stays plain and is not retried */
+                      failedLanguages.add(l);
+                    }),
+                  ),
+                );
+                return true;
               })
               .catch(() => {
-                /* highlighting is cosmetic: stay plain if a grammar fails to load */
-                pending = false;
-                return "failed" as const;
+                engineFailed = true;
+                return false;
               })
-              .then((r) => {
-                if (r === "failed") return;
+              .then((ok) => {
                 pending = false;
-                if (!view.isDestroyed)
+                if (ok && !view.isDestroyed)
                   view.dispatch(
                     view.state.tr.setMeta(REFRESH, true).setMeta("addToHistory", false),
                   );
