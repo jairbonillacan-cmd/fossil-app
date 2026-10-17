@@ -9,14 +9,14 @@
 //! `type:contract` issue. Every argument is hostile: validate ids as Ulid and
 //! paths with `fs_guard` before use.
 
-use super::objects::{VaultInfo, VaultState, with_session};
+use super::objects::{VaultInfo, VaultState, changed, with_session};
 use fossil_core::ids::ObjectId;
 use fossil_core::objects::{CoreError, ObjectMeta};
 use fossil_core::snapshots::{
     MirrorRoundtripReport, PageVersionDiff, PageVersionSummary, RestoreConflictPolicy,
     SnapshotTriggerKind, WorkspaceSnapshotMeta,
 };
-use fossil_core::{snapshot_restore, snapshot_store};
+use fossil_core::{snapshot_item, snapshot_restore, snapshot_store};
 use std::path::Path;
 
 macro_rules! stub {
@@ -107,14 +107,38 @@ fn vault_root(state: tauri::State<'_, VaultState>) -> Result<std::path::PathBuf,
             .ok_or(CoreError::VaultNotOpen)
     })
 }
-stub!(
-    /// Restores one page from a snapshot following `policy`.
-    pub fn snapshot_restore_page(snapshot_id: String, object_id: ObjectId, policy: RestoreConflictPolicy) -> Result<ObjectMeta, CoreError>
-);
-stub!(
-    /// Restores `attachments/<ulid>.<ext>` listed in the snapshot manifest; returns its relative path.
-    pub fn snapshot_restore_attachment(snapshot_id: String, relative_path: String) -> Result<String, CoreError>
-);
+/// Restores one page from a snapshot following `policy`.
+#[tauri::command]
+#[specta::specta]
+pub fn snapshot_restore_page(
+    state: tauri::State<'_, VaultState>,
+    app: tauri::AppHandle,
+    snapshot_id: String,
+    object_id: ObjectId,
+    policy: RestoreConflictPolicy,
+) -> Result<ObjectMeta, CoreError> {
+    let root = vault_root(state.clone())?;
+    let meta = with_session(state, |session| {
+        session.with_connection(|conn| {
+            snapshot_item::restore_page(&root, conn, &snapshot_id, &object_id, policy)
+        })
+    })?;
+    Ok(changed(&app, meta))
+}
+
+/// Restores `attachments/<ulid>.<ext>` listed in the snapshot manifest; returns its relative path.
+#[tauri::command]
+#[specta::specta]
+pub fn snapshot_restore_attachment(
+    state: tauri::State<'_, VaultState>,
+    snapshot_id: String,
+    relative_path: String,
+) -> Result<String, CoreError> {
+    let root = vault_root(state)?;
+    // File I/O outside the session lock, like `attachment_save`.
+    snapshot_item::restore_attachment(&root, &snapshot_id, &relative_path)
+}
+
 stub!(
     /// A page's Historial de versiones, newest first.
     pub fn page_version_list(object_id: ObjectId) -> Result<Vec<PageVersionSummary>, CoreError>
@@ -141,8 +165,6 @@ mod tests {
         let id = ObjectId::new;
         let s = String::new;
         let errors = [
-            snapshot_restore_page(s(), id(), RestoreConflictPolicy::CreateCopy).err(),
-            snapshot_restore_attachment(s(), "../x.png".into()).err(),
             page_version_list(id()).err(),
             page_version_diff(id(), s()).err(),
             page_version_restore(id(), s()).err(),
