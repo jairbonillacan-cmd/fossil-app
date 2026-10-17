@@ -6,12 +6,13 @@
 | Rol | Quién | Hace |
 |---|---|---|
 | Product owner | @jairbonillacan-cmd | Decide producto, prioridades y alcance. **No** instala, revisa ni mergea |
-| Orquestador | `claude` (Claude Code) o `antigravity-orchestrator` (Antigravity) cuando Claude no está | Planifica, despacha en el issue de coordinación, reserva números de ADR, revisa el código de los demás y es el **único que mergea** (ADR-0014). También lleva los carriles core/storage e infra y, con subagentes de Claude Code, construye en shell y editor cuando el despacho se lo asigna (aprobado por el PO el 2026-10-16) |
-| Constructores | `zcode-a`, `zcode-b` (ZCode, GLM) | Toman los issues de su carril y entregan PRs; no mergean |
-| Bugs y errores | `antigravity` (Antigravity, Gemini) | Arregla `main` en rojo y la cola `type:bug`; revisa el código de claude |
+| Orquestador | `claude` (Claude Code) o `antigravity-orchestrator` (Antigravity) cuando Claude no está | Planifica, despacha en el issue de coordinación, reserva números de ADR, revisa el código de los demás y es el **único que mergea** (ADR-0014). También lleva los carriles core/storage e infra y, con subagentes constructores de Claude Code que firman como `claude` (solo `claude-review` y `claude-vision` usan otro id para revisar), construye en shell y editor cuando el despacho se lo asigna (aprobado por el PO el 2026-10-16) |
+| Constructores | `zcode-a`, `zcode-b` (ZCode, GLM) · `antigravity`, `antigravity-b`, `antigravity-search`, `antigravity-ai` (Antigravity, Gemini) · `claude` (Claude Code) | Toman los issues de su carril y entregan PRs; no mergean |
+| Sitio público | `antigravity-site` (Antigravity) | Construye y mantiene el sitio público (`site/`, carril `site`); no mergea |
+| Bugs y errores | `antigravity` / `antigravity-c` (Antigravity, Gemini) | Arregla `main` en rojo y la cola `type:bug` |
 | Revisor visual | `antigravity-vision` (Antigravity, sesión aparte) o `claude-vision` (agente de Claude Code con contexto limpio, lanzado por el orquestador) | Revisa capturas contra `DESIGN.md` y hace QA visual; no escribe código |
 
-**Nadie revisa su propio trabajo:** claude revisa a los constructores y a antigravity; antigravity revisa a claude; antigravity-vision revisa toda la UI. El gate lo comprueba con la línea `**Agente:** <id>` del PR y el encabezado de cada revisión (ver § Identidad).
+**Nadie revisa su propio trabajo:** el revisor (`claude-review`, `antigravity-review` o `claude`) siempre tiene un id de agente distinto del autor del PR, y `antigravity-vision` / `claude-vision` revisan toda la UI. El gate lo comprueba con la línea `**Agente:** <id>` del PR y el encabezado de cada revisión (ver § Identidad).
 
 **Autonomía:** los agentes instalan toolchains y dependencias. Solo escalan al PO decisiones de producto o de alcance, gastos y accesos a cuentas externas (Meta, Google, Shopify, firma de código).
 
@@ -20,7 +21,7 @@ Todos publicamos desde la misma cuenta de GitHub, así que cada mensaje dice **q
 
 | Dato | Qué es | Valores |
 |---|---|---|
-| **Agente** | El **rol**. Lo usa el gate (autor ≠ revisor, revisores visuales, carriles) | `claude`, `antigravity-orchestrator`, `antigravity`, `antigravity-b`, `antigravity-c`, `antigravity-review`, `antigravity-search`, `antigravity-ai`, `antigravity-vision`, `claude-vision`, `claude-review`, `zcode-a`, `zcode-b`, `zcode-vision` (los constructores están en `lanes.<carril>.agents` de `.github/lanes.json`) |
+| **Agente** | El **rol**. Lo usa el gate (autor ≠ revisor, revisores visuales, carriles) | `claude`, `antigravity-orchestrator`, `antigravity`, `antigravity-b`, `antigravity-c`, `antigravity-review`, `antigravity-search`, `antigravity-ai`, `antigravity-site`, `antigravity-vision`, `claude-vision`, `claude-review`, `zcode-a`, `zcode-b`, `zcode-vision` (los constructores están en `lanes.<carril>.agents` de `.github/lanes.json`) |
 | **Harness** | La herramienta que ejecuta al modelo | `Claude Code`, `Antigravity`, `ZCode`, `Codex CLI`. Una herramienta nueva se añade aquí |
 | **Modelo** | El modelo real de **esta** sesión, tal como lo muestra el harness | `Opus 5.5`, `Gemini 4 Argon`, `Gemini 3.8 Flash`, `GLM 5.3`… |
 
@@ -72,9 +73,9 @@ Usa la plantilla `feature.yml`. Lleva estas secciones:
 |---|---|
 | `status:` | `ready` · `in-progress` · `handoff` · `review` · `blocked` |
 | `type:` | `feat` · `bug` · `contract` · `spike` · `docs` · `chore` · `perf` |
-| `area:` | `editor` · `objects` · `storage` · `views` · `tasks` · `content` · `approvals` · `commerce` · `data` · `ai` · `mcp` · `sync` · `cloud` · `portal` · `os` · `ui` · `infra` |
+| `area:` | `editor` · `objects` · `storage` · `views` · `tasks` · `content` · `approvals` · `commerce` · `data` · `ai` · `mcp` · `sync` · `cloud` · `portal` · `os` · `ui` · `infra` · `site` |
 | `agent:` | `claude` · `zcode` · `antigravity` · `antigravity-vision` · `human` (`codex`, inactivo) |
-| `lane:` | `core` · `infra` · `shell` · `editor` · `bugs` |
+| `lane:` | `core` · `infra` · `shell` · `editor` · `bugs` · `search` · `ai` · `site` |
 | `needs:` | `code-review` · `vision` |
 | otros | `cross-lane` · `fix:main` |
 | `size:` | `S` · `M` |
