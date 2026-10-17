@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { ObjectMeta, SearchHit } from "./bindings";
 import { commands } from "./bindings";
 import { type FuzzyMatch, fuzzyMatch, listCommands } from "./shell-commands";
+import { listRecents, pushRecent } from "./shell-recents";
 import { formatObjectTitle, selectWorkspaceObject } from "./sidebar";
 
 export type PaletteMode = "palette" | "switcher";
@@ -89,6 +90,7 @@ export function ShellPalette(props: { onSelect?: ((object: ObjectMeta) => void) 
   const close = () => setMode(null);
   const mkEntry = (k: string, l: string, b: string, m: FuzzyMatch | null, fn: () => void) => ({
     key: k,
+    recent: false,
     label: l,
     badge: b,
     indices: m?.indices ?? [],
@@ -111,9 +113,11 @@ export function ShellPalette(props: { onSelect?: ((object: ObjectMeta) => void) 
       : listCommands()
           .flatMap((c) => {
             const m = fuzzyMatch(query, c.title);
-            return m
-              ? [mkEntry(`cmd:${c.id}`, c.title, c.shortcut ?? cmdBadge, m, () => void c.run())]
-              : [];
+            const run = () => {
+              pushRecent("actions", c.id);
+              void c.run();
+            };
+            return m ? [mkEntry(`cmd:${c.id}`, c.title, c.shortcut ?? cmdBadge, m, run)] : [];
           })
           .sort((a, b) => b.score - a.score);
 
@@ -133,7 +137,19 @@ export function ShellPalette(props: { onSelect?: ((object: ObjectMeta) => void) 
     })
     .sort((a, b) => (ftsHits ? 0 : b.score - a.score));
 
-  const entries = [...cmdEntries, ...objEntries];
+  const all = [...cmdEntries, ...objEntries];
+  // Empty query: last 5 actions (Ctrl+K) or last opened pages (Ctrl+P) first, then everything else.
+  const recentKeys =
+    query.trim() !== ""
+      ? []
+      : listRecents(mode === "palette" ? "actions" : "pages").map(
+          (id) => `${mode === "palette" ? "cmd" : "obj"}:${id}`,
+        );
+  const recentEntries = recentKeys.flatMap((k) => {
+    const hit = all.find((e) => e.key === k);
+    return hit ? [{ ...hit, recent: true }] : [];
+  });
+  const entries = [...recentEntries, ...all.filter((e) => !recentKeys.includes(e.key))];
   const safeIdx = entries.length === 0 ? 0 : Math.min(activeIndex, entries.length - 1);
   const label = t(mode === "palette" ? "palette.commandLabel" : "palette.switcherLabel");
   const ph = t(mode === "palette" ? "palette.commandPlaceholder" : "palette.switcherPlaceholder");
@@ -182,20 +198,29 @@ export function ShellPalette(props: { onSelect?: ((object: ObjectMeta) => void) 
         ) : (
           <div role="listbox" className="mt-2 flex max-h-72 flex-col gap-0.5 overflow-y-auto">
             {entries.map((item, idx) => (
-              <button
-                key={item.key}
-                type="button"
-                role="option"
-                aria-selected={idx === safeIdx}
-                onMouseEnter={() => setActiveIndex(idx)}
-                onClick={item.run}
-                className={OPTION_CLS}
-              >
-                <span className="truncate">{renderHighlighted(item.label, item.indices)}</span>
-                <span className="shrink-0 font-mono text-xs text-[color:var(--fg-muted)]">
-                  {item.badge}
-                </span>
-              </button>
+              <Fragment key={item.key}>
+                {(idx === 0 && item.recent) || (idx === recentEntries.length && idx > 0) ? (
+                  <div
+                    role="presentation"
+                    className="px-2.5 pt-1 pb-0.5 text-xs text-[color:var(--fg-muted)]"
+                  >
+                    {t(item.recent ? "palette.recentHeading" : "palette.allHeading")}
+                  </div>
+                ) : null}
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={idx === safeIdx}
+                  onMouseEnter={() => setActiveIndex(idx)}
+                  onClick={item.run}
+                  className={OPTION_CLS}
+                >
+                  <span className="truncate">{renderHighlighted(item.label, item.indices)}</span>
+                  <span className="shrink-0 font-mono text-xs text-[color:var(--fg-muted)]">
+                    {item.badge}
+                  </span>
+                </button>
+              </Fragment>
             ))}
           </div>
         )}

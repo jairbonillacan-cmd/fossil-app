@@ -48,5 +48,75 @@ export function fuzzyMatch(query: string, target: string): FuzzyMatch | null {
       qi++;
     }
   }
-  return qi === qChars.length ? { score, indices } : null;
+  if (qi === qChars.length) return { score, indices };
+  return typoMatch(qChars.join(""), tChars);
+}
+
+const wordsOf = (chars: string[]) => {
+  const words: { text: string; start: number }[] = [];
+  let start = -1;
+  chars.forEach((ch, i) => {
+    const isSep = /[\s\-_/]/.test(ch);
+    if (!isSep && start < 0) start = i;
+    if ((isSep || i === chars.length - 1) && start >= 0) {
+      const end = isSep ? i : i + 1;
+      words.push({ text: chars.slice(start, end).join(""), start });
+      start = -1;
+    }
+  });
+  return words;
+};
+
+/** Optimal string alignment distance: insert, delete, replace and swap of neighbours cost 1. */
+export function editDistance(a: string, b: string): number {
+  const rows = Array.from({ length: a.length + 1 }, (_, i) => [
+    i,
+    ...new Array<number>(b.length).fill(0),
+  ]);
+  for (let j = 1; j <= b.length; j++) (rows[0] as number[])[j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      let d = Math.min(
+        ((rows[i - 1] as number[])[j] as number) + 1,
+        ((rows[i] as number[])[j - 1] as number) + 1,
+        ((rows[i - 1] as number[])[j - 1] as number) + cost,
+      );
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1])
+        d = Math.min(d, ((rows[i - 2] as number[])[j - 2] as number) + 1);
+      (rows[i] as number[])[j] = d;
+    }
+  }
+  return (rows[a.length] as number[])[b.length] as number;
+}
+
+const tolerance = (len: number) => (len <= 3 ? 0 : len <= 5 ? 1 : 2);
+
+/** Typo fallback (#86): every query word must be within edit distance of a target word or its prefix. */
+function typoMatch(query: string, tChars: string[]): FuzzyMatch | null {
+  const tokens = query.split(/[\s\-_/]+/).filter(Boolean);
+  if (tokens.length === 0) return null;
+  const words = wordsOf(tChars);
+  const used = new Set<number>();
+  const indices: number[] = [];
+  let penalty = 0;
+  for (const token of tokens) {
+    const max = tolerance(token.length);
+    let best: { at: number; dist: number; len: number } | null = null;
+    words.forEach((w, at) => {
+      if (used.has(at)) return;
+      for (const len of [token.length, token.length - 1, token.length + 1, w.text.length]) {
+        if (len < 1 || len > w.text.length) continue;
+        const dist = editDistance(token, w.text.slice(0, len));
+        if (dist <= max && (best === null || dist < best.dist)) best = { at, dist, len };
+      }
+    });
+    if (best === null) return null;
+    const hit = best as { at: number; dist: number; len: number };
+    used.add(hit.at);
+    penalty += hit.dist;
+    const w = words[hit.at] as { text: string; start: number };
+    for (let k = 0; k < hit.len; k++) indices.push(w.start + k);
+  }
+  return { score: -100 - penalty * 10, indices: indices.sort((x, y) => x - y) };
 }
