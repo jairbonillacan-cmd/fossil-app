@@ -86,6 +86,10 @@
       "alt": "Imagen adjunta",
       "loading": "Cargando imagen…",
       "error": "No se pudo cargar la imagen"
+    },
+    "code": {
+      "language": "Lenguaje del bloque de código",
+      "plain": "Texto plano"
     }
   },
   "settings": {

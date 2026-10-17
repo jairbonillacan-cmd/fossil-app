@@ -170,6 +170,46 @@
   font-size: 14px;
 }
 
+/* Code blocks (#144): language selector */
+.fossil-editor pre {
+  position: relative;
+}
+
+.fossil-code-bar {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+
+.fossil-editor pre:hover .fossil-code-bar,
+.fossil-editor pre:focus-within .fossil-code-bar {
+  opacity: 1;
+}
+
+.fossil-code-language {
+  height: 24px;
+  padding: 0 4px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--fg-muted);
+  font-family: var(--font-ui);
+  font-size: 12px;
+}
+
+.fossil-code-language:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fossil-code-bar {
+    transition: none;
+  }
+}
+
 .fossil-slash-menu {
   position: fixed;
   z-index: 50;
