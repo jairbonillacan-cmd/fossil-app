@@ -10,6 +10,7 @@ pub fn migrations() -> Migrations<'static> {
     Migrations::new(vec![
         M::up(include_str!("../migrations/0001_init.sql")),
         M::up(include_str!("../migrations/0002_fts_search.sql")),
+        M::up(include_str!("../migrations/0003_versions_snapshots.sql")),
     ])
 }
 
@@ -49,6 +50,8 @@ mod tests {
             "blocks",
             "links",
             "tags",
+            "object_versions",
+            "workspace_snapshots",
         ] {
             let count: i64 = conn
                 .query_row(
@@ -135,5 +138,91 @@ mod tests {
             .query_row("PRAGMA busy_timeout", [], |r| r.get(0))
             .unwrap();
         assert_eq!(timeout, 5_000);
+    }
+    #[test]
+    fn migration_0003_upgrades_an_existing_vault_and_enforces_trigger_tags() {
+        use crate::snapshots::{SnapshotTriggerKind, VersionTriggerKind};
+
+        let file =
+            std::env::temp_dir().join(format!("fossil-core-0003-{}.db", ulid::Ulid::generate()));
+        let path = file.to_str().unwrap_or_default().to_owned();
+        {
+            // An R1 vault at schema 2 with a page in it.
+            let mut conn = rusqlite::Connection::open(&path).unwrap();
+            rusqlite_migration::Migrations::new(vec![
+                rusqlite_migration::M::up(include_str!("../migrations/0001_init.sql")),
+                rusqlite_migration::M::up(include_str!("../migrations/0002_fts_search.sql")),
+            ])
+            .to_latest(&mut conn)
+            .unwrap();
+            conn.execute(
+                "INSERT INTO objects(id, types, title, created_at, updated_at, archived)
+                 VALUES ('01H00000000000000000000001', '[\"Page\"]', 'Plan Acme', 1, 1, 0)",
+                [],
+            )
+            .unwrap();
+        }
+        let conn = open_vault(&path).unwrap();
+        let version: i64 = conn
+            .query_row("PRAGMA user_version", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(version, 3);
+        let kept: String = conn
+            .query_row("SELECT title FROM objects", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(kept, "Plan Acme", "existing data survives the upgrade");
+
+        for (i, kind) in VersionTriggerKind::ALL.into_iter().enumerate() {
+            conn.execute(
+                "INSERT INTO object_versions(version_id, object_id, title, trigger_kind,
+                   payload, byte_size, created_at)
+                 VALUES (?1, '01H00000000000000000000001', 'Plan Acme', ?2, x'00', 1, ?3)",
+                rusqlite::params![format!("v{i}"), kind.as_sql(), i as i64],
+            )
+            .unwrap();
+        }
+        for (i, kind) in SnapshotTriggerKind::ALL.into_iter().enumerate() {
+            conn.execute(
+                "INSERT INTO workspace_snapshots(snapshot_id, snapshot_path, trigger_kind,
+                   object_count, attachment_count, total_bytes, created_at)
+                 VALUES (?1, '.fossil/backups/s', ?2, 1, 0, 10, ?3)",
+                rusqlite::params![format!("s{i}"), kind.as_sql(), i as i64],
+            )
+            .unwrap();
+        }
+        let bad_version = conn.execute(
+            "INSERT INTO object_versions(version_id, object_id, title, trigger_kind,
+               payload, byte_size, created_at)
+             VALUES ('bad', '01H00000000000000000000001', 't', 'Manual', x'00', 1, 1)",
+            [],
+        );
+        assert!(bad_version.is_err(), "CHECK rejects unknown version tags");
+        let bad_snapshot = conn.execute(
+            "INSERT INTO workspace_snapshots(snapshot_id, snapshot_path, trigger_kind,
+               object_count, attachment_count, total_bytes, integrity_ok, created_at)
+             VALUES ('bad', 'p', 'manual', 0, 0, 0, 2, 1)",
+            [],
+        );
+        assert!(
+            bad_snapshot.is_err(),
+            "CHECK rejects non-boolean integrity_ok"
+        );
+        let orphan = conn.execute(
+            "INSERT INTO object_versions(version_id, object_id, title, trigger_kind,
+               payload, byte_size, created_at)
+             VALUES ('orphan', '01H0000000000000000000000Z', 't', 'manual', x'00', 1, 1)",
+            [],
+        );
+        assert!(orphan.is_err(), "versions need an existing object");
+
+        conn.execute("DELETE FROM objects", []).unwrap();
+        let left: i64 = conn
+            .query_row("SELECT COUNT(*) FROM object_versions", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(left, 0, "versions cascade with their object");
+        drop(conn);
+        for suffix in ["", "-wal", "-shm"] {
+            let _ = std::fs::remove_file(format!("{path}{suffix}"));
+        }
     }
 }

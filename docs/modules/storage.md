@@ -3,8 +3,8 @@
 **Rutas:** `crates/fossil-core/src/storage.rs`, `crates/fossil-core/migrations/`
 **Contratos públicos:** `open_vault(path) -> Connection` (aplica migraciones con `busy_timeout(5000)`, WAL + foreign_keys), `migrations()`.
 
-## Esquema (0001_init.sql + 0002_fts_search.sql)
-`objects` (meta, `types` como JSON array) · `object_updates` (log Yjs: `payload` BLOB + `seq`) · `object_snapshots` (compactación) · `blocks` · `links` (con CHECK de kind) · `tags` · `fts_objects` (FTS5, unicode61 remove_diacritics 2, poblando objetos activos al migrar).
+## Esquema (0001_init.sql + 0002_fts_search.sql + 0003_versions_snapshots.sql)
+`objects` (meta, `types` como JSON array) · `object_updates` (log Yjs: `payload` BLOB + `seq`) · `object_snapshots` (compactación) · `blocks` · `links` (con CHECK de kind) · `tags` · `fts_objects` (FTS5, unicode61 remove_diacritics 2, poblando objetos activos al migrar) · `object_versions` y `workspace_snapshots` (0003, ver §Confianza de datos).
 
 ## Reglas
 - **Migraciones append-only:** nunca edites un archivo ya publicado; agrega `000N_*.sql` y súbelo a `migrations()`.
@@ -17,7 +17,7 @@
 - `rusqlite_migration` exige `&mut Connection` en `to_latest`.
 - specta va fijado con `=` y feature `derive` explícito en fossil-core (no es default).
 
-**ADRs relacionados:** 0004 (SQLite + espejo Markdown), 0005 (modelo de objetos)
+**ADRs relacionados:** 0004 (SQLite + espejo Markdown), 0005 (modelo de objetos), 0018 (snapshots con `VACUUM INTO`)
 
 ## Metadatos (#17, #57, #118)
 `object_store::{create,get,list,update,archive,move_object}` opera sobre una conexión de bóveda.
@@ -66,3 +66,12 @@ Una apertura fallida conserva la conexión anterior. Mutaciones emiten `object:c
 - **Lectura:** `load` solo acepta `attachments/<nombre>` sin `..`, subcarpetas ni separadores `\`, así que el webview no puede leer otros archivos de la bóveda. Antes de leer o escribir se verifica con `fs_guard::reject_link` que ni `attachments/` ni el archivo sean un enlace (junction/symlink).
 - **IPC:** `attachment_save(fileName, bytes) -> string` y `attachment_load(path) -> number[]`. La E/S de archivos va fuera del lock de la sesión.
 - **Gotcha:** los bytes viajan como arreglo JSON (igual que `object_load_doc`). Sirve para la alpha; si las imágenes grandes se notan lentas, migrar a `tauri::ipc::Response` o al protocolo `asset`.
+
+## Confianza de datos: contrato (#160, spec `r1-trust`)
+Solo contrato: tablas, tipos y comandos stub. Los motores llegan con `r1-snapshots`, `r1-page-history`, `r1-save-chaos` y `r1-mirror-roundtrip`.
+- **`object_versions`** (Historial de versiones, distinta de `object_snapshots` de compactación): `version_id` Ulid, `object_id` FK con `ON DELETE CASCADE`, `title`, `trigger_kind`, `payload` (estado yrs completo, `encode_state_as_update_v1`), `plain_excerpt`, `byte_size`, `created_at` ms. Índice `(object_id, created_at DESC)`.
+- **`workspace_snapshots`**: `snapshot_id` Ulid, `snapshot_path`, `trigger_kind`, `object_count`, `attachment_count`, `total_bytes`, `integrity_ok` (0/1), `created_at` ms. Índice `created_at DESC`.
+- **Ajuste a la spec:** `CHECK` en `trigger_kind` (etiquetas snake_case), en conteos no negativos y en `integrity_ok IN (0,1)`, igual que `links.kind`.
+- **Tipos** (`fossil_core::snapshots`, specta): `SaveStatus{kind, failed_seq, last_error}` / `SaveStatusKind{Saved,Saving,Error}` (exportado con `.typ::<SaveStatus>()` porque ningún comando lo usa), `SnapshotTriggerKind{Manual,Scheduled,PreImport,PreRestore}`, `VersionTriggerKind{IdlePause,SignificantEdit,SessionClose,PreRestore,Manual}`, `RestoreConflictPolicy{CreateCopy,OverwriteWithBackupVersion}`, `WorkspaceSnapshotMeta`, `PageVersionSummary`, `PageVersionDiff`, `MirrorUnsupportedItem`, `MirrorRoundtripReport`. En SQLite los enums se guardan con `as_sql()` y se leen con `from_sql()` (devuelve `None` ante etiquetas desconocidas: dato hostil).
+- **Comandos** (`commands/snapshots.rs`, hoy `CoreError::NotImplemented`): `snapshot_create(trigger_kind)` · `snapshot_list()` · `snapshot_restore_workspace(snapshot_id, target_dir) -> VaultInfo` · `snapshot_restore_page(snapshot_id, object_id, policy) -> ObjectMeta` · `snapshot_restore_attachment(snapshot_id, relative_path) -> string` · `page_version_list(object_id)` · `page_version_diff(object_id, version_id)` · `page_version_restore(object_id, version_id) -> ObjectMeta` · `mirror_roundtrip_verify()`.
+- **Trampas:** `object_id` va como `ObjectId` (no `String` como en la spec), igual que el resto del contrato. `total_bytes` es `f64` porque specta prohíbe enteros de 64 bits; specta lo exporta como `number | null` (un `NaN` se serializa como `null`): el motor nunca debe producir `NaN` y la UI trata `null` como desconocido. El snapshot de SQLite es **solo** `VACUUM INTO` sobre una conexión de solo lectura + `PRAGMA quick_check` (ADR-0018); nunca `std::fs::copy` en caliente. `target_dir` y `relative_path` pasan por `fs_guard` y por el `manifest.json` antes de usarse.
