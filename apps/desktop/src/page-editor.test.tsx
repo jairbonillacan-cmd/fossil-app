@@ -1,8 +1,10 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import * as Y from "yjs";
 import type { ObjectMeta } from "./bindings";
 import { commands, events } from "./bindings";
 import { PageEditor } from "./page-editor";
+import { ShellTabs, useWorkspaceTabs } from "./shell-tabs";
 import "./i18n";
 
 // Commands are mocked like in page-body.test.tsx; the editor itself is real,
@@ -74,7 +76,9 @@ describe("PageEditor", () => {
       expect(screen.queryByRole("menuitem", { name: "Exportar Markdown" })).toBeNull();
       const toggle = screen.getByRole("button", { name: "Enlazada desde" });
       expect(toggle.getAttribute("aria-expanded")).toBe("true");
-      expect(await screen.findByRole("complementary", { name: "Enlazada desde" })).not.toBeNull();
+      expect(
+        await screen.findByRole("complementary", { name: "Enlazada desde" }, { timeout: SLOW }),
+      ).not.toBeNull();
       await awaitEditor(container);
       expect(commands.objectLoadDoc).toHaveBeenCalledWith("obj-1");
       expect(commands.objectApplyUpdate).not.toHaveBeenCalled();
@@ -295,4 +299,83 @@ describe("PageEditor", () => {
     expect(document.activeElement).toBe(moreBtn);
     printSpy.mockRestore();
   });
+
+  it(
+    "shows Guardado / Guardando… / Error al guardar with Reintentar and confirms before closing tab or window (#164)",
+    async () => {
+      let activeDoc: Y.Doc | null = null;
+      const origGetXml = Y.Doc.prototype.getXmlFragment;
+      const docSpy = vi.spyOn(Y.Doc.prototype, "getXmlFragment").mockImplementation(function (
+        this: Y.Doc,
+        name,
+      ) {
+        activeDoc = this;
+        return origGetXml.call(this, name);
+      });
+      const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+
+      function WorkspaceHarness() {
+        const tabs = useWorkspaceTabs([
+          { id: "t1", object: page, pinned: false, history: [page], historyIndex: 0 },
+        ]);
+        return (
+          <div>
+            <ShellTabs {...tabs} />
+            <PageEditor object={tabs.selectedObject} />
+          </div>
+        );
+      }
+
+      const { container } = render(<WorkspaceHarness />);
+      await awaitEditor(container);
+      const statusEl = () => container.querySelector("output[data-save-status]") as HTMLElement;
+      expect(statusEl().getAttribute("data-save-status")).toBe("Saved");
+      expect(statusEl().textContent).toContain("Guardado");
+
+      vi.mocked(commands.objectApplyUpdate).mockResolvedValueOnce({
+        status: "error",
+        error: { Storage: "disk full" },
+      });
+
+      act(() => {
+        activeDoc?.getMap("draft").set("k1", "v1");
+      });
+      expect(statusEl().getAttribute("data-save-status")).toBe("Saving");
+      expect(statusEl().textContent).toContain("Guardando…");
+
+      // Closing window or tab while Saving asks for confirmation.
+      const unloadSaving = new Event("beforeunload", { cancelable: true });
+      window.dispatchEvent(unloadSaving);
+      expect(unloadSaving.defaultPrevented).toBe(true);
+      fireEvent.click(screen.getByRole("button", { name: "Cerrar pestaña" }));
+      expect(confirmSpy).toHaveBeenCalledOnce();
+      expect(screen.getAllByRole("tab")).toHaveLength(1);
+
+      // After the 250 ms batch window fails, status locks to Error (never Saved).
+      await vi.waitFor(() => expect(statusEl().getAttribute("data-save-status")).toBe("Error"), {
+        timeout: SLOW,
+      });
+      expect(statusEl().getAttribute("data-failed-seq")).toBe("1");
+      expect(statusEl().getAttribute("title")).toContain("disk full");
+      expect(statusEl().textContent).toContain("Error al guardar");
+      expect(statusEl().textContent).not.toContain("Guardado");
+
+      // Closing tab with Ctrl+W while in Error also asks for confirmation.
+      fireEvent.keyDown(window, { key: "w", ctrlKey: true });
+      expect(confirmSpy).toHaveBeenCalledTimes(2);
+      expect(screen.getAllByRole("tab")).toHaveLength(1);
+
+      // Clicking Reintentar persists the queued update and transitions to Guardado.
+      fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
+      await vi.waitFor(() => expect(statusEl().getAttribute("data-save-status")).toBe("Saved"), {
+        timeout: SLOW,
+      });
+      expect(statusEl().textContent).toContain("Guardado");
+      expect(commands.objectApplyUpdate).toHaveBeenCalledTimes(2);
+
+      docSpy.mockRestore();
+      confirmSpy.mockRestore();
+    },
+    SLOW,
+  );
 });

@@ -1,9 +1,14 @@
 import { type EditorTranslator, FossilEditor } from "@fossil/editor";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as Y from "yjs";
-import type { ObjectId } from "./bindings";
+import type { ObjectId, SaveStatus } from "./bindings";
 import { createObjectTransport, DocTransportError } from "./doc-transport";
+
+export interface PageBodyProps {
+  objectId: ObjectId;
+  onSaveStatusChange?: ((status: SaveStatus, retry: () => Promise<void>) => void) | undefined;
+}
 
 /**
  * Page body (#58): the real block editor bound to the object's Yjs document.
@@ -12,7 +17,7 @@ import { createObjectTransport, DocTransportError } from "./doc-transport";
  * component by object id; the doc is created in an effect and destroyed in its
  * cleanup (StrictMode-safe: a remount gets a fresh doc, never a destroyed one).
  */
-export function PageBody({ objectId }: { objectId: ObjectId }) {
+export function PageBody({ objectId, onSaveStatusChange }: PageBodyProps) {
   const { t } = useTranslation();
   const [doc, setDoc] = useState<Y.Doc | null>(null);
   useEffect(() => {
@@ -22,10 +27,20 @@ export function PageBody({ objectId }: { objectId: ObjectId }) {
   }, []);
   const transport = useMemo(() => createObjectTransport(objectId), [objectId]);
   const [failed, setFailed] = useState<string | null>(null);
+  const saveKindRef = useRef<SaveStatus["kind"]>("Saved");
   // The editor's `editor.slash.*` strings come from the app catalog, so they follow the language setting.
   const editorT = useCallback<EditorTranslator>((key) => t(key), [t]);
+  const handleSaveStatus = useCallback(
+    (status: SaveStatus, retry: () => Promise<void>) => {
+      saveKindRef.current = status.kind;
+      if (status.kind === "Saved") setFailed(null);
+      onSaveStatusChange?.(status, retry);
+    },
+    [onSaveStatusChange],
+  );
 
   const onError = (error: unknown) => {
+    if (onSaveStatusChange && saveKindRef.current === "Error") return;
     const detail = error instanceof DocTransportError ? error.message : String(error);
     setFailed(
       error instanceof DocTransportError && error.error === "NotImplemented"
@@ -48,6 +63,7 @@ export function PageBody({ objectId }: { objectId: ObjectId }) {
           transport={transport}
           t={editorT}
           onError={onError}
+          onSaveStatusChange={handleSaveStatus}
           className="flex-1"
         />
       )}

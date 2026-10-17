@@ -15,7 +15,7 @@ import { LinkAutocompleteMenu, type LinkAutocompleteProps, LinksExtension } from
 import { Outliner } from "./outliner";
 import { SafeLink } from "./safe-links";
 import { SlashMenu } from "./slash-menu";
-import { createUpdateBatcher, type DocTransport } from "./transport";
+import { createUpdateBatcher, type DocTransport, type SaveStatus } from "./transport";
 import { YSync } from "./y-sync";
 
 /** Yjs body fragment key (docs/specs/r1-objects-storage.md). */
@@ -37,6 +37,8 @@ export interface FossilEditorProps extends Omit<LinkAutocompleteProps, "editor" 
   onReady?: (editor: Editor) => void;
   /** Called when `load` or `apply` fail. */
   onError?: (error: unknown) => void;
+  /** Called when the Yjs transport batcher status changes (#164). */
+  onSaveStatusChange?: (status: SaveStatus, retry: () => Promise<void>) => void;
   className?: string;
 }
 
@@ -109,6 +111,7 @@ export function FossilEditor({
   t = defaultEditorTranslator,
   onReady,
   onError,
+  onSaveStatusChange,
   className,
   ...linkProps
 }: FossilEditorProps) {
@@ -117,12 +120,19 @@ export function FossilEditor({
   );
   const onErrorRef = useRef(onError);
   onErrorRef.current = onError;
+  const onSaveStatusRef = useRef(onSaveStatusChange);
+  onSaveStatusRef.current = onSaveStatusChange;
 
   useEffect(() => {
     let cancelled = false;
+    const retry = (): Promise<void> => batcher.retry();
     const batcher = createUpdateBatcher(transport, {
       onError: (err: unknown) => onErrorRef.current?.(err),
+      onStatusChange: (status) => {
+        if (!cancelled) onSaveStatusRef.current?.(status, retry);
+      },
     });
+    onSaveStatusRef.current?.(batcher.status(), retry);
     const onUpdate = (update: Uint8Array, origin: unknown) => {
       if (origin !== REMOTE) batcher.push(update);
     };

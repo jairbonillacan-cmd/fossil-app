@@ -1,8 +1,8 @@
 import { Button } from "@fossil/ui";
-import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AiChatPanel } from "./ai-panel";
-import type { ObjectMeta } from "./bindings";
+import type { ObjectMeta, SaveStatus } from "./bindings";
 import { commands } from "./bindings";
 import { exportObjectMarkdown, printObjectPdf } from "./page-export";
 import { registerCommand } from "./shell-commands";
@@ -16,6 +16,7 @@ const PageBacklinksPanel = lazy(() =>
 );
 
 const TITLE_COMMIT_MS = 400;
+const SAVED_STATUS: SaveStatus = { kind: "Saved", failed_seq: null, last_error: null };
 
 export interface PageEditorProps {
   object: ObjectMeta | null;
@@ -34,6 +35,12 @@ export function PageEditor({ object, onSelect, onObjectUpdated }: PageEditorProp
   const lastObjectIdRef = useRef<string | null>(object?.id ?? null);
   const timerRef = useRef<number | null>(null);
   const inFlightSaveRef = useRef<Promise<void> | null>(null);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>(SAVED_STATUS);
+  const retrySaveRef = useRef<(() => Promise<void>) | null>(null);
+  const handleSaveStatus = useCallback((status: SaveStatus, retry: () => Promise<void>) => {
+    retrySaveRef.current = retry;
+    setSaveStatus(status);
+  }, []);
   const [exportFailed, setExportFailed] = useState(false);
   const [backlinksOpen, setBacklinksOpen] = useState(true);
   const [aiOpen, setAiOpen] = useState(false);
@@ -49,6 +56,36 @@ export function PageEditor({ object, onSelect, onObjectUpdated }: PageEditorProp
   const menuItemRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   useEffect(() => {
+    if (object === null || saveStatus.kind === "Saved") return undefined;
+    const confirmClose = () => window.confirm(t("editor.saveStatus.confirmClose"));
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = t("editor.saveStatus.confirmClose");
+    };
+    const onClickCapture = (event: MouseEvent) => {
+      const btn = (event.target as Element | null)?.closest?.("button");
+      if (btn?.getAttribute("aria-label") === t("tabs.close") && !confirmClose()) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
+    const onKeyCapture = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "w" && !confirmClose()) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    window.addEventListener("click", onClickCapture, true);
+    window.addEventListener("keydown", onKeyCapture, true);
+    return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload);
+      window.removeEventListener("click", onClickCapture, true);
+      window.removeEventListener("keydown", onKeyCapture, true);
+    };
+  }, [object, saveStatus.kind, t]);
+
+  useEffect(() => {
     const nextId = object?.id ?? null;
     if (lastObjectIdRef.current !== nextId) {
       lastObjectIdRef.current = nextId;
@@ -61,6 +98,8 @@ export function PageEditor({ object, onSelect, onObjectUpdated }: PageEditorProp
       titleRef.current = initialTitle;
       lastSavedTitleRef.current = initialTitle.trim();
       inFlightSaveRef.current = null;
+      retrySaveRef.current = null;
+      setSaveStatus(SAVED_STATUS);
       setExportFailed(false);
       setMenuOpen(false);
     } else if (
@@ -283,7 +322,7 @@ export function PageEditor({ object, onSelect, onObjectUpdated }: PageEditorProp
         className="flex h-full min-w-0 flex-1 flex-col overflow-y-auto [scrollbar-gutter:stable] print:h-auto print:overflow-visible"
       >
         <div className="mx-auto flex min-h-full w-full max-w-2xl flex-col gap-4 px-6 py-8 in-data-[density=compact]:gap-2.5 in-data-[density=compact]:py-5">
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
             <textarea
               ref={titleInputRef}
               rows={1}
@@ -303,9 +342,46 @@ export function PageEditor({ object, onSelect, onObjectUpdated }: PageEditorProp
                 }
               }}
               onBlur={() => void flushTitle(titleRef.current)}
-              className="min-w-0 flex-1 resize-none overflow-hidden break-words rounded border-0 bg-transparent px-0 py-0 text-3xl leading-tight font-semibold text-[color:var(--fg)] placeholder:text-[color:var(--fg-muted)] focus-visible:outline-2 focus-visible:outline-[color:var(--accent)] [field-sizing:content]"
+              className="min-w-40 flex-1 resize-none overflow-hidden break-words rounded border-0 bg-transparent px-0 py-0 text-3xl leading-tight font-semibold text-[color:var(--fg)] placeholder:text-[color:var(--fg-muted)] focus-visible:outline-2 focus-visible:outline-[color:var(--accent)] [field-sizing:content]"
             />
-            <div className="mt-1 flex shrink-0 items-center gap-1.5 print:hidden">
+            <div className="mt-1 flex min-w-0 max-w-full flex-wrap items-center gap-1.5 print:hidden">
+              <output
+                data-save-status={saveStatus.kind}
+                data-failed-seq={saveStatus.failed_seq ?? undefined}
+                title={saveStatus.last_error ?? undefined}
+                aria-live="polite"
+                className={`inline-flex max-w-full items-center gap-1.5 rounded px-2 py-0.5 text-xs ${saveStatus.kind === "Error" ? "border border-[color:var(--danger)] text-[color:var(--danger)]" : "text-[color:var(--fg-muted)]"}`}
+              >
+                <span
+                  aria-hidden="true"
+                  className={`text-[10px] leading-none ${saveStatus.kind === "Saved" ? "text-[color:var(--success)]" : saveStatus.kind === "Saving" ? "text-[color:var(--warning)]" : "text-[color:var(--danger)]"}`}
+                >
+                  {saveStatus.kind === "Saving" ? "◌" : "●"}
+                </span>
+                <span>
+                  {t(
+                    saveStatus.kind === "Saved"
+                      ? "editor.saveStatus.saved"
+                      : saveStatus.kind === "Saving"
+                        ? "editor.saveStatus.saving"
+                        : "editor.saveStatus.error",
+                  )}
+                </span>
+                {saveStatus.kind === "Error" && saveStatus.last_error && (
+                  <span className="max-w-20 truncate text-[color:var(--fg-muted)]">
+                    · {saveStatus.last_error}
+                  </span>
+                )}
+                {saveStatus.kind === "Error" && (
+                  <button
+                    type="button"
+                    onClick={() => void retrySaveRef.current?.()}
+                    className="rounded border border-[color:var(--border)] bg-[color:var(--bg-elevated)] px-2 py-0.5 text-xs font-medium text-[color:var(--fg)] hover:bg-[color-mix(in_srgb,var(--accent)_8%,transparent)] focus-visible:outline-2 focus-visible:outline-[color:var(--accent)]"
+                  >
+                    {t("editor.saveStatus.retry")}
+                  </button>
+                )}
+              </output>
               <Button
                 variant="secondary"
                 className="shrink-0"
@@ -414,7 +490,11 @@ export function PageEditor({ object, onSelect, onObjectUpdated }: PageEditorProp
           <div ref={bodyRef} className="flex flex-1 flex-col">
             {/* key: a new object remounts the body, so its Y.Doc and error state never leak across pages. */}
             <Suspense fallback={null}>
-              <PageBody key={object.id} objectId={object.id} />
+              <PageBody
+                key={object.id}
+                objectId={object.id}
+                onSaveStatusChange={handleSaveStatus}
+              />
             </Suspense>
           </div>
         </div>

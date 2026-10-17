@@ -47,6 +47,13 @@
     "exportMarkdown": "Exportar Markdown",
     "exportPdf": "Exportar PDF",
     "exportFailed": "No se pudo exportar la página. Inténtalo de nuevo.",
+    "saveStatus": {
+      "saved": "Guardado",
+      "saving": "Guardando…",
+      "error": "Error al guardar",
+      "retry": "Reintentar",
+      "confirmClose": "Hay cambios sin guardar en esta página. ¿Cerrar de todos modos?"
+    },
     "placeholder": "Escribe algo o pulsa «/» para insertar un bloque",
     "outliner": {
       "collapse": "Plegar sección",

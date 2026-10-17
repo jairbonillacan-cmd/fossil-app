@@ -36,6 +36,12 @@ export * from "./links";
 export { cleanPastedHTML, cleanPastedText, MAX_OUTLINER_INDENT, Outliner } from "./outliner";
 export type { SlashCommandItem, SlashMenuProps } from "./slash-menu";
 export { filterSlashItems, matchSlashQuery, SLASH_COMMAND_ITEMS, SlashMenu } from "./slash-menu";
-export type { DocTransport, UpdateBatcher, UpdateBatcherOptions } from "./transport";
+export type {
+  DocTransport,
+  SaveStatus,
+  SaveStatusKind,
+  UpdateBatcher,
+  UpdateBatcherOptions,
+} from "./transport";
 export { createUpdateBatcher } from "./transport";
 export { YSync } from "./y-sync";

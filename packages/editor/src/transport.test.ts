@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import * as Y from "yjs";
-import { createUpdateBatcher, type DocTransport } from "./transport";
+import { createUpdateBatcher, type DocTransport, type SaveStatus } from "./transport";
 
 /** One valid Yjs update carrying a unique key, so batches can be inspected after merging. */
 const makeUpdate = (key: string): Uint8Array => {
@@ -252,5 +252,60 @@ describe("createUpdateBatcher", () => {
     window.dispatchEvent(new Event("pagehide"));
     await Promise.resolve();
     expect(applied).toHaveLength(1);
+  });
+
+  it("tracks SaveStatus (Saved -> Saving -> Error with failed_seq/last_error -> Saved on retry) and never reports Saved after a failed delta (#164)", async () => {
+    vi.useFakeTimers();
+    const statuses: SaveStatus[] = [];
+    const applied: Uint8Array[] = [];
+    let shouldFail = false;
+    const transport: DocTransport = {
+      load: async () => new Uint8Array(),
+      apply: async (update) => {
+        if (shouldFail) throw new Error("IPC channel closed");
+        applied.push(update);
+      },
+    };
+    const batcher = createUpdateBatcher(transport, {
+      delayMs: 250,
+      onStatusChange: (s) => statuses.push(s),
+    });
+    expect(batcher.status()).toEqual({ kind: "Saved", failed_seq: null, last_error: null });
+
+    // Delta 1 succeeds: Saved -> Saving -> Saved.
+    batcher.push(makeUpdate("d1"));
+    expect(batcher.status()).toEqual({ kind: "Saving", failed_seq: null, last_error: null });
+    await vi.advanceTimersByTimeAsync(250);
+    expect(batcher.status()).toEqual({ kind: "Saved", failed_seq: null, last_error: null });
+
+    // Delta 2 and 3 fail: status locks to Error with failed_seq = 2 and last_error.
+    shouldFail = true;
+    batcher.push(makeUpdate("d2"));
+    batcher.push(makeUpdate("d3"));
+    expect(batcher.status().kind).toBe("Saving");
+    await vi.advanceTimersByTimeAsync(250);
+    expect(batcher.status()).toEqual({
+      kind: "Error",
+      failed_seq: 2,
+      last_error: "IPC channel closed",
+    });
+
+    // Delta 4 arrives while in Error: status never becomes Saved, failed_seq stays 2.
+    batcher.push(makeUpdate("d4"));
+    expect(batcher.status()).toEqual({
+      kind: "Error",
+      failed_seq: 2,
+      last_error: "IPC channel closed",
+    });
+
+    // Channel restored + retry() persists 100% of queued deltas (d2, d3, d4) and returns to Saved.
+    shouldFail = false;
+    await batcher.retry();
+    expect(batcher.status()).toEqual({ kind: "Saved", failed_seq: null, last_error: null });
+    expect(applied).toHaveLength(2);
+    expect(keysOf(applied[1] as Uint8Array).sort()).toEqual(["d2", "d3", "d4"]);
+    expect(statuses.map((s) => s.kind)).toEqual(["Saving", "Saved", "Saving", "Error", "Saved"]);
+    batcher.dispose();
+    vi.useRealTimers();
   });
 });
