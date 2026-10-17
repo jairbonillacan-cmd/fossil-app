@@ -32,7 +32,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="stylesheet" href="./base.css" />
     <link rel="stylesheet" href="./landing.css" />
-      <noscript><style>.shot-tabs,.window,.shot-note{display:none}</style></noscript>
+      <noscript><style>.shot-tabs{display:none}.shot-pane[hidden]{display:block}</style></noscript>
   </head>
   <body>
     <a class="skip-link" href="#contenido">Saltar al contenido</a>
@@ -80,25 +80,19 @@
         <p class="hero-links"><a href="/changelog/">Qué hay de nuevo</a> · <a href="/roadmap/">Roadmap</a></p>
       </section>
 
-      <section class="shot" aria-label="Demostración interactiva de Fossil">
-        <noscript>
-          <p class="shot-nojs">
-            La demostración necesita JavaScript. Mira lo que ya está disponible en el
-            <a href="/changelog/">changelog</a>.
-          </p>
-        </noscript>
-        <div class="shot-tabs" role="tablist" aria-label="Vistas de demostración" data-tabs>
+      <section class="shot" aria-label="Capturas de Fossil">
+        <div class="shot-tabs" role="tablist" aria-label="Pantallas de Fossil" data-tabs>
           <button
             type="button"
             class="shot-tab is-active"
             role="tab"
             tabindex="0"
             aria-selected="true"
-            aria-controls="pane-editor"
-            id="tab-editor"
-            data-pane="pane-editor"
+            aria-controls="pane-enlaces"
+            id="tab-enlaces"
+            data-pane="pane-enlaces"
           >
-            Página y esquemas
+            Enlaces y etiquetas
           </button>
           <button
             type="button"
@@ -106,11 +100,11 @@
             role="tab"
             tabindex="-1"
             aria-selected="false"
-            aria-controls="pane-search"
-            id="tab-search"
-            data-pane="pane-search"
+            aria-controls="pane-enlazada"
+            id="tab-enlazada"
+            data-pane="pane-enlazada"
           >
-            Búsqueda y Ctrl+K
+            Enlazada desde
           </button>
           <button
             type="button"
@@ -118,11 +112,11 @@
             role="tab"
             tabindex="-1"
             aria-selected="false"
-            aria-controls="pane-content"
-            id="tab-content"
-            data-pane="pane-content"
+            aria-controls="pane-busqueda"
+            id="tab-busqueda"
+            data-pane="pane-busqueda"
           >
-            Parrilla y aprobaciones <span class="soon">En el roadmap</span>
+            Búsqueda
           </button>
           <button
             type="button"
@@ -130,80 +124,101 @@
             role="tab"
             tabindex="-1"
             aria-selected="false"
-            aria-controls="pane-commerce"
-            id="tab-commerce"
-            data-pane="pane-commerce"
+            aria-controls="pane-paleta"
+            id="tab-paleta"
+            data-pane="pane-paleta"
           >
-            Rentabilidad y creativos <span class="soon">En el roadmap</span>
+            Paleta de comandos
           </button>
         </div>
 
-        <div class="window">
-          <div class="window-bar">
-            <div class="window-dots"><span></span><span></span><span></span></div>
-            <div class="window-crumb">Mi equipo / <strong>Plan Q4</strong></div>
-            <div class="window-actions">
-              <span class="kbd-pill">Ctrl+K</span>
-              <span class="bar-btn">Exportar .md</span>
-              <span class="bar-btn">Exportar PDF</span>
-              <span class="bar-btn is-on">Enlazada desde</span>
-            </div>
-          </div>
-
-          <!-- Vista 1: Página y esquemas -->
-          <div
-            class="window-body shot-pane is-active"
-            id="pane-editor"
-            role="tabpanel"
-            aria-labelledby="tab-editor"
-            aria-busy="true"
-            data-fragment="editor"
-          >
-            <p class="demo-loading">Cargando la demostración…</p>
-          </div>
-
-          <!-- Vista 2: Búsqueda y Paleta Ctrl+K -->
-          <div
-            class="window-body shot-pane"
-            id="pane-search"
-            role="tabpanel"
-            aria-labelledby="tab-search"
-            aria-busy="true"
-            data-fragment="search"
-            hidden
-          >
-            <p class="demo-loading">Cargando la demostración…</p>
-          </div>
-
-          <!-- Vista 3: Parrilla y aprobaciones (futuro) -->
-          <div
-            class="window-body shot-pane"
-            id="pane-content"
-            role="tabpanel"
-            aria-labelledby="tab-content"
-            aria-busy="true"
-            data-fragment="content"
-            hidden
-          >
-            <p class="demo-loading">Cargando la demostración…</p>
-          </div>
-
-          <!-- Vista 4: Rentabilidad y creativos (futuro) -->
-          <div
-            class="window-body shot-pane"
-            id="pane-commerce"
-            role="tabpanel"
-            aria-labelledby="tab-commerce"
-            aria-busy="true"
-            data-fragment="commerce"
-            hidden
-          >
-            <p class="demo-loading">Cargando la demostración…</p>
-          </div>
+        <div
+          class="shot-pane is-active"
+          id="pane-enlaces"
+          role="tabpanel"
+          aria-labelledby="tab-enlaces"
+        >
+          <picture>
+            <source type="image/avif" media="(prefers-color-scheme: dark)" srcset="./img/enlaces-dark.avif" />
+            <source type="image/webp" media="(prefers-color-scheme: dark)" srcset="./img/enlaces-dark.webp" />
+            <source type="image/avif" srcset="./img/enlaces-light.avif" />
+            <img
+              src="./img/enlaces-light.webp"
+              width="1200"
+              height="393"
+              alt="Al escribir [[ aparece la lista de páginas para enlazar o la opción de crear una nueva; las etiquetas, como #marca/acme, se muestran junto al texto."
+              loading="lazy"
+              decoding="async"
+            />
+          </picture>
         </div>
-      <p class="shot-note">
-          Las vistas marcadas «En el roadmap» todavía no existen:
-          <a href="/roadmap/">mira qué viene</a>.
+        <div
+          class="shot-pane"
+          id="pane-enlazada"
+          role="tabpanel"
+          aria-labelledby="tab-enlazada"
+          hidden
+        >
+          <picture>
+            <source type="image/avif" media="(prefers-color-scheme: dark)" srcset="./img/enlazada-dark.avif" />
+            <source type="image/webp" media="(prefers-color-scheme: dark)" srcset="./img/enlazada-dark.webp" />
+            <source type="image/avif" srcset="./img/enlazada-light.avif" />
+            <img
+              src="./img/enlazada-light.webp"
+              width="1600"
+              height="362"
+              alt="La página Campaña Q4 con el panel Enlazada desde a la derecha, que muestra qué páginas la enlazan y cuáles la mencionan sin enlace."
+              loading="lazy"
+              decoding="async"
+            />
+          </picture>
+        </div>
+        <div
+          class="shot-pane"
+          id="pane-busqueda"
+          role="tabpanel"
+          aria-labelledby="tab-busqueda"
+          hidden
+        >
+          <picture>
+            <source type="image/avif" media="(prefers-color-scheme: dark)" srcset="./img/busqueda-dark.avif" />
+            <source type="image/webp" media="(prefers-color-scheme: dark)" srcset="./img/busqueda-dark.webp" />
+            <source type="image/avif" srcset="./img/busqueda-light.avif" />
+            <img
+              src="./img/busqueda-light.webp"
+              width="1600"
+              height="531"
+              alt="Búsqueda global con el texto «campaña»: resultados de Páginas y de la Bitácora con la palabra resaltada."
+              loading="lazy"
+              decoding="async"
+            />
+          </picture>
+        </div>
+        <div
+          class="shot-pane"
+          id="pane-paleta"
+          role="tabpanel"
+          aria-labelledby="tab-paleta"
+          hidden
+        >
+          <picture>
+            <source type="image/avif" media="(prefers-color-scheme: dark)" srcset="./img/paleta-dark.avif" />
+            <source type="image/webp" media="(prefers-color-scheme: dark)" srcset="./img/paleta-dark.webp" />
+            <source type="image/avif" srcset="./img/paleta-light.avif" />
+            <img
+              src="./img/paleta-light.webp"
+              width="1600"
+              height="569"
+              alt="Paleta de comandos abierta con la lista de comandos y de páginas del Espacio."
+              loading="lazy"
+              decoding="async"
+            />
+          </picture>
+        </div>
+
+        <p class="shot-note">
+          Capturas de la app con un Espacio de ejemplo. Aprobaciones, vistas y datos de tu tienda y
+          tus anuncios: <a href="/roadmap/">en el roadmap</a>.
         </p>
       </section>
 

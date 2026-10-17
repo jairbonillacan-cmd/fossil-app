@@ -1,32 +1,7 @@
-// Demo tabs on the landing, following the WAI-ARIA tabs pattern:
+// Screenshot tabs on the landing, following the WAI-ARIA tabs pattern:
 // roving tabindex, ArrowLeft/ArrowRight (wrapping), Home and End, automatic activation.
-// Each panel is made focusable here (tabindex="0") so keyboard users can scroll it.
-//
-// The panels ship empty (aria-busy). Their HTML lives in site/demo/*.html and is fetched as a
-// separate chunk: the first one when the browser is idle after the page has loaded, the others
-// the first time their tab is opened. That keeps the demo out of the critical path.
-
-const fragments = {
-  editor: () => import("./demo/editor.html?raw"),
-  search: () => import("./demo/search.html?raw"),
-  content: () => import("./demo/content.html?raw"),
-  commerce: () => import("./demo/commerce.html?raw"),
-};
-
-async function load(panel) {
-  if (!panel || panel.dataset.state) return;
-  panel.dataset.state = "loading";
-  try {
-    const module = await fragments[panel.dataset.fragment]();
-    panel.innerHTML = module.default;
-    panel.dataset.state = "ready";
-  } catch {
-    panel.innerHTML =
-      '<p class="demo-loading">No se pudo cargar la demostración. Mira lo que ya está disponible en el <a href="/changelog/">changelog</a>.</p>';
-    panel.dataset.state = "error";
-  }
-  panel.removeAttribute("aria-busy");
-}
+// Each panel is made focusable here (tabindex="0") so keyboard users can scroll it sideways
+// on small screens, where the captures are wider than the viewport.
 
 const tablist = document.querySelector("[data-tabs]");
 
@@ -46,7 +21,6 @@ if (tablist) {
         panels[i].hidden = !active;
       }
     });
-    load(panels[index]);
     if (focus) tabs[index].focus();
   };
 
@@ -68,9 +42,4 @@ if (tablist) {
     event.preventDefault();
     select(next, { focus: true });
   });
-
-  const whenIdle = window.requestIdleCallback ?? ((run) => setTimeout(run, 200));
-  const start = () => whenIdle(() => load(panels[0]));
-  if (document.readyState === "complete") start();
-  else window.addEventListener("load", start, { once: true });
 }
