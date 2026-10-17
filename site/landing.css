@@ -239,7 +239,7 @@
 .window-body {
   display: grid;
   grid-template-columns: 200px minmax(0, 1fr) 230px;
-  min-height: 430px;
+  min-height: 580px;
 }
 
 .window-body[hidden] {
@@ -248,6 +248,47 @@
 
 .shot-pane:focus-visible {
   outline-offset: -3px;
+}
+
+/* Panels start empty and are filled by tabs.js (aria-busy), or show a message on error. */
+.shot-pane:not([hidden])[aria-busy="true"],
+.shot-pane:not([hidden])[data-state="error"] {
+  display: block;
+  padding: 28px 36px;
+}
+
+.demo-loading {
+  margin: 0;
+  font-size: 14px;
+  color: var(--fg-muted);
+}
+
+.shot-note,
+.shot-nojs {
+  margin: 16px 0 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--fg-muted);
+}
+
+a.soon {
+  text-decoration: none;
+}
+
+a.soon:hover {
+  border-color: var(--fg);
+  color: var(--fg);
+}
+
+.hero-links {
+  margin: 14px 0 0;
+  font-size: 14px;
+  color: var(--fg-muted);
+}
+
+.hero-links a,
+.fineprint a {
+  color: inherit;
 }
 
 .mock-side {
@@ -1046,6 +1087,7 @@
 
   .window-body {
     grid-template-columns: minmax(0, 1fr);
+    min-height: 700px;
   }
 
   .mock-side {

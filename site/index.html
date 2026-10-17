@@ -32,6 +32,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="stylesheet" href="./base.css" />
     <link rel="stylesheet" href="./landing.css" />
+      <noscript><style>.shot-tabs,.window,.shot-note{display:none}</style></noscript>
   </head>
   <body>
     <a class="skip-link" href="#contenido">Saltar al contenido</a>
@@ -53,12 +54,11 @@
 
     <main id="contenido" tabindex="-1">
       <section class="hero">
-        <p class="eyebrow">Alpha para Windows 10 y 11 de 64 bits</p>
-        <h1>El trabajo de tu equipo, en un solo grafo.</h1>
+        <p class="eyebrow">Alfa para Windows 10 y 11 de 64 bits</p>
+        <h1>El trabajo de tu equipo, en un solo lugar.</h1>
         <p class="lede">
-          Notas, tareas y contenido conectados entre sí. Fossil guarda todo en tu computadora, abre en
-          menos de un segundo y funciona sin conexión. Pronto podrás gestionar aprobaciones y ver los
-          datos de tu tienda y tus anuncios.
+          Para equipos de marketing, e-commerce, datos y redes: notas, tareas y páginas enlazadas en
+          una app local, sin repartirlas entre varias herramientas.
         </p>
         <div class="actions">
           <a
@@ -67,19 +67,26 @@
             href="https://github.com/jairbonillacan-cmd/fossil-app/releases"
             >Descargar para Windows</a
           >
-          <a class="button" href="/changelog/">Qué hay de nuevo</a>
-          <a class="button" href="/roadmap/">Ver el roadmap</a>
         </div>
         <p class="download-meta" data-download-meta hidden></p>
         <p class="download-note" data-download-note hidden>
           Versión de prueba: puede tener errores. Conviene respaldar tu Espacio antes de instalarla.
         </p>
         <p class="fineprint">
-          Windows 10 y 11 de 64 bits · Tus archivos siempre en Markdown
+          Funciona sin conexión y guarda todo en tu computadora, también en Markdown. Aprobaciones y
+          datos de tu tienda y tus anuncios:
+          <a href="/roadmap/">en el roadmap</a>.
         </p>
+        <p class="hero-links"><a href="/changelog/">Qué hay de nuevo</a> · <a href="/roadmap/">Roadmap</a></p>
       </section>
 
       <section class="shot" aria-label="Demostración interactiva de Fossil">
+        <noscript>
+          <p class="shot-nojs">
+            La demostración necesita JavaScript. Mira lo que ya está disponible en el
+            <a href="/changelog/">changelog</a>.
+          </p>
+        </noscript>
         <div class="shot-tabs" role="tablist" aria-label="Vistas de demostración" data-tabs>
           <button
             type="button"
@@ -115,7 +122,7 @@
             id="tab-content"
             data-pane="pane-content"
           >
-            Parrilla y aprobaciones <span class="soon">Próximamente</span>
+            Parrilla y aprobaciones <span class="soon">En el roadmap</span>
           </button>
           <button
             type="button"
@@ -127,7 +134,7 @@
             id="tab-commerce"
             data-pane="pane-commerce"
           >
-            Rentabilidad y creativos <span class="soon">Próximamente</span>
+            Rentabilidad y creativos <span class="soon">En el roadmap</span>
           </button>
         </div>
 
@@ -144,341 +151,60 @@
           </div>
 
           <!-- Vista 1: Página y esquemas -->
-          <div class="window-body shot-pane is-active" id="pane-editor" role="tabpanel" aria-labelledby="tab-editor">
-            <aside class="mock-side">
-              <strong>Mi equipo</strong>
-              <span class="mock-today">Hoy · 15 oct</span>
-              <span class="mock-search">Buscar en el Espacio…</span>
-              <p class="mock-group">Páginas</p>
-              <span class="is-active">Plan Q4</span>
-              <span>Campaña Acme Verano</span>
-              <span>Parrilla noviembre</span>
-              <span>Ideas para redes</span>
-              <span>Reunión semanal</span>
-              <p class="mock-group">Etiquetas</p>
-              <span class="mock-tag">#marca/acme</span>
-              <span class="mock-tag">#campaña</span>
-              <span class="mock-tag">#trimestre</span>
-            </aside>
-            <article class="mock-page">
-              <div class="mock-page-head">
-                <p class="mock-title">Plan Q4</p>
-                <div class="mock-tags">
-                  <span>#marca/acme</span>
-                  <span>#trimestre</span>
-                </div>
-              </div>
-              <div class="mock-callout">
-                <strong>Meta del trimestre:</strong> conectar cada pieza aprobada con su gasto en
-                anuncios y su margen real en la tienda.
-              </div>
-              <p class="mock-h">Objetivos</p>
-              <ul>
-                <li>
-                  Cerrar el brief de <span class="mock-link">[[Campaña Acme Verano]]</span> con los
-                  productos clave
-                </li>
-                <li>
-                  Entregar la <span class="mock-link">[[Parrilla noviembre]]</span> lista para
-                  aprobación del cliente
-                </li>
-              </ul>
-              <p class="mock-h">Tareas de la semana</p>
-              <ul class="mock-tasks">
-                <li class="done">Definir pilares y voz de marca de Acme</li>
-                <li class="done">Subir creativos de lanzamiento al Espacio</li>
-                <li>Enviar enlace de aprobación de la primera quincena</li>
-                <li>Revisar resultados de la primera semana</li>
-              </ul>
-              <div class="mock-table-scroll">
-              <table class="mock-table">
-                <thead>
-                  <tr>
-                    <th>Canal</th>
-                    <th>Piezas</th>
-                    <th>Estado</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>Instagram · Reels y feed</td>
-                    <td>8</td>
-                    <td>En revisión</td>
-                  </tr>
-                  <tr>
-                    <td>TikTok · Video corto</td>
-                    <td>6</td>
-                    <td>Borrador</td>
-                  </tr>
-                </tbody>
-              </table>
-              </div>
-              <div class="mock-foot">
-                <span><code>/</code> bloques · <code>[[</code> enlaces · <code>#</code> etiquetas · <code>Tab</code> sangría</span>
-                <span>148 palabras · 912 caracteres</span>
-              </div>
-            </article>
-            <aside class="mock-backlinks">
-              <p class="mock-panel-title">Enlazada desde · 2</p>
-              <div class="mock-backlink-card">
-                <strong>Campaña Acme Verano</strong>
-                <p>…alineada con los objetivos de <mark>Plan Q4</mark> para el cierre de año…</p>
-              </div>
-              <div class="mock-backlink-card">
-                <strong>15 de octubre de 2026</strong>
-                <p>…revisar pendientes de <mark>Plan Q4</mark> antes de la llamada…</p>
-              </div>
-              <p class="mock-panel-title">Menciones sin enlace · 1</p>
-              <div class="mock-backlink-card">
-                <div class="mock-backlink-row">
-                  <strong>Reunión semanal</strong>
-                  <span class="mock-mini-btn">Enlazar</span>
-                </div>
-                <p>…ajustar el calendario del Plan Q4 con diseño…</p>
-              </div>
-            </aside>
+          <div
+            class="window-body shot-pane is-active"
+            id="pane-editor"
+            role="tabpanel"
+            aria-labelledby="tab-editor"
+            aria-busy="true"
+            data-fragment="editor"
+          >
+            <p class="demo-loading">Cargando la demostración…</p>
           </div>
 
           <!-- Vista 2: Búsqueda y Paleta Ctrl+K -->
-          <div class="window-body shot-pane" id="pane-search" role="tabpanel" aria-labelledby="tab-search" hidden>
-            <aside class="mock-side">
-              <strong>Mi equipo</strong>
-              <span class="mock-today">Hoy · 15 oct</span>
-              <span class="is-active">Búsqueda global</span>
-              <p class="mock-group">Filtros activos</p>
-              <span class="mock-tag">tag:#marca/acme</span>
-              <span class="mock-tag">type:page</span>
-              <span class="mock-tag">-borrador</span>
-            </aside>
-            <article class="mock-page">
-              <div class="mock-search-bar">
-                <code>tag:#marca/acme type:page lanzamiento -borrador</code>
-                <span class="mock-search-time">4 resultados · 6 ms</span>
-              </div>
-              <div class="mock-results">
-                <div class="mock-result">
-                  <div class="mock-result-head">
-                    <strong>Campaña Acme Verano</strong>
-                    <span class="mock-badge">Página · #marca/acme</span>
-                  </div>
-                  <p>
-                    Brief de <mark>lanzamiento</mark> con presupuesto por canal, objetivos de ROAS y
-                    piezas principales conectadas a la tienda.
-                  </p>
-                </div>
-                <div class="mock-result">
-                  <div class="mock-result-head">
-                    <strong>Plan Q4</strong>
-                    <span class="mock-badge">Página · #trimestre</span>
-                  </div>
-                  <p>
-                    Calendario de <mark>lanzamiento</mark> para la primera quincena y métricas meta de
-                    margen de contribución.
-                  </p>
-                </div>
-              </div>
-              <div class="mock-palette-box">
-                <div class="mock-palette-input">
-                  <span>Paleta de comandos</span>
-                  <code>Ctrl+K</code>
-                </div>
-                <ul class="mock-palette-list">
-                  <li class="is-selected">
-                    <span>Nueva página</span>
-                  </li>
-                  <li>
-                    <span>Hoy · nota de la Bitácora</span>
-                  </li>
-                  <li>
-                    <span>Exportar PDF</span>
-                  </li>
-                </ul>
-              </div>
-            </article>
-            <aside class="mock-backlinks">
-              <p class="mock-panel-title">Operadores de búsqueda</p>
-              <div class="mock-backlink-card">
-                <strong><code>tag:#marca/acme</code></strong>
-                <p>Filtra por etiqueta exacta o subetiquetas anidadas.</p>
-              </div>
-              <div class="mock-backlink-card">
-                <strong><code>type:journal</code></strong>
-                <p>Limita los resultados a la Bitácora o a un tipo específico.</p>
-              </div>
-              <div class="mock-backlink-card">
-                <strong><code>-"frase exacta"</code></strong>
-                <p>Excluye términos o frases completas al instante.</p>
-              </div>
-            </aside>
+          <div
+            class="window-body shot-pane"
+            id="pane-search"
+            role="tabpanel"
+            aria-labelledby="tab-search"
+            aria-busy="true"
+            data-fragment="search"
+            hidden
+          >
+            <p class="demo-loading">Cargando la demostración…</p>
           </div>
 
           <!-- Vista 3: Parrilla y aprobaciones (futuro) -->
-          <div class="window-body shot-pane" id="pane-content" role="tabpanel" aria-labelledby="tab-content" hidden>
-            <aside class="mock-side">
-              <strong>Marca: Acme</strong>
-              <span class="mock-today">Voz y pilares</span>
-              <span class="is-active">Parrilla noviembre</span>
-              <span>Campaña Buen Fin</span>
-              <span>Banco de copys</span>
-              <p class="mock-group">Rondas</p>
-              <span>1. Dirección interna ✓</span>
-              <span>2. Cliente Acme · Activa</span>
-            </aside>
-            <article class="mock-page">
-              <div class="mock-page-head">
-                <p class="mock-title">Parrilla noviembre · Acme</p>
-                <div class="mock-tags">
-                  <span class="soon">Próximamente</span>
-                  <span>Enlace de aprobación activo</span>
-                </div>
-              </div>
-              <div class="mock-callout">
-                <strong>Regla del Espacio:</strong> solo las publicaciones con las dos rondas aprobadas
-                pueden pasar a programación automática.
-              </div>
-              <div class="mock-table-scroll">
-              <table class="mock-table">
-                <thead>
-                  <tr>
-                    <th>Fecha</th>
-                    <th>Publicación</th>
-                    <th>Versiones</th>
-                    <th>Validador</th>
-                    <th>Aprobación</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>04 nov</td>
-                    <td>Lanzamiento línea solar</td>
-                    <td>IG Reel · TikTok · FB</td>
-                    <td>UTM y formato OK</td>
-                    <td><strong>Aprobada (2/2)</strong></td>
-                  </tr>
-                  <tr>
-                    <td>07 nov</td>
-                    <td>Rutina en 3 pasos</td>
-                    <td>IG Carrusel · TikTok</td>
-                    <td>UTM y formato OK</td>
-                    <td>En ronda 2 (Cliente)</td>
-                  </tr>
-                  <tr>
-                    <td>11 nov</td>
-                    <td>Testimonios y antes/después</td>
-                    <td>IG Historia · Reel</td>
-                    <td>Falta UTM de campaña</td>
-                    <td>Ronda 1 (Interna)</td>
-                  </tr>
-                </tbody>
-              </table>
-              </div>
-              <div class="mock-foot">
-                <span>El cliente revisa y aprueba desde su navegador sin crear cuenta</span>
-                <span>Exportable a PDF con estilo de marca</span>
-              </div>
-            </article>
-            <aside class="mock-backlinks">
-              <p class="mock-panel-title">Ficha de Marca · Acme</p>
-              <div class="mock-backlink-card">
-                <strong>Tono y voz</strong>
-                <p>Directo, claro, sin tecnicismos ni promesas exageradas.</p>
-              </div>
-              <div class="mock-backlink-card">
-                <strong>Validador automático</strong>
-                <p>Revisa longitud por red, palabras prohibidas, proporción de imagen y parámetros UTM.</p>
-              </div>
-            </aside>
+          <div
+            class="window-body shot-pane"
+            id="pane-content"
+            role="tabpanel"
+            aria-labelledby="tab-content"
+            aria-busy="true"
+            data-fragment="content"
+            hidden
+          >
+            <p class="demo-loading">Cargando la demostración…</p>
           </div>
 
           <!-- Vista 4: Rentabilidad y creativos (futuro) -->
-          <div class="window-body shot-pane" id="pane-commerce" role="tabpanel" aria-labelledby="tab-commerce" hidden>
-            <aside class="mock-side">
-              <strong>Comercio · Acme</strong>
-              <span class="is-active">Rentabilidad diaria</span>
-              <span>Creativos y ROAS</span>
-              <span>Producto 360</span>
-              <span>Cohortes y LTV</span>
-              <p class="mock-group">Conectores</p>
-              <span>Shopify · Al día</span>
-              <span>Meta Ads · Al día</span>
-              <span>Google Ads · Al día</span>
-              <span>TikTok Ads · Al día</span>
-              <span>GA4 · Al día</span>
-            </aside>
-            <article class="mock-page">
-              <div class="mock-page-head">
-                <p class="mock-title">Rentabilidad y creativos</p>
-                <div class="mock-tags">
-                  <span class="soon">Próximamente</span>
-                  <span>Últimos 30 días</span>
-                </div>
-              </div>
-              <div class="mock-kpi-row">
-                <div class="mock-kpi">
-                  <span>Ventas netas</span>
-                  <strong>$482,900</strong>
-                </div>
-                <div class="mock-kpi">
-                  <span>MER / ROAS</span>
-                  <strong>3.8x / 3.2x</strong>
-                </div>
-                <div class="mock-kpi">
-                  <span>nCAC</span>
-                  <strong>$215</strong>
-                </div>
-                <div class="mock-kpi">
-                  <span>Margen real</span>
-                  <strong>$164,180 (34%)</strong>
-                </div>
-              </div>
-              <p class="mock-h">Rendimiento por pieza creativa</p>
-              <div class="mock-table-scroll">
-              <table class="mock-table">
-                <thead>
-                  <tr>
-                    <th>Creativo (Página enlazada)</th>
-                    <th>Usado en</th>
-                    <th>Gasto</th>
-                    <th>Ventas atribuidas</th>
-                    <th>ROAS</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td><span class="mock-link">[[Video demostración 15s]]</span></td>
-                    <td>2 publicaciones · 4 anuncios</td>
-                    <td>$38,400</td>
-                    <td>$176,640</td>
-                    <td><strong>4.6x</strong></td>
-                  </tr>
-                  <tr>
-                    <td><span class="mock-link">[[Carrusel comparativo]]</span></td>
-                    <td>1 publicación · 2 anuncios</td>
-                    <td>$24,100</td>
-                    <td>$84,350</td>
-                    <td><strong>3.5x</strong></td>
-                  </tr>
-                </tbody>
-              </table>
-              </div>
-              <div class="mock-foot">
-                <span>Ventas − costo de producto − envío − comisiones − anuncios = margen de contribución</span>
-                <span>Conectado con cada campaña</span>
-              </div>
-            </article>
-            <aside class="mock-backlinks">
-              <p class="mock-panel-title">Trazabilidad completa</p>
-              <div class="mock-backlink-card">
-                <strong>Del brief al pedido</strong>
-                <p>Cada creativo sabe de qué brief salió, quién lo aprobó y cuánto vendió.</p>
-              </div>
-              <div class="mock-backlink-card">
-                <strong>Agente analista</strong>
-                <p>Pregunta en lenguaje natural y revisa la consulta SQL exacta antes de usarla.</p>
-              </div>
-            </aside>
+          <div
+            class="window-body shot-pane"
+            id="pane-commerce"
+            role="tabpanel"
+            aria-labelledby="tab-commerce"
+            aria-busy="true"
+            data-fragment="commerce"
+            hidden
+          >
+            <p class="demo-loading">Cargando la demostración…</p>
           </div>
         </div>
+      <p class="shot-note">
+          Las vistas marcadas «En el roadmap» todavía no existen:
+          <a href="/roadmap/">mira qué viene</a>.
+        </p>
       </section>
 
       <section class="section" id="funciones">
@@ -574,7 +300,7 @@
           <div class="concept-row">
             <div class="concept-term">
               <span class="step-num">03</span>
-              <h3>Tipo y Campo <span class="soon">Próximamente</span></h3>
+              <h3>Tipo y Campo <a class="soon" href="/roadmap/">En el roadmap</a></h3>
             </div>
             <p>
               Un <strong>Tipo</strong> (<em>Tarea</em>, <em>Campaña</em>, <em>Publicación</em>,
@@ -596,7 +322,7 @@
           <div class="concept-row">
             <div class="concept-term">
               <span class="step-num">05</span>
-              <h3>Vista y Lista guardada <span class="soon">Próximamente</span></h3>
+              <h3>Vista y Lista guardada <a class="soon" href="/roadmap/">En el roadmap</a></h3>
             </div>
             <p>
               Cualquier conjunto de páginas o búsqueda viva se puede ver como tabla, tablero de estados,
@@ -625,22 +351,22 @@
           </li>
           <li>
             <span class="step-num">02</span>
-            <strong>Marca y contenido <span class="soon">Próximamente</span></strong>
+            <strong>Marca y contenido <a class="soon" href="/roadmap/">En el roadmap</a></strong>
             <p>Creas publicaciones con versiones por red, voz de marca y previsualización fiel.</p>
           </li>
           <li>
             <span class="step-num">03</span>
-            <strong>Aprobación <span class="soon">Próximamente</span></strong>
+            <strong>Aprobación <a class="soon" href="/roadmap/">En el roadmap</a></strong>
             <p>El cliente comenta y aprueba desde un enlace web seguro, sin crear cuenta.</p>
           </li>
           <li>
             <span class="step-num">04</span>
-            <strong>Publicación y anuncios <span class="soon">Próximamente</span></strong>
+            <strong>Publicación y anuncios <a class="soon" href="/roadmap/">En el roadmap</a></strong>
             <p>Lo aprobado sale a la hora elegida y se conecta con tus campañas por UTM.</p>
           </li>
           <li>
             <span class="step-num">05</span>
-            <strong>Ventas y margen <span class="soon">Próximamente</span></strong>
+            <strong>Ventas y margen <a class="soon" href="/roadmap/">En el roadmap</a></strong>
             <p>Cruza Shopify, Meta Ads, Google Ads, TikTok Ads y GA4 para ver qué creativo vendió más.</p>
           </li>
         </ol>
@@ -676,7 +402,7 @@
             </div>
             <div class="story-step">
               <span class="story-time">Martes · 11:00</span>
-              <strong>3. Armas la parrilla <span class="soon">Próximamente</span></strong>
+              <strong>3. Armas la parrilla <a class="soon" href="/roadmap/">En el roadmap</a></strong>
               <p>
                 Desde la campaña generas las publicaciones con sus versiones para Instagram y TikTok.
                 El asistente propone textos respetando las palabras prohibidas y el tono de Acme.
@@ -684,7 +410,7 @@
             </div>
             <div class="story-step">
               <span class="story-time">Miércoles · 16:00</span>
-              <strong>4. El cliente aprueba sin cuenta <span class="soon">Próximamente</span></strong>
+              <strong>4. El cliente aprueba sin cuenta <a class="soon" href="/roadmap/">En el roadmap</a></strong>
               <p>
                 Compartes el <strong>Enlace de aprobación</strong>. El cliente revisa cómo se verá cada
                 pieza, deja comentarios puntuales y aprueba desde su navegador.
@@ -692,7 +418,7 @@
             </div>
             <div class="story-step">
               <span class="story-time">Jueves · 09:00</span>
-              <strong>5. Sale a tiempo y con UTM <span class="soon">Próximamente</span></strong>
+              <strong>5. Sale a tiempo y con UTM <a class="soon" href="/roadmap/">En el roadmap</a></strong>
               <p>
                 Solo lo aprobado entra en la cola de publicación programada. Los anuncios que usan esos
                 mismos creativos quedan ligados automáticamente por UTM.
@@ -700,7 +426,7 @@
             </div>
             <div class="story-step">
               <span class="story-time">Cierre de mes</span>
-              <strong>6. Aprendes con margen real <span class="soon">Próximamente</span></strong>
+              <strong>6. Aprendes con margen real <a class="soon" href="/roadmap/">En el roadmap</a></strong>
               <p>
                 La página de cada creativo muestra en qué publicaciones y anuncios salió, cuánto gastó
                 y cuánto margen neto dejó después de costos, envío y comisiones.
@@ -738,7 +464,7 @@
           </div>
           <div class="shortcut-card">
             <code>Win + Shift + F</code>
-            <strong>Captura rápida <span class="soon">Próximamente</span></strong>
+            <strong>Captura rápida <a class="soon" href="/roadmap/">En el roadmap</a></strong>
             <span>Anota una idea o tarea al vuelo desde cualquier otra ventana</span>
           </div>
           <div class="shortcut-card">
@@ -784,28 +510,28 @@
             </p>
           </div>
           <div class="card-block">
-            <h3>Contenido y redes <span class="soon">Próximamente</span></h3>
+            <h3>Contenido y redes <a class="soon" href="/roadmap/">En el roadmap</a></h3>
             <p>
               Arma la parrilla del mes, adapta versiones para Instagram, TikTok o Facebook y lleva las
               rondas de aprobación en orden.
             </p>
           </div>
           <div class="card-block">
-            <h3>Diseño y creativos <span class="soon">Próximamente</span></h3>
+            <h3>Diseño y creativos <a class="soon" href="/roadmap/">En el roadmap</a></h3>
             <p>
               Sube piezas una sola vez, mira en qué publicaciones y anuncios están ligadas y descubre
               cuáles traen mejores resultados.
             </p>
           </div>
           <div class="card-block">
-            <h3>Comercio y analítica <span class="soon">Próximamente</span></h3>
+            <h3>Comercio y analítica <a class="soon" href="/roadmap/">En el roadmap</a></h3>
             <p>
               Consulta ventas, pedidos, MER, ROAS, costo por cliente nuevo y margen de contribución
               diario conectados con el trabajo del equipo.
             </p>
           </div>
           <div class="card-block">
-            <h3>Clientes y aprobadores <span class="soon">Próximamente</span></h3>
+            <h3>Clientes y aprobadores <a class="soon" href="/roadmap/">En el roadmap</a></h3>
             <p>
               Revisan la parrilla, dejan comentarios puntuales y aprueban piezas desde un enlace en su
               navegador, sin instalar nada ni abrir cuenta.
@@ -875,7 +601,7 @@
 
         <div class="grid-3">
           <div class="card-block">
-            <h3>1. Tus propias claves de API <span class="soon">Próximamente</span></h3>
+            <h3>1. Tus propias claves de API <a class="soon" href="/roadmap/">En el roadmap</a></h3>
             <p>
               Más adelante podrás conectar tus propias claves de API. Se guardarán cifradas en el
               almacén de credenciales de Windows, nunca en archivos de texto ni en registros.
