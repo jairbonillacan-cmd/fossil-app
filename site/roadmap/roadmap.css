@@ -102,8 +102,9 @@ a.tag:hover {
 }
 
 @media (max-width: 760px) {
-  /* One row that scrolls sideways instead of wrapping into several. */
-  .filter-bar {
+  /* One row that scrolls sideways instead of wrapping into several. The id keeps this rule above
+     the base .filter-bar whatever order the built stylesheets are linked in. */
+  #roadmap-filter {
     flex-wrap: nowrap;
     margin-right: -16px;
     padding-right: 16px;
