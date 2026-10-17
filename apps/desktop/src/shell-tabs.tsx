@@ -6,7 +6,7 @@ import {
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { commands, type ObjectMeta } from "./bindings";
+import { commands, events, type ObjectMeta } from "./bindings";
 import { formatObjectTitle } from "./sidebar";
 import {
   getScrollOffsets,
@@ -17,43 +17,64 @@ import {
   saveSession,
   setScrollOffsets,
   type TabsSession,
+  trimScroll,
 } from "./tabs-session";
 
 export interface WorkspaceTab {
   id: string;
   object: ObjectMeta | null;
   pinned: boolean;
+  /** Pages this tab visited (own Back/Forward history, #173) and the index of the one shown. */
+  history: ObjectMeta[];
+  historyIndex: number;
 }
 
 interface TabsState {
   tabs: WorkspaceTab[];
   activeTabId: string | null;
-  history: ObjectMeta[];
-  historyIndex: number;
 }
+
+const MAX_TAB_HISTORY = 100;
 
 let nextTabSeq = 1;
 const mkTab = (object: ObjectMeta | null): WorkspaceTab => ({
   id: `tab-${nextTabSeq++}`,
   object,
   pinned: false,
+  history: object ? [object] : [],
+  historyIndex: object ? 0 : -1,
 });
 
 const toSession = (s: TabsState): TabsSession => {
   const idx = s.tabs.findIndex((t) => t.id === s.activeTabId);
+  const tabs = s.tabs.map((t) => ({
+    objectId: t.object?.id ?? null,
+    pinned: t.pinned,
+    history: t.history.map((o) => o.id),
+    historyIndex: t.historyIndex,
+  }));
   return {
     v: SESSION_VERSION,
-    tabs: s.tabs.map((t) => ({ objectId: t.object?.id ?? null, pinned: t.pinned })),
+    tabs,
     active: idx === -1 ? null : idx,
-    history: s.history.map((o) => o.id),
-    historyIndex: s.historyIndex,
-    scroll: { ...getScrollOffsets() },
+    scroll: trimScroll(getScrollOffsets(), tabs),
   };
 };
 
+/** Shows `target` in `tab`, pushing it on the tab's own history (drops the forward branch). */
+const navigateTab = (tab: WorkspaceTab, target: ObjectMeta): WorkspaceTab => {
+  const history = [...tab.history.slice(0, tab.historyIndex + 1), target].slice(-MAX_TAB_HISTORY);
+  return { ...tab, object: target, history, historyIndex: history.length - 1 };
+};
+const refreshTab = (tab: WorkspaceTab, u: ObjectMeta): WorkspaceTab => ({
+  ...tab,
+  object: tab.object?.id === u.id ? u : tab.object,
+  history: tab.history.map((x) => (x.id === u.id ? u : x)),
+});
+
 /**
- * State hook for workspace tabs, pin/close/reorder and back/forward page history (#106).
- * With `vaultName`, the session (tabs, order, pins, active tab, history and scroll) is
+ * State hook for workspace tabs: pin/close/reorder and a Back/Forward history per tab (#106, #173).
+ * With `vaultName`, the session (tabs, order, pins, active tab, per-tab history and scroll) is
  * restored on mount and saved per Espacio in localStorage (#29).
  */
 export function useWorkspaceTabs(
@@ -63,8 +84,6 @@ export function useWorkspaceTabs(
   const [s, setS] = useState<TabsState>(() => ({
     tabs: initialTabs,
     activeTabId: initialTabs[0]?.id ?? null,
-    history: initialTabs[0]?.object ? [initialTabs[0].object] : [],
-    historyIndex: initialTabs[0]?.object ? 0 : -1,
   }));
   const activeTab = s.tabs.find((t) => t.id === s.activeTabId) ?? null;
   const hydrated = useRef(false);
@@ -75,31 +94,41 @@ export function useWorkspaceTabs(
     hydrated.current = false;
     if (vaultName === null) return undefined;
     let cancelled = false;
+    let loading = false;
     const saved = loadSession(vaultName);
     setScrollOffsets(saved?.scroll ?? {});
     const finish = (restore: ReturnType<typeof restoreSession> | null) => {
       if (cancelled) return;
       if (restore && restore.tabs.length > 0) {
-        const tabs = restore.tabs.map((x) => ({ ...mkTab(x.object), pinned: x.pinned }));
+        const tabs = restore.tabs.map((x) => ({ ...mkTab(x.object), ...x }));
         const activeTabId = tabs[restore.active ?? -1]?.id ?? null;
-        const { history, historyIndex } = restore;
-        setS((prev) =>
-          prev.tabs.length > 0 ? prev : { tabs, activeTabId, history, historyIndex },
-        );
+        // Opening a page before object_list answers discards the restore (see ui.md).
+        setS((prev) => (prev.tabs.length > 0 ? prev : { tabs, activeTabId }));
       }
       hydrated.current = true;
     };
-    if (saved) {
+    const load = (session: NonNullable<typeof saved>) => {
+      if (loading || hydrated.current) return;
+      loading = true;
       void commands
         .objectList({ include_archived: false, type_key: null, parent: null, query: null })
-        // On failure keep the saved session untouched: saving stays off this run.
-        .then((res) => res.status === "ok" && finish(restoreSession(saved, res.data)))
-        .catch(() => undefined);
+        // On failure keep the saved session untouched and retry on the next object:changed.
+        .then((res) => res.status === "ok" && finish(restoreSession(session, res.data)))
+        .catch(() => undefined)
+        .finally(() => {
+          loading = false;
+        });
+    };
+    let off: Promise<() => void> | null = null;
+    if (saved) {
+      load(saved);
+      off = events.objectChanged.listen(() => load(saved));
     } else {
       finish(null);
     }
     return () => {
       cancelled = true;
+      void off?.then((fn) => fn());
     };
   }, [vaultName]);
 
@@ -122,58 +151,51 @@ export function useWorkspaceTabs(
     };
   }, [vaultName]);
 
-  const pushHist = (prev: TabsState, obj: ObjectMeta) => {
-    const history = [...prev.history.slice(0, prev.historyIndex + 1), obj];
-    return { history, historyIndex: history.length - 1 };
-  };
   const stepHistory = (delta: -1 | 1) =>
     setS((prev) => {
-      const historyIndex = prev.historyIndex + delta;
-      const target = prev.history[historyIndex];
-      if (historyIndex < 0 || historyIndex >= prev.history.length || !target) return prev;
-      const existing = prev.tabs.find((t) => t.object?.id === target.id);
-      if (existing) return { ...prev, activeTabId: existing.id, historyIndex };
-      const nt = mkTab(target);
-      return { ...prev, tabs: [...prev.tabs, nt], activeTabId: nt.id, historyIndex };
+      const cur = prev.tabs.find((t) => t.id === prev.activeTabId);
+      if (!cur) return prev;
+      const historyIndex = cur.historyIndex + delta;
+      const target = cur.history[historyIndex];
+      if (!target) return prev;
+      const tabs = prev.tabs.map((t) =>
+        t.id === cur.id ? { ...t, object: target, historyIndex } : t,
+      );
+      return { ...prev, tabs };
     });
 
   return {
     tabs: s.tabs,
     activeTabId: s.activeTabId,
     selectedObject: activeTab?.object ?? null,
-    canGoBack: s.historyIndex > 0,
-    canGoForward: s.historyIndex >= 0 && s.historyIndex < s.history.length - 1,
+    canGoBack: (activeTab?.historyIndex ?? 0) > 0,
+    canGoForward: !!activeTab && activeTab.historyIndex < activeTab.history.length - 1,
+    /** Opens a page: focuses its tab if open, else navigates the active unpinned tab, else a new tab. */
     selectObject: (target: ObjectMeta) =>
       setS((prev) => {
         const cur = prev.tabs.find((t) => t.id === prev.activeTabId) ?? null;
-        const hit = cur?.object === null ? cur : prev.tabs.find((t) => t.object?.id === target.id);
-        const h =
-          cur?.object?.id === target.id
-            ? { history: prev.history.map((x) => (x.id === target.id ? target : x)) }
-            : pushHist(prev, target);
-        if (hit) {
-          const tabs = prev.tabs.map((t) => (t.id === hit.id ? { ...t, object: target } : t));
-          return { ...prev, tabs, activeTabId: hit.id, ...h };
-        }
+        const put = (id: string, fn: (t: WorkspaceTab) => WorkspaceTab) =>
+          prev.tabs.map((t) => (t.id === id ? fn(t) : t));
+        if (cur?.object?.id === target.id)
+          return { ...prev, tabs: put(cur.id, (t) => refreshTab(t, target)) };
+        if (cur && cur.object === null)
+          return { ...prev, tabs: put(cur.id, (t) => navigateTab(t, target)) };
+        const hit = prev.tabs.find((t) => t.object?.id === target.id);
+        if (hit)
+          return { ...prev, tabs: put(hit.id, (t) => refreshTab(t, target)), activeTabId: hit.id };
+        if (cur && !cur.pinned)
+          return { ...prev, tabs: put(cur.id, (t) => navigateTab(t, target)) };
         const nt = mkTab(target);
-        return { ...prev, tabs: [...prev.tabs, nt], activeTabId: nt.id, ...h };
+        return { tabs: [...prev.tabs, nt], activeTabId: nt.id };
       }),
     updateObject: (u: ObjectMeta) =>
-      setS((prev) => ({
-        ...prev,
-        tabs: prev.tabs.map((t) => (t.object?.id === u.id ? { ...t, object: u } : t)),
-        history: prev.history.map((x) => (x.id === u.id ? u : x)),
-      })),
+      setS((prev) => ({ ...prev, tabs: prev.tabs.map((t) => refreshTab(t, u)) })),
     onActivateTab: (tabId: string) =>
-      setS((prev) => {
-        const t = prev.tabs.find((x) => x.id === tabId);
-        if (!t || prev.activeTabId === tabId) return prev;
-        const h =
-          t.object && prev.history[prev.historyIndex]?.id !== t.object.id
-            ? pushHist(prev, t.object)
-            : {};
-        return { ...prev, activeTabId: tabId, ...h };
-      }),
+      setS((prev) =>
+        prev.activeTabId === tabId || !prev.tabs.some((x) => x.id === tabId)
+          ? prev
+          : { ...prev, activeTabId: tabId },
+      ),
     onOpenNewTab: () =>
       setS((prev) => {
         const nt = mkTab(null);

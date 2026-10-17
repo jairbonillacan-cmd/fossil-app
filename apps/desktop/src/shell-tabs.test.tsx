@@ -9,11 +9,12 @@ afterEach(cleanup);
 const baseObj = JSON.parse(
   '{"types":["Page"],"icon":null,"parent":null,"created_at":"","updated_at":"","archived":false}',
 ) as Omit<ObjectMeta, "id" | "title">;
+const withHistory = (object: ObjectMeta) => ({ object, history: [object], historyIndex: 0 });
 const makeTabs = (n: number): WorkspaceTab[] =>
   Array.from({ length: n }, (_, i) => ({
     id: `t${i + 1}`,
     pinned: false,
-    object: { ...baseObj, id: `obj-${i + 1}`, title: `Página ${i + 1}` },
+    ...withHistory({ ...baseObj, id: `obj-${i + 1}`, title: `Página ${i + 1}` }),
   }));
 
 function Harness({ count }: { count: number }) {
@@ -55,11 +56,55 @@ describe("ShellTabs (#106)", () => {
     expect(screen.getByRole("tablist").className).toContain("overflow-x-auto");
     fireEvent.click(screen.getByRole("button", { name: "Nueva pestaña" }));
     expect(screen.getAllByRole("tab")).toHaveLength(16);
-    fireEvent.click(screen.getByRole("tab", { name: "Página 2" }));
-    fireEvent.click(screen.getByRole("tab", { name: "Página 3" }));
-    fireEvent.click(screen.getByRole("button", { name: "Atrás" }));
-    expect(screen.getByTestId("sel").getAttribute("data-val")).toBe("obj-2");
-    fireEvent.click(screen.getByRole("button", { name: "Adelante" }));
-    expect(screen.getByTestId("sel").getAttribute("data-val")).toBe("obj-3");
+  });
+
+  it("keeps an independent Back/Forward history per tab (#173)", () => {
+    const [a, b, c] = ["a", "b", "c"].map((id) => ({ ...baseObj, id, title: `P-${id}` })) as [
+      ObjectMeta,
+      ObjectMeta,
+      ObjectMeta,
+    ];
+    function H() {
+      const t = useWorkspaceTabs([]);
+      return (
+        <div data-testid="sel" data-val={t.selectedObject?.id ?? "none"}>
+          <button type="button" onClick={() => t.selectObject(a)}>
+            open-a
+          </button>
+          <button type="button" onClick={() => t.selectObject(b)}>
+            open-b
+          </button>
+          <button type="button" onClick={() => t.selectObject(c)}>
+            open-c
+          </button>
+          <ShellTabs {...t} />
+        </div>
+      );
+    }
+    render(<H />);
+    const sel = () => screen.getByTestId("sel").getAttribute("data-val");
+    const back = () => screen.getByRole("button", { name: "Atrás" }) as HTMLButtonElement;
+    const fwd = () => screen.getByRole("button", { name: "Adelante" }) as HTMLButtonElement;
+    expect(back().disabled).toBe(true);
+    fireEvent.click(screen.getByText("open-a"));
+    fireEvent.click(screen.getByText("open-b"));
+    expect(screen.getAllByRole("tab")).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Nueva pestaña" }));
+    expect(back().disabled).toBe(true);
+    fireEvent.click(screen.getByText("open-c"));
+    expect(sel()).toBe("c");
+    expect(back().disabled).toBe(true);
+    expect(fwd().disabled).toBe(true);
+    fireEvent.click(screen.getAllByRole("tab")[0] as HTMLElement);
+    expect(sel()).toBe("b");
+    fireEvent.click(back());
+    expect(sel()).toBe("a");
+    expect(fwd().disabled).toBe(false);
+    fireEvent.click(screen.getAllByRole("tab")[1] as HTMLElement);
+    expect(sel()).toBe("c");
+    expect(back().disabled).toBe(true);
+    fireEvent.click(screen.getAllByRole("tab")[0] as HTMLElement);
+    fireEvent.click(fwd());
+    expect(sel()).toBe("b");
   });
 });
