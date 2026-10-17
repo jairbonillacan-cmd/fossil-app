@@ -71,6 +71,27 @@ export const commands = {
 	 *  and emits `object:changed`.
 	 */
 	captureAppend: (input: QuickCaptureInput) => typedError<ObjectMeta, CoreError>(__TAURI_INVOKE("capture_append", { input })),
+	/**
+	 *  Seals a consistent snapshot of the open Espacio (`VACUUM INTO` on a
+	 *  read-only connection + `PRAGMA quick_check`, ADR-0018).
+	 */
+	snapshotCreate: (triggerKind: SnapshotTriggerKind) => typedError<WorkspaceSnapshotMeta, CoreError>(__TAURI_INVOKE("snapshot_create", { triggerKind })),
+	/**  Snapshots of the open Espacio, newest first. */
+	snapshotList: () => typedError<WorkspaceSnapshotMeta[], CoreError>(__TAURI_INVOKE("snapshot_list")),
+	/**  Restores the whole Espacio into a new local folder (never over the original). */
+	snapshotRestoreWorkspace: (snapshotId: string, targetDir: string) => typedError<VaultInfo, CoreError>(__TAURI_INVOKE("snapshot_restore_workspace", { snapshotId, targetDir })),
+	/**  Restores one page from a snapshot following `policy`. */
+	snapshotRestorePage: (snapshotId: string, objectId: ObjectId, policy: RestoreConflictPolicy) => typedError<ObjectMeta, CoreError>(__TAURI_INVOKE("snapshot_restore_page", { snapshotId, objectId, policy })),
+	/**  Restores `attachments/<ulid>.<ext>` listed in the snapshot manifest; returns its relative path. */
+	snapshotRestoreAttachment: (snapshotId: string, relativePath: string) => typedError<string, CoreError>(__TAURI_INVOKE("snapshot_restore_attachment", { snapshotId, relativePath })),
+	/**  A page's Historial de versiones, newest first. */
+	pageVersionList: (objectId: ObjectId) => typedError<PageVersionSummary[], CoreError>(__TAURI_INVOKE("page_version_list", { objectId })),
+	/**  A version against the current page, as Markdown. */
+	pageVersionDiff: (objectId: ObjectId, versionId: string) => typedError<PageVersionDiff, CoreError>(__TAURI_INVOKE("page_version_diff", { objectId, versionId })),
+	/**  Restores a version over the same object id after saving a `PreRestore` version. */
+	pageVersionRestore: (objectId: ObjectId, versionId: string) => typedError<ObjectMeta, CoreError>(__TAURI_INVOKE("page_version_restore", { objectId, versionId })),
+	/**  Exports the mirror and re-imports it in a clean Espacio, reporting what degrades. */
+	mirrorRoundtripVerify: () => typedError<MirrorRoundtripReport, CoreError>(__TAURI_INVOKE("mirror_roundtrip_verify")),
 };
 
 /** Events */
@@ -230,6 +251,20 @@ export type MetaPatch = {
 	archived: boolean | null,
 };
 
+/**  Result of exporting the vault mirror and re-importing it in a clean vault. */
+export type MirrorRoundtripReport = {
+	total_pages: number,
+	preserved_pages: number,
+	unsupported_items: MirrorUnsupportedItem[],
+};
+
+/**  A construct the Markdown round-trip degraded or dropped. */
+export type MirrorUnsupportedItem = {
+	/**  Vault-relative `.md` path. */
+	path: string,
+	reason: string,
+};
+
 /**  Payload to create an object; `id` and timestamps are assigned by the vault. */
 export type NewObject = {
 	types: TypeKey[],
@@ -277,6 +312,27 @@ export type ObjectMeta = {
 /**  Typed errors for OS shortcut and quick-capture window commands. */
 export type OsError = "NotImplemented" | ({ ShortcutInvalid: string }) & { ShortcutConflict?: never; Window?: never } | ({ ShortcutConflict: string }) & { ShortcutInvalid?: never; Window?: never } | ({ Window: string }) & { ShortcutConflict?: never; ShortcutInvalid?: never };
 
+/**  A version (`old_*`) against the current page (`new_*`), as Markdown. */
+export type PageVersionDiff = {
+	version_id: string,
+	old_title: string,
+	new_title: string,
+	old_markdown: string,
+	new_markdown: string,
+};
+
+/**  One entry of a page's Historial de versiones (row of `object_versions`). */
+export type PageVersionSummary = {
+	/**  ULID. */
+	version_id: string,
+	object_id: ObjectId,
+	title: string,
+	trigger_kind: VersionTriggerKind,
+	byte_size: number,
+	/**  ISO-8601 UTC. */
+	created_at: string,
+};
+
 /**  A routable AI provider: one flat union for the whole wire format. */
 export type ProviderId = "Agy" | "Claude" | "Codex" | "Anthropic" | "OpenAi" | "Gemini" | "Ollama";
 
@@ -302,6 +358,16 @@ export type QuickCaptureInput = {
 export type RequestId = string;
 
 /**
+ *  What `snapshot_restore_page` does when the page still exists: never
+ *  overwrite silently.
+ */
+export type RestoreConflictPolicy = 
+/**  Restore as a new page titled `"<Título> (restaurada)"`. */
+"CreateCopy" | 
+/**  Save a `PreRestore` version of the current page, then restore over it. */
+"OverwriteWithBackupVersion";
+
+/**
  *  Fallback chain for one task: try `prefer` in order, skipping providers
  *  that are not installed/ready (spec §Router).
  */
@@ -309,6 +375,17 @@ export type RouteRule = {
 	task: TaskKind,
 	prefer: ProviderId[],
 };
+
+/**  Batcher status: `Saved` only when every sent delta was acknowledged. */
+export type SaveStatus = {
+	kind: SaveStatusKind,
+	/**  Sequence of the first delta that failed, when `kind` is `Error`. */
+	failed_seq: number | null,
+	last_error: string | null,
+};
+
+/**  State of the Yjs transport batcher shown as Guardado / Guardando / Error. */
+export type SaveStatusKind = "Saved" | "Saving" | "Error";
 
 /**  Typed errors returned by the search subsystem and `search_query` IPC command. */
 export type SearchError = 
@@ -352,6 +429,9 @@ export type SearchQuery = {
 	limit: number | null,
 };
 
+/**  Why a workspace snapshot was taken (`workspace_snapshots.trigger_kind`). */
+export type SnapshotTriggerKind = "Manual" | "Scheduled" | "PreImport" | "PreRestore";
+
 /**  A plain-text segment of a search excerpt, avoiding raw HTML in the WebView. */
 export type SnippetPart = {
 	text: string,
@@ -381,6 +461,24 @@ export type Usage = {
 export type VaultInfo = {
 	path: string,
 	name: string,
+};
+
+/**  Why a page version was captured (`object_versions.trigger_kind`). */
+export type VersionTriggerKind = "IdlePause" | "SignificantEdit" | "SessionClose" | "PreRestore" | "Manual";
+
+/**  A sealed workspace snapshot (row of `workspace_snapshots`). */
+export type WorkspaceSnapshotMeta = {
+	/**  ULID. */
+	snapshot_id: string,
+	trigger_kind: SnapshotTriggerKind,
+	object_count: number,
+	attachment_count: number,
+	/**  `f64` because specta-typescript forbids 64-bit integers; exact up to 2^53. */
+	total_bytes: number | null,
+	/**  `PRAGMA quick_check` passed before sealing. */
+	integrity_ok: boolean,
+	/**  ISO-8601 UTC. */
+	created_at: string,
 };
 
 /* Tauri Specta runtime */

@@ -23,6 +23,11 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         capture_window_hide, capture_window_show,
     };
     use commands::search::search_query;
+    use commands::snapshots::{
+        mirror_roundtrip_verify, page_version_diff, page_version_list, page_version_restore,
+        snapshot_create, snapshot_list, snapshot_restore_attachment, snapshot_restore_page,
+        snapshot_restore_workspace,
+    };
 
     tauri_specta::Builder::<tauri::Wry>::new()
         .commands(tauri_specta::collect_commands![
@@ -55,6 +60,15 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             capture_window_show,
             capture_window_hide,
             capture_append,
+            snapshot_create,
+            snapshot_list,
+            snapshot_restore_workspace,
+            snapshot_restore_page,
+            snapshot_restore_attachment,
+            page_version_list,
+            page_version_diff,
+            page_version_restore,
+            mirror_roundtrip_verify,
         ])
         .events(tauri_specta::collect_events![
             ObjectChanged,
@@ -62,6 +76,8 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             AiEvent,
             CaptureRequested
         ])
+        // Used by the TS transport batcher, not by any command (r1-save-chaos).
+        .typ::<fossil_core::snapshots::SaveStatus>()
 }
 
 fn build_app() -> tauri::Builder<tauri::Wry> {

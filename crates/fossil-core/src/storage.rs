@@ -10,6 +10,7 @@ pub fn migrations() -> Migrations<'static> {
     Migrations::new(vec![
         M::up(include_str!("../migrations/0001_init.sql")),
         M::up(include_str!("../migrations/0002_fts_search.sql")),
+        M::up(include_str!("../migrations/0003_versions_snapshots.sql")),
     ])
 }
 
@@ -49,6 +50,8 @@ mod tests {
             "blocks",
             "links",
             "tags",
+            "object_versions",
+            "workspace_snapshots",
         ] {
             let count: i64 = conn
                 .query_row(
@@ -135,5 +138,59 @@ mod tests {
             .query_row("PRAGMA busy_timeout", [], |r| r.get(0))
             .unwrap();
         assert_eq!(timeout, 5_000);
+    }
+    #[test]
+    fn migration_0003_upgrades_an_existing_vault_and_enforces_trigger_tags() {
+        use crate::snapshots::{SnapshotTriggerKind, VersionTriggerKind};
+        let file = std::env::temp_dir().join(format!("fossil-0003-{}.db", ulid::Ulid::generate()));
+        let path = file.to_str().unwrap_or_default().to_owned();
+        {
+            // An existing vault at schema 2 with a page in it.
+            let mut conn = rusqlite::Connection::open(&path).unwrap();
+            super::migrations().to_version(&mut conn, 2).unwrap();
+            conn.execute("INSERT INTO objects(id, types, title, created_at, updated_at, archived) VALUES ('01H00000000000000000000001', '[\"Page\"]', 'Plan Acme', 1, 1, 0)", []).unwrap();
+        }
+        let conn = open_vault(&path).unwrap();
+        let q = |sql: &str| conn.query_row(sql, [], |r| r.get::<_, String>(0)).unwrap();
+        assert_eq!(
+            q("SELECT CAST(user_version AS TEXT) FROM pragma_user_version"),
+            "3"
+        );
+        assert_eq!(q("SELECT title FROM objects"), "Plan Acme", "data survives");
+        let version = |id: &str, object: &str, kind: &str| {
+            conn.execute("INSERT INTO object_versions(version_id, object_id, title, trigger_kind, payload, byte_size, created_at) VALUES (?1, ?2, 't', ?3, x'00', 1, 1)", [id, object, kind])
+        };
+        let snapshot = |id: &str, kind: &str, ok: i64| {
+            conn.execute("INSERT INTO workspace_snapshots(snapshot_id, snapshot_path, trigger_kind, object_count, attachment_count, total_bytes, integrity_ok, created_at) VALUES (?1, 'p', ?2, 1, 0, 10, ?3, 1)", rusqlite::params![id, kind, ok])
+        };
+        let page = "01H00000000000000000000001";
+        for &kind in VersionTriggerKind::ALL {
+            version(kind.as_sql(), page, kind.as_sql()).unwrap();
+        }
+        for &kind in SnapshotTriggerKind::ALL {
+            snapshot(kind.as_sql(), kind.as_sql(), 1).unwrap();
+        }
+        assert!(
+            version("bad", page, "Manual").is_err(),
+            "CHECK rejects unknown tags"
+        );
+        assert!(
+            version("orphan", "01H0000000000000000000000Z", "manual").is_err(),
+            "FK"
+        );
+        assert!(
+            snapshot("bad", "manual", 2).is_err(),
+            "integrity_ok is 0 or 1"
+        );
+        conn.execute("DELETE FROM objects", []).unwrap();
+        assert_eq!(
+            q("SELECT CAST(COUNT(*) AS TEXT) FROM object_versions"),
+            "0",
+            "cascade"
+        );
+        drop(conn);
+        for suffix in ["", "-wal", "-shm"] {
+            let _ = std::fs::remove_file(format!("{path}{suffix}"));
+        }
     }
 }
