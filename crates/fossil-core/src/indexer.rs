@@ -652,6 +652,38 @@ mod tests {
     }
 
     #[test]
+    fn id_form_wikilinks_resolve_by_id_whatever_the_alias_says() {
+        // Contract #128: `[[<id>|Título]]` and `[[<id>#<blockId>|Título]]` pin the target.
+        let mut conn = open_vault(":memory:").unwrap();
+        let (older, newer) = (page(&conn, "Plan Acme"), page(&conn, "Plan Acme"));
+        // Same-millisecond Ulids are not ordered: pin which one is the oldest.
+        exec(
+            &conn,
+            "UPDATE objects SET created_at = 0 WHERE id = ?1",
+            [&older.0],
+        )
+        .unwrap();
+        let src = page(&conn, "Origen");
+        let text = format!("[[Plan Acme]] y [[{}|Plan Acme]]", newer.0);
+        set_body(&mut conn, &src, &[("paragraph", "p1", &text)]);
+        let anchored = format!("[[{}#blk-9|Otro alias]]", newer.0);
+        let src2 = page(&conn, "Origen 2");
+        set_body(&mut conn, &src2, &[("paragraph", "p2", &anchored)]);
+        assert_eq!(
+            backlinks(&conn, &older).unwrap().len(),
+            1,
+            "title form: oldest"
+        );
+        let to_newer = backlinks(&conn, &newer).unwrap();
+        assert_eq!(to_newer.len(), 2, "id form: exact object, alias ignored");
+        assert!(
+            to_newer
+                .iter()
+                .any(|l| l.to_block == Some(BlockId("blk-9".into())))
+        );
+    }
+
+    #[test]
     fn contains_words_respects_unicode_boundaries() {
         assert!(contains_words("ver árbol trimestral", "árbol trimestral"));
         assert!(!contains_words("subárbol", "árbol"));

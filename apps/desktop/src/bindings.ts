@@ -36,6 +36,33 @@ export const commands = {
 	objectExportMarkdown: (id: ObjectId) => typedError<string, CoreError>(__TAURI_INVOKE("object_export_markdown", { id })),
 	linksBacklinks: (id: ObjectId) => typedError<Link[], CoreError>(__TAURI_INVOKE("links_backlinks", { id })),
 	linksUnlinkedMentions: (id: ObjectId) => typedError<Mention[], CoreError>(__TAURI_INVOKE("links_unlinked_mentions", { id })),
+	/**
+	 *  Renames `id` and rewrites every inbound wikilink in the Yjs documents
+	 *  of the pages that hold them (r1-safe-rename, #128; engine in #135).
+	 *  One `Immediate` transaction: on any error nothing is written. Title-form
+	 *  links become `[[<new title>]]` (alias and `#block` kept); if the new
+	 *  title is shared with another non-archived object or holds `|` or `#`,
+	 *  they become id-form `[[<id>|<new title>]]` so they never turn ambiguous.
+	 *  Id-form links keep their id and only change an alias equal to the old
+	 *  title. Archived source pages and self-links are rewritten too; an
+	 *  archived object can be renamed. Same title: no-op, zero counts.
+	 *  Errors: `ObjectNotFound`, `InvalidTitle`. Emits `object:changed` for the
+	 *  object and every rewritten page, and re-indexes them.
+	 */
+	objectRename: (id: ObjectId, title: string) => typedError<RenameReport, CoreError>(__TAURI_INVOKE("object_rename", { id, title })),
+	/**
+	 *  Wikilinks pointing to `id` from other pages, one per linking block,
+	 *  archived source pages included (unlike `links_backlinks`); self-links do
+	 *  not count. Ask it before archiving, moving or deleting. `ObjectNotFound`
+	 *  if `id` does not exist.
+	 */
+	linksInboundCount: (id: ObjectId) => typedError<number, CoreError>(__TAURI_INVOKE("links_inbound_count", { id })),
+	/**
+	 *  Wikilinks of non-archived pages that do not resolve to exactly one
+	 *  non-archived object (`Missing`, `Archived` or `Ambiguous`), self-links
+	 *  included; ordered by source page `updated_at DESC`, then block order.
+	 */
+	linksBroken: () => typedError<BrokenLink[], CoreError>(__TAURI_INVOKE("links_broken")),
 	/**  Opens (or creates with its template) today's journal (#22). */
 	journalToday: () => typedError<ObjectMeta, CoreError>(__TAURI_INVOKE("journal_today")),
 	/**
@@ -128,6 +155,27 @@ export type AppInfoError = "DataDirUnavailable";
 
 export type BlockId = string;
 
+/**  A wikilink that does not resolve to exactly one non-archived object. */
+export type BrokenLink = {
+	from_object: ObjectId,
+	from_block: BlockId | null,
+	/**  The target as written between `[[` and the first `#` or `|`, trimmed. */
+	target_text: string,
+	reason: BrokenLinkReason,
+};
+
+/**  Why `links_broken` reports a wikilink. */
+export type BrokenLinkReason = 
+/**  No object, archived or not, has that id or title. */
+"Missing" | 
+/**  Only archived objects match: restoring one fixes the link. */
+"Archived" | 
+/**
+ *  A title-form link (`[[Título]]`) matching two or more non-archived
+ *  objects; it resolves to the oldest one. Id-form links are never ambiguous.
+ */
+"Ambiguous";
+
 /**  What a provider can do; consumed by the router when picking a fallback. */
 export type Caps = {
 	chat: boolean,
@@ -203,16 +251,22 @@ export type ChatSummary = {
 /**  Typed errors shared by every IPC command in R1. */
 export type CoreError = 
 /**  The command is part of the fixed contract but not implemented yet. */
-"NotImplemented" | "VaultNotOpen" | ({ ObjectNotFound: string }) & { MoveCycle?: never; ParentArchived?: never; ParentNotFound?: never; Storage?: never } | ({ Storage: string }) & { MoveCycle?: never; ObjectNotFound?: never; ParentArchived?: never; ParentNotFound?: never } | 
+"NotImplemented" | "VaultNotOpen" | ({ ObjectNotFound: string }) & { InvalidTitle?: never; MoveCycle?: never; ParentArchived?: never; ParentNotFound?: never; Storage?: never } | ({ Storage: string }) & { InvalidTitle?: never; MoveCycle?: never; ObjectNotFound?: never; ParentArchived?: never; ParentNotFound?: never } | 
 /**
  *  `object_move`: the target parent (or one of its ancestors) does not
  *  exist in the open vault. Ids from another Espacio land here too.
  */
-({ ParentNotFound: string }) & { MoveCycle?: never; ObjectNotFound?: never; ParentArchived?: never; Storage?: never } | 
+({ ParentNotFound: string }) & { InvalidTitle?: never; MoveCycle?: never; ObjectNotFound?: never; ParentArchived?: never; Storage?: never } | 
 /**  `object_move`: the target parent or one of its ancestors is archived. */
-({ ParentArchived: string }) & { MoveCycle?: never; ObjectNotFound?: never; ParentNotFound?: never; Storage?: never } | 
+({ ParentArchived: string }) & { InvalidTitle?: never; MoveCycle?: never; ObjectNotFound?: never; ParentNotFound?: never; Storage?: never } | 
 /**  `object_move`: the moved object would end up inside itself or a descendant. */
-({ MoveCycle: string }) & { ObjectNotFound?: never; ParentArchived?: never; ParentNotFound?: never; Storage?: never };
+({ MoveCycle: string }) & { InvalidTitle?: never; ObjectNotFound?: never; ParentArchived?: never; ParentNotFound?: never; Storage?: never } | 
+/**
+ *  `object_rename`: the title is empty after trimming, longer than
+ *  [`MAX_TITLE_CHARS`], has control characters (newlines included) or
+ *  contains `[[` / `]]`, which no wikilink can hold.
+ */
+({ InvalidTitle: string }) & { MoveCycle?: never; ObjectNotFound?: never; ParentArchived?: never; ParentNotFound?: never; Storage?: never };
 
 /**  Result of a provider probe. */
 export type Health = {
@@ -355,6 +409,27 @@ export type QuickCaptureInput = {
 	text: string,
 	/**  Optional target object ID; when `None`, appends to today's journal (`journal_today`). */
 	target_id: ObjectId | null,
+};
+
+/**
+ *  Outcome of `object_rename` (r1-safe-rename, #128).
+ * 
+ *  Every inbound wikilink is rewritten in the Yjs document of the page that
+ *  holds it, archived source pages included (restoring them never brings back
+ *  a stale link). Self-links in the renamed page are rewritten too.
+ */
+export type RenameReport = {
+	/**  Metadata after the rename (same as `object_update_meta` returns). */
+	meta: ObjectMeta,
+	/**  Wikilink occurrences rewritten, self-links included. */
+	updated_links: number,
+	/**
+	 *  Inbound links the index attributes to this object that could not be
+	 *  rewritten (the text no longer matches, e.g. a stale index or a link
+	 *  split by formatting marks). They stay as written and show up in
+	 *  `links_broken` once they stop resolving.
+	 */
+	unresolved: number,
 };
 
 /**

@@ -12,6 +12,7 @@ pub fn migrations() -> Migrations<'static> {
         M::up(include_str!("../migrations/0002_fts_search.sql")),
         M::up(include_str!("../migrations/0003_versions_snapshots.sql")),
         M::up(include_str!("../migrations/0004_saved_search_filters.sql")),
+        M::up(include_str!("../migrations/0005_link_target_text.sql")),
     ])
 }
 
@@ -213,5 +214,29 @@ mod tests {
             insert("d", "Roto", "roto", "{no json").is_err(),
             "json_valid"
         );
+    }
+
+    #[test]
+    fn migration_0005_keeps_existing_links_and_guards_target_text() {
+        let mut conn = rusqlite::Connection::open_in_memory().unwrap();
+        super::migrations().to_version(&mut conn, 4).unwrap();
+        conn.execute_batch(
+            "INSERT INTO objects (id, types, title, created_at, updated_at) VALUES ('a', '[]', 'A', 1, 1);
+             INSERT INTO links (from_object, from_block, to_object, kind) VALUES ('a', 'b1', 'plan', 'wikilink');",
+        )
+        .unwrap();
+        super::migrations().to_latest(&mut conn).unwrap();
+        let old: Option<String> = conn
+            .query_row("SELECT target_text FROM links", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(old, None, "rows indexed before 0005 stay NULL");
+        let insert = |text: &str| {
+            conn.execute(
+                "INSERT INTO links (from_object, from_block, to_object, kind, target_text) VALUES ('a', 'b2', ?1, 'wikilink', ?1)",
+                [text],
+            )
+        };
+        assert!(insert("  ").is_err(), "blank target_text");
+        insert("Plan Acme").unwrap();
     }
 }

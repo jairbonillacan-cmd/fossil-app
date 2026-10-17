@@ -12,6 +12,7 @@
 - `backlinks(conn, id)`: enlaces entrantes desde **otras** páginas no archivadas (un autoenlace no cuenta).
 - `unlinked_mentions(conn, id)`: páginas que mencionan el título por **palabras completas** (`contains_words`, límites Unicode) sin enlazarlo; pre-filtra candidatos con `fts_objects MATCH` cuando el título contiene tokens alfanuméricos y descarta bloques de objetos ya vistos (`seen.contains(&oid)`) antes de limpiar wikilinks.
 - `resolve_target(conn, target)`: resuelve primero por `id` (PK) y `lower(trim(title)) = ?1` con `prepare_cached`, cayendo a `length(trim(title))` solo si el objetivo no es ASCII.
+- **Formato de wikilink** (fijado por #128, detalle en `docs/modules/objects.md` §Renombrado seguro): `[[<destino>#<blockId>|<alias>]]`, con `#…` y `|…` opcionales. El destino es un `ObjectId` (forma con id, nunca ambigua) o un título; el alias nunca resuelve. Desde la migración 0005, `links.target_text` guarda el destino tal cual (NULL en filas viejas hasta reindexar).
 - **Pendiente:** reindexado inicial de objetos existentes al abrir el Espacio.
 
 ## Tipos (`fossil-core`, `specta`)

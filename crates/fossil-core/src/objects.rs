@@ -88,6 +88,49 @@ pub struct Mention {
     pub snippet: String,
 }
 
+/// Longest title `object_rename` accepts, in characters (r1-safe-rename, #128).
+pub const MAX_TITLE_CHARS: usize = 200;
+
+/// Outcome of `object_rename` (r1-safe-rename, #128).
+///
+/// Every inbound wikilink is rewritten in the Yjs document of the page that
+/// holds it, archived source pages included (restoring them never brings back
+/// a stale link). Self-links in the renamed page are rewritten too.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+pub struct RenameReport {
+    /// Metadata after the rename (same as `object_update_meta` returns).
+    pub meta: ObjectMeta,
+    /// Wikilink occurrences rewritten, self-links included.
+    pub updated_links: u32,
+    /// Inbound links the index attributes to this object that could not be
+    /// rewritten (the text no longer matches, e.g. a stale index or a link
+    /// split by formatting marks). They stay as written and show up in
+    /// `links_broken` once they stop resolving.
+    pub unresolved: u32,
+}
+
+/// Why `links_broken` reports a wikilink.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+pub enum BrokenLinkReason {
+    /// No object, archived or not, has that id or title.
+    Missing,
+    /// Only archived objects match: restoring one fixes the link.
+    Archived,
+    /// A title-form link (`[[Título]]`) matching two or more non-archived
+    /// objects; it resolves to the oldest one. Id-form links are never ambiguous.
+    Ambiguous,
+}
+
+/// A wikilink that does not resolve to exactly one non-archived object.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+pub struct BrokenLink {
+    pub from_object: ObjectId,
+    pub from_block: Option<BlockId>,
+    /// The target as written between `[[` and the first `#` or `|`, trimmed.
+    pub target_text: String,
+    pub reason: BrokenLinkReason,
+}
+
 /// Typed errors shared by every IPC command in R1.
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error, Serialize, Deserialize, specta::Type)]
 pub enum CoreError {
@@ -110,6 +153,11 @@ pub enum CoreError {
     /// `object_move`: the moved object would end up inside itself or a descendant.
     #[error("cannot move {0} into itself or one of its descendants")]
     MoveCycle(String),
+    /// `object_rename`: the title is empty after trimming, longer than
+    /// [`MAX_TITLE_CHARS`], has control characters (newlines included) or
+    /// contains `[[` / `]]`, which no wikilink can hold.
+    #[error("invalid title: {0}")]
+    InvalidTitle(String),
 }
 
 #[cfg(test)]
@@ -176,5 +224,31 @@ mod tests {
             snippet: "menciona el kickoff".into(),
         };
         assert!(serde_json::to_value(&mention).unwrap()["snippet"].is_string());
+    }
+
+    #[test]
+    fn broken_links_and_rename_reports_serialize_for_the_ui() {
+        let broken = super::BrokenLink {
+            from_object: ObjectId::new(),
+            from_block: None,
+            target_text: "Plan Acme".into(),
+            reason: super::BrokenLinkReason::Ambiguous,
+        };
+        let json = serde_json::to_value(&broken).unwrap();
+        assert_eq!(
+            (json["reason"].as_str(), json["from_block"].is_null()),
+            (Some("Ambiguous"), true)
+        );
+        let report = super::RenameReport {
+            meta: sample_meta(),
+            updated_links: 3,
+            unresolved: 1,
+        };
+        let json = serde_json::to_value(&report).unwrap();
+        assert_eq!(
+            (json["updated_links"].as_u64(), json["unresolved"].as_u64()),
+            (Some(3), Some(1))
+        );
+        assert_eq!(json["meta"]["title"], "Nota de kickoff");
     }
 }
