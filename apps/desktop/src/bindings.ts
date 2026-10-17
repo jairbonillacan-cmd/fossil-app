@@ -429,7 +429,7 @@ export type SearchQuery = {
 	limit: number | null,
 };
 
-/**  Why a workspace snapshot was taken. SQL tag in `workspace_snapshots.trigger_kind`. */
+/**  Why a workspace snapshot was taken (`workspace_snapshots.trigger_kind`). */
 export type SnapshotTriggerKind = "Manual" | "Scheduled" | "PreImport" | "PreRestore";
 
 /**  A plain-text segment of a search excerpt, avoiding raw HTML in the WebView. */
@@ -463,7 +463,7 @@ export type VaultInfo = {
 	name: string,
 };
 
-/**  Why a page version was captured. SQL tag in `object_versions.trigger_kind`. */
+/**  Why a page version was captured (`object_versions.trigger_kind`). */
 export type VersionTriggerKind = "IdlePause" | "SignificantEdit" | "SessionClose" | "PreRestore" | "Manual";
 
 /**  A sealed workspace snapshot (row of `workspace_snapshots`). */

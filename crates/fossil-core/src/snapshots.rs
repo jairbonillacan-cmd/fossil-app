@@ -25,74 +25,48 @@ pub struct SaveStatus {
     pub last_error: Option<String>,
 }
 
-/// Why a workspace snapshot was taken. SQL tag in `workspace_snapshots.trigger_kind`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
-pub enum SnapshotTriggerKind {
-    Manual,
-    Scheduled,
-    PreImport,
-    PreRestore,
-}
+/// Enum stored in SQLite as a snake_case tag (CHECKed by migration 0003).
+/// `from_sql` returns `None` for unknown tags (hostile or newer data).
+macro_rules! sql_tag_enum {
+    ($(#[$meta:meta])* $name:ident { $($variant:ident = $tag:literal),* $(,)? }) => {
+        $(#[$meta])*
+        #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+        pub enum $name { $($variant),* }
 
-impl SnapshotTriggerKind {
-    pub const ALL: [Self; 4] = [
-        Self::Manual,
-        Self::Scheduled,
-        Self::PreImport,
-        Self::PreRestore,
-    ];
+        impl $name {
+            pub const ALL: &'static [Self] = &[$(Self::$variant),*];
 
-    /// Value stored in SQLite (checked by migration 0003).
-    pub fn as_sql(self) -> &'static str {
-        match self {
-            Self::Manual => "manual",
-            Self::Scheduled => "scheduled",
-            Self::PreImport => "pre_import",
-            Self::PreRestore => "pre_restore",
+            pub fn as_sql(self) -> &'static str {
+                match self { $(Self::$variant => $tag),* }
+            }
+
+            pub fn from_sql(value: &str) -> Option<Self> {
+                Self::ALL.iter().copied().find(|kind| kind.as_sql() == value)
+            }
         }
-    }
-
-    /// Parses a stored tag; unknown values (hostile or newer data) are `None`.
-    pub fn from_sql(value: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|kind| kind.as_sql() == value)
-    }
+    };
 }
 
-/// Why a page version was captured. SQL tag in `object_versions.trigger_kind`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
-pub enum VersionTriggerKind {
-    IdlePause,
-    SignificantEdit,
-    SessionClose,
-    PreRestore,
-    Manual,
-}
-
-impl VersionTriggerKind {
-    pub const ALL: [Self; 5] = [
-        Self::IdlePause,
-        Self::SignificantEdit,
-        Self::SessionClose,
-        Self::PreRestore,
-        Self::Manual,
-    ];
-
-    /// Value stored in SQLite (checked by migration 0003).
-    pub fn as_sql(self) -> &'static str {
-        match self {
-            Self::IdlePause => "idle_pause",
-            Self::SignificantEdit => "significant_edit",
-            Self::SessionClose => "session_close",
-            Self::PreRestore => "pre_restore",
-            Self::Manual => "manual",
-        }
+sql_tag_enum!(
+    /// Why a workspace snapshot was taken (`workspace_snapshots.trigger_kind`).
+    SnapshotTriggerKind {
+        Manual = "manual",
+        Scheduled = "scheduled",
+        PreImport = "pre_import",
+        PreRestore = "pre_restore",
     }
+);
 
-    /// Parses a stored tag; unknown values (hostile or newer data) are `None`.
-    pub fn from_sql(value: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|kind| kind.as_sql() == value)
+sql_tag_enum!(
+    /// Why a page version was captured (`object_versions.trigger_kind`).
+    VersionTriggerKind {
+        IdlePause = "idle_pause",
+        SignificantEdit = "significant_edit",
+        SessionClose = "session_close",
+        PreRestore = "pre_restore",
+        Manual = "manual",
     }
-}
+);
 
 /// What `snapshot_restore_page` does when the page still exists: never
 /// overwrite silently.
@@ -165,10 +139,10 @@ mod tests {
 
     #[test]
     fn sql_tags_round_trip_and_reject_unknown() {
-        for kind in SnapshotTriggerKind::ALL {
+        for &kind in SnapshotTriggerKind::ALL {
             assert_eq!(SnapshotTriggerKind::from_sql(kind.as_sql()), Some(kind));
         }
-        for kind in VersionTriggerKind::ALL {
+        for &kind in VersionTriggerKind::ALL {
             assert_eq!(VersionTriggerKind::from_sql(kind.as_sql()), Some(kind));
         }
         assert_eq!(SnapshotTriggerKind::from_sql("Manual"), None);
