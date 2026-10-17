@@ -6,8 +6,18 @@ import {
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
-import type { ObjectMeta } from "./bindings";
+import { commands, type ObjectMeta } from "./bindings";
 import { formatObjectTitle } from "./sidebar";
+import {
+  getScrollOffsets,
+  loadSession,
+  registerScrollFlush,
+  restoreSession,
+  SESSION_VERSION,
+  saveSession,
+  setScrollOffsets,
+  type TabsSession,
+} from "./tabs-session";
 
 export interface WorkspaceTab {
   id: string;
@@ -29,8 +39,27 @@ const mkTab = (object: ObjectMeta | null): WorkspaceTab => ({
   pinned: false,
 });
 
-/** State hook for workspace tabs, pin/close/reorder and back/forward page history (#106). */
-export function useWorkspaceTabs(initialTabs: WorkspaceTab[] = []) {
+const toSession = (s: TabsState): TabsSession => {
+  const idx = s.tabs.findIndex((t) => t.id === s.activeTabId);
+  return {
+    v: SESSION_VERSION,
+    tabs: s.tabs.map((t) => ({ objectId: t.object?.id ?? null, pinned: t.pinned })),
+    active: idx === -1 ? null : idx,
+    history: s.history.map((o) => o.id),
+    historyIndex: s.historyIndex,
+    scroll: { ...getScrollOffsets() },
+  };
+};
+
+/**
+ * State hook for workspace tabs, pin/close/reorder and back/forward page history (#106).
+ * With `vaultName`, the session (tabs, order, pins, active tab, history and scroll) is
+ * restored on mount and saved per Espacio in localStorage (#29).
+ */
+export function useWorkspaceTabs(
+  initialTabs: WorkspaceTab[] = [],
+  vaultName: string | null = null,
+) {
   const [s, setS] = useState<TabsState>(() => ({
     tabs: initialTabs,
     activeTabId: initialTabs[0]?.id ?? null,
@@ -38,6 +67,61 @@ export function useWorkspaceTabs(initialTabs: WorkspaceTab[] = []) {
     historyIndex: initialTabs[0]?.object ? 0 : -1,
   }));
   const activeTab = s.tabs.find((t) => t.id === s.activeTabId) ?? null;
+  const hydrated = useRef(false);
+  const latestState = useRef(s);
+  latestState.current = s;
+
+  useEffect(() => {
+    hydrated.current = false;
+    if (vaultName === null) return undefined;
+    let cancelled = false;
+    const saved = loadSession(vaultName);
+    setScrollOffsets(saved?.scroll ?? {});
+    const finish = (restore: ReturnType<typeof restoreSession> | null) => {
+      if (cancelled) return;
+      if (restore && restore.tabs.length > 0) {
+        const tabs = restore.tabs.map((x) => ({ ...mkTab(x.object), pinned: x.pinned }));
+        const activeTabId = tabs[restore.active ?? -1]?.id ?? null;
+        const { history, historyIndex } = restore;
+        setS((prev) =>
+          prev.tabs.length > 0 ? prev : { tabs, activeTabId, history, historyIndex },
+        );
+      }
+      hydrated.current = true;
+    };
+    if (saved) {
+      void commands
+        .objectList({ include_archived: false, type_key: null, parent: null, query: null })
+        // On failure keep the saved session untouched: saving stays off this run.
+        .then((res) => res.status === "ok" && finish(restoreSession(saved, res.data)))
+        .catch(() => undefined);
+    } else {
+      finish(null);
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [vaultName]);
+
+  useEffect(() => {
+    if (vaultName === null || !hydrated.current) return;
+    saveSession(vaultName, toSession(s));
+  }, [s, vaultName]);
+
+  useEffect(() => {
+    if (vaultName === null) return undefined;
+    const flush = () => {
+      if (hydrated.current) saveSession(vaultName, toSession(latestState.current));
+    };
+    registerScrollFlush(flush);
+    window.addEventListener("pagehide", flush);
+    return () => {
+      flush();
+      registerScrollFlush(null);
+      window.removeEventListener("pagehide", flush);
+    };
+  }, [vaultName]);
+
   const pushHist = (prev: TabsState, obj: ObjectMeta) => {
     const history = [...prev.history.slice(0, prev.historyIndex + 1), obj];
     return { history, historyIndex: history.length - 1 };

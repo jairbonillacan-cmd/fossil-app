@@ -8,6 +8,7 @@ import { exportObjectMarkdown, printObjectPdf } from "./page-export";
 import { registerCommand } from "./shell-commands";
 import { PageFindBar } from "./shell-search";
 import { formatObjectTitle, selectWorkspaceObject } from "./sidebar";
+import { usePageScroll } from "./tabs-session";
 
 const PageBody = lazy(() => import("./page-body").then((m) => ({ default: m.PageBody })));
 const PageBacklinksPanel = lazy(() =>
@@ -25,6 +26,7 @@ export interface PageEditorProps {
 /** Page header (`object_update_meta`, 400 ms debounce + blur), `⋯` actions menu, body and collapsible backlinks/AI panels (#26, #28, #14, #105). */
 export function PageEditor({ object, onSelect, onObjectUpdated }: PageEditorProps) {
   const { t, i18n } = useTranslation();
+  const pageScroll = usePageScroll(object?.id ?? null);
   const [title, setTitle] = useState(object?.title ?? "");
   const titleRef = useRef(object?.title ?? "");
   titleRef.current = title;
@@ -275,7 +277,11 @@ export function PageEditor({ object, onSelect, onObjectUpdated }: PageEditorProp
         without scrolling of its own (spec R1.5, r1-scrollbar). The right
         panels stay outside, as siblings of this wrapper.
       */}
-      <div className="flex h-full min-w-0 flex-1 flex-col overflow-y-auto [scrollbar-gutter:stable] print:h-auto print:overflow-visible">
+      <div
+        ref={pageScroll.ref}
+        onScroll={pageScroll.onScroll}
+        className="flex h-full min-w-0 flex-1 flex-col overflow-y-auto [scrollbar-gutter:stable] print:h-auto print:overflow-visible"
+      >
         <div className="mx-auto flex min-h-full w-full max-w-2xl flex-col gap-4 px-6 py-8 in-data-[density=compact]:gap-2.5 in-data-[density=compact]:py-5">
           <div className="flex items-start justify-between gap-3">
             <textarea

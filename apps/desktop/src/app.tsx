@@ -7,7 +7,7 @@ import { VaultScreen } from "./vault-screen";
 
 export function App() {
   const [vault, setVault] = useState<VaultInfo | null>(null);
-  const tabs = useWorkspaceTabs();
+  const tabs = useWorkspaceTabs([], vault?.name ?? null);
 
   if (vault === null) {
     return <VaultScreen onVaultOpen={setVault} />;
