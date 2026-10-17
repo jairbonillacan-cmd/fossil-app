@@ -73,8 +73,9 @@ export const CodeBlockLanguage = CodeBlock.extend<CodeBlockOptions>({
       new Plugin({
         props: {
           handlePaste: (view, event) => {
-            const text = event.clipboardData?.getData("text/plain") ?? "";
-            const { $from } = view.state.selection;
+            const text = (event.clipboardData?.getData("text/plain") ?? "").replace(/\r\n?/g, "\n");
+            const { $from, $to } = view.state.selection;
+            if (!$from.sameParent($to)) return false;
             const block = $from.parent;
             if (block.type !== this.type || normalizeLanguage(block.attrs.language) !== null)
               return false;

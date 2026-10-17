@@ -1,4 +1,5 @@
 import { Editor } from "@tiptap/core";
+import { Slice } from "@tiptap/pm/model";
 import StarterKit from "@tiptap/starter-kit";
 import { afterEach, describe, expect, it } from "vitest";
 import * as Y from "yjs";
@@ -41,6 +42,14 @@ describe("language detection", () => {
   });
 });
 
+const paste = (ed: Editor, text: string): boolean | undefined => {
+  const event = new Event("paste") as ClipboardEvent;
+  Object.defineProperty(event, "clipboardData", {
+    value: { getData: (t: string) => (t === "text/plain" ? text : "") },
+  });
+  return ed.view.someProp("handlePaste", (f) => f(ed.view, event, Slice.empty));
+};
+
 describe("code block language (#144)", () => {
   it("keeps the language attribute in Yjs and after reloading the doc", () => {
     const doc = new Y.Doc();
@@ -66,13 +75,24 @@ describe("code block language (#144)", () => {
   it("detects the language when pasting into an untyped code block", () => {
     const ed = makeEditor(new Y.Doc(), "<pre><code></code></pre>");
     ed.commands.focus("start");
-    const event = new Event("paste") as ClipboardEvent;
-    Object.defineProperty(event, "clipboardData", {
-      value: { getData: (t: string) => (t === "text/plain" ? "SELECT * FROM users" : "") },
-    });
-    const handled = ed.view.someProp("handlePaste", (f) => f(ed.view, event, null as never));
-    expect(handled).toBe(true);
+    expect(paste(ed, "SELECT * FROM users")).toBe(true);
     expect(ed.state.doc.firstChild?.attrs.language).toBe("sql");
     expect(ed.state.doc.textContent).toBe("SELECT * FROM users");
+  });
+
+  it("normalizes CRLF pasted from the Windows clipboard, in the doc and in Yjs", () => {
+    const doc = new Y.Doc();
+    const ed = makeEditor(doc, "<pre><code></code></pre>");
+    ed.commands.focus("start");
+    expect(paste(ed, "SELECT id\r\nFROM users\rWHERE id = 1")).toBe(true);
+    expect(ed.state.doc.textContent).toBe("SELECT id\nFROM users\nWHERE id = 1");
+    expect(getBodyFragment(doc).toString()).not.toContain("\r");
+  });
+
+  it("leaves the default paste alone when the selection spans several blocks", () => {
+    const ed = makeEditor(new Y.Doc(), "<pre><code>abc</code></pre><p>def</p>");
+    ed.commands.setTextSelection({ from: 2, to: ed.state.doc.content.size - 1 });
+    expect(paste(ed, "SELECT 1 FROM t")).toBeFalsy();
+    expect(ed.state.doc.firstChild?.attrs.language ?? null).toBeNull();
   });
 });
