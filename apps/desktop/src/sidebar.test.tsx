@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ObjectMeta } from "./bindings";
 import { commands, events } from "./bindings";
 import { PageEditor } from "./page-editor";
+import { listRecents, resetRecentsCache } from "./shell-recents";
 import { formatObjectTitle, Sidebar } from "./sidebar";
 import "./i18n";
 
@@ -64,6 +65,16 @@ describe("Sidebar & PageEditor", () => {
     expect(
       screen.getByRole("button", { name: formatObjectTitle(journal, "es-MX", "Sin título") }),
     ).not.toBeNull();
+  });
+
+  it("records the open page in the Ctrl+P recents (#86)", async () => {
+    localStorage.clear();
+    resetRecentsCache();
+    vi.mocked(commands.objectList).mockResolvedValue({ status: "ok", data: [page] });
+    const { rerender } = render(<Sidebar vaultName="Acme" selectedId="obj-1" onSelect={vi.fn()} />);
+    rerender(<Sidebar vaultName="Acme" selectedId="obj-2" onSelect={vi.fn()} />);
+    await screen.findByRole("button", { name: "Launch checklist" });
+    expect(listRecents("pages")).toEqual(["obj-2", "obj-1"]);
   });
 
   it("shows empty state, creates pages, opens today, and refetches on object:changed", async () => {

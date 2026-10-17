@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { ObjectMeta, SearchHit } from "./bindings";
 import { commands } from "./bindings";
 import { type FuzzyMatch, fuzzyMatch, listCommands } from "./shell-commands";
+import { listRecents, pruneRecents, pushRecent } from "./shell-recents";
 import { formatObjectTitle, selectWorkspaceObject } from "./sidebar";
 
 export type PaletteMode = "palette" | "switcher";
@@ -25,6 +26,7 @@ function renderHighlighted(text: string, indices: number[]) {
   );
 }
 
+const FEW_HITS = 5;
 const EMPTY_SEARCH = { type_key: null, tag: null, updated_from: null, updated_to: null, limit: 20 };
 const INPUT_CLS =
   "w-full rounded border border-[color:var(--border)] bg-[color:var(--bg)] px-3 py-2 text-sm text-[color:var(--fg)] placeholder:text-[color:var(--fg-muted)] focus-visible:outline-2 focus-visible:outline-[color:var(--accent)]";
@@ -70,7 +72,11 @@ export function ShellPalette(props: { onSelect?: ((object: ObjectMeta) => void) 
     inputRef.current?.focus();
     void commands
       .objectList?.({ include_archived: false, type_key: null, parent: null, query: null })
-      ?.then((res) => setObjects(res.status === "ok" ? res.data : []));
+      ?.then((res) => {
+        const data = res.status === "ok" ? res.data : [];
+        if (res.status === "ok") pruneRecents("pages", new Set(data.map((o) => o.id)));
+        setObjects(data);
+      });
   }, [mode]);
 
   useEffect(() => {
@@ -85,10 +91,34 @@ export function ShellPalette(props: { onSelect?: ((object: ObjectMeta) => void) 
     };
   }, [mode, query]);
 
+  // Matching is memoized so arrow keys do not rescan every page. Typo tolerance only
+  // kicks in for pages when the exact pass finds few hits (keeps 10 000 pages fast).
+  const objMatches = useMemo(() => {
+    if (mode === null) return [];
+    const source =
+      mode === "palette" && ftsHits
+        ? ftsHits.map(
+            (h) =>
+              objects.find((o) => o.id === h.object_id) ??
+              ({ id: h.object_id, types: ["Page"], title: h.title, icon: null } as ObjectMeta),
+          )
+        : objects;
+    const untitled = t("editor.untitled");
+    const rows = source.map((o) => {
+      const lbl = formatObjectTitle(o, i18n.language, untitled);
+      return { o, lbl, m: fuzzyMatch(query, lbl, { typo: false }) };
+    });
+    if (!ftsHits && query.trim() !== "" && rows.filter((r) => r.m).length < FEW_HITS) {
+      for (const r of rows) if (!r.m) r.m = fuzzyMatch(query, r.lbl);
+    }
+    return rows;
+  }, [mode, query, objects, ftsHits, t, i18n.language]);
+
   if (mode === null) return null;
   const close = () => setMode(null);
   const mkEntry = (k: string, l: string, b: string, m: FuzzyMatch | null, fn: () => void) => ({
     key: k,
+    recent: false,
     label: l,
     badge: b,
     indices: m?.indices ?? [],
@@ -111,29 +141,33 @@ export function ShellPalette(props: { onSelect?: ((object: ObjectMeta) => void) 
       : listCommands()
           .flatMap((c) => {
             const m = fuzzyMatch(query, c.title);
-            return m
-              ? [mkEntry(`cmd:${c.id}`, c.title, c.shortcut ?? cmdBadge, m, () => void c.run())]
-              : [];
+            const run = () => {
+              pushRecent("actions", c.id);
+              void c.run();
+            };
+            return m ? [mkEntry(`cmd:${c.id}`, c.title, c.shortcut ?? cmdBadge, m, run)] : [];
           })
           .sort((a, b) => b.score - a.score);
 
-  const objSource =
-    mode === "palette" && ftsHits
-      ? ftsHits.map(
-          (h) =>
-            objects.find((o) => o.id === h.object_id) ??
-            ({ id: h.object_id, types: ["Page"], title: h.title, icon: null } as ObjectMeta),
-        )
-      : objects;
-  const objEntries = objSource
-    .flatMap((o) => {
-      const lbl = formatObjectTitle(o, i18n.language, t("editor.untitled"));
-      const m = fuzzyMatch(query, lbl);
-      return ftsHits || m ? [mkEntry(`obj:${o.id}`, lbl, objBadge, m, () => openObj(o))] : [];
-    })
+  const objEntries = objMatches
+    .flatMap(({ o, lbl, m }) =>
+      ftsHits || m ? [mkEntry(`obj:${o.id}`, lbl, objBadge, m, () => openObj(o))] : [],
+    )
     .sort((a, b) => (ftsHits ? 0 : b.score - a.score));
 
-  const entries = [...cmdEntries, ...objEntries];
+  const all = [...cmdEntries, ...objEntries];
+  // Empty query: last 5 actions (Ctrl+K) or last opened pages (Ctrl+P) first, then everything else.
+  const recentKeys =
+    query.trim() !== ""
+      ? []
+      : listRecents(mode === "palette" ? "actions" : "pages").map(
+          (id) => `${mode === "palette" ? "cmd" : "obj"}:${id}`,
+        );
+  const recentEntries = recentKeys.flatMap((k) => {
+    const hit = all.find((e) => e.key === k);
+    return hit ? [{ ...hit, recent: true }] : [];
+  });
+  const entries = [...recentEntries, ...all.filter((e) => !recentKeys.includes(e.key))];
   const safeIdx = entries.length === 0 ? 0 : Math.min(activeIndex, entries.length - 1);
   const label = t(mode === "palette" ? "palette.commandLabel" : "palette.switcherLabel");
   const ph = t(mode === "palette" ? "palette.commandPlaceholder" : "palette.switcherPlaceholder");
@@ -182,20 +216,29 @@ export function ShellPalette(props: { onSelect?: ((object: ObjectMeta) => void) 
         ) : (
           <div role="listbox" className="mt-2 flex max-h-72 flex-col gap-0.5 overflow-y-auto">
             {entries.map((item, idx) => (
-              <button
-                key={item.key}
-                type="button"
-                role="option"
-                aria-selected={idx === safeIdx}
-                onMouseEnter={() => setActiveIndex(idx)}
-                onClick={item.run}
-                className={OPTION_CLS}
-              >
-                <span className="truncate">{renderHighlighted(item.label, item.indices)}</span>
-                <span className="shrink-0 font-mono text-xs text-[color:var(--fg-muted)]">
-                  {item.badge}
-                </span>
-              </button>
+              <Fragment key={item.key}>
+                {(idx === 0 && item.recent) || (idx === recentEntries.length && idx > 0) ? (
+                  <div
+                    role="presentation"
+                    className="px-2.5 pt-1 pb-0.5 text-xs text-[color:var(--fg-muted)]"
+                  >
+                    {t(item.recent ? "palette.recentHeading" : "palette.allHeading")}
+                  </div>
+                ) : null}
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={idx === safeIdx}
+                  onMouseEnter={() => setActiveIndex(idx)}
+                  onClick={item.run}
+                  className={OPTION_CLS}
+                >
+                  <span className="truncate">{renderHighlighted(item.label, item.indices)}</span>
+                  <span className="shrink-0 font-mono text-xs text-[color:var(--fg-muted)]">
+                    {item.badge}
+                  </span>
+                </button>
+              </Fragment>
             ))}
           </div>
         )}
