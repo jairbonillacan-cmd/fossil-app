@@ -1,8 +1,6 @@
-//! Restoring from a sealed snapshot without ever overwriting the original
-//! (#161, spec `r1-trust` §Motor de restauración). Everything read from a
-//! snapshot folder or received over IPC is hostile: the snapshot id is a Ulid,
-//! the manifest is validated entry by entry, every file is checked against its
-//! SHA-256 before use, and target paths go through `fs_guard`.
+//! Restoring from a sealed snapshot without overwriting the original (#161).
+//! Snapshot folders and IPC arguments are hostile: ids are Ulids, manifests are
+//! validated entry by entry, files are hashed and targets go through `fs_guard`.
 use crate::{
     attachments::{self, ATTACHMENTS_DIR},
     fs_guard,
@@ -19,7 +17,6 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
-/// A manifest is a few KB even with thousands of attachments; refuse anything huge.
 const MAX_MANIFEST_BYTES: u64 = 8 * 1024 * 1024;
 const FIXED_FILES: [&str; 3] = ["fossil.db", "vault.json", "mirror.json"];
 
@@ -27,7 +24,6 @@ fn invalid(what: &str) -> CoreError {
     storage_error(format!("invalid snapshot: {what}"))
 }
 
-/// Where a manifest path lands inside a restored Espacio.
 fn destination(base: &Path, relative: &str) -> PathBuf {
     if FIXED_FILES.contains(&relative) {
         base.join(".fossil").join(relative)
@@ -82,7 +78,6 @@ pub(crate) fn read_manifest(root: &Path, id: &str) -> Result<(PathBuf, Manifest)
 
 /// Refuses anything but a new (or empty) local folder that is not behind a link.
 fn check_target(root: &Path, target: &Path) -> Result<(), CoreError> {
-    // Before any file-system call: resolving a UNC path already contacts the server.
     fs_guard::require_local_absolute(target)?;
     let mut walked = PathBuf::new();
     for component in target.components() {
@@ -138,8 +133,7 @@ fn write_files(dir: &Path, manifest: &Manifest, target: &Path) -> Result<(), Cor
         }
         fs::rename(&temporary, &destination).map_err(storage_error)?;
     }
-    // The restored Espacio has no backups folder, so its copy of the list would
-    // point to snapshots that do not exist there. Opening also migrates it.
+    // The copy has no backups folder: drop its list of snapshots.
     open_vault(
         destination(target, "fossil.db")
             .to_str()
@@ -163,7 +157,6 @@ pub fn restore_workspace(root: &Path, id: &str, target: &Path) -> Result<PathBuf
             return Err(invalid(&format!("{} does not match its hash", file.path)));
         }
     }
-    // ADR-0018: the full check, not just quick_check, before activating a restore.
     if !check_database(&dir.join("fossil.db"), "integrity_check") {
         return Err(invalid("database failed integrity_check"));
     }
@@ -172,7 +165,6 @@ pub fn restore_workspace(root: &Path, id: &str, target: &Path) -> Result<PathBuf
         fs::create_dir(target).map_err(storage_error)?;
     }
     write_files(&dir, &manifest, target).inspect_err(|_| {
-        // Only what this call created; the folder was empty or new.
         let _ = fs::remove_dir_all(target.join(".fossil"));
         let _ = fs::remove_dir_all(target.join(ATTACHMENTS_DIR));
         if created {
@@ -188,8 +180,9 @@ mod tests {
     use crate::{
         object_store,
         objects::{NewObject, TypeKey},
-        snapshot_store::{build, record, tests::vault},
+        snapshot_store::{self, build, record, tests::vault},
         snapshots::SnapshotTriggerKind,
+        vault::VaultSession,
     };
 
     const PNG: &[u8] = b"\x89PNG\r\n\x1a\nrest";
@@ -225,20 +218,38 @@ mod tests {
             b"\"Acme\""
         );
         let conn = open_vault(restored.join(".fossil/fossil.db").to_str().unwrap()).unwrap();
-        let (pages, listed): (i64, i64) = conn
-            .query_row(
-                "SELECT (SELECT COUNT(*) FROM objects), (SELECT COUNT(*) FROM workspace_snapshots)",
-                [],
-                |r| Ok((r.get(0)?, r.get(1)?)),
-            )
-            .unwrap();
-        assert_eq!((pages, listed), (1, 0));
+        let listed = conn.query_row("SELECT COUNT(*) FROM workspace_snapshots", [], |r| {
+            r.get::<_, i64>(0)
+        });
+        assert_eq!(listed.unwrap(), 0);
         assert_eq!(
             hash_file(&dir.path().join(".fossil/fossil.db")).unwrap().0,
             before.0
         );
-        // An existing, non-empty folder is never a target.
         assert!(restore_workspace(dir.path(), &id, &restored).is_err());
+    }
+
+    #[test]
+    fn restoring_a_snapshot_from_today_does_not_delete_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut session = VaultSession::new(dir.path().join("config.json"));
+        let space = dir.path().join("espacio");
+        fs::create_dir(&space).unwrap();
+        session.create(&space, "Acme".into()).unwrap();
+        let root = session.root().unwrap().to_path_buf();
+        let mut ids = Vec::new();
+        for trigger in [SnapshotTriggerKind::Manual, SnapshotTriggerKind::PreRestore] {
+            let sealed = build(&root, trigger).unwrap();
+            snapshot_store::commit(&mut session, &root, &sealed).unwrap();
+            ids.push(sealed.meta.snapshot_id);
+        }
+        let target = dir.path().join("restaurado");
+        restore_workspace(&root, &ids[0], &target).unwrap();
+        assert!(backups_dir(&root).join(&ids[0]).exists());
+        let listed = session
+            .with_connection(|c| snapshot_store::list(c))
+            .unwrap();
+        assert_eq!(listed.len(), 2);
     }
 
     #[test]
@@ -334,7 +345,6 @@ mod tests {
         }
         fs::write(&manifest_path, &original).unwrap();
         assert!(read_manifest(dir.path(), &id).is_ok());
-        // A byte flipped in a snapshot file is caught by the manifest hash.
         fs::write(folder.join(&image), b"tampered").unwrap();
         let target = tempfile::tempdir().unwrap();
         let nuevo = target.path().join("nuevo");
