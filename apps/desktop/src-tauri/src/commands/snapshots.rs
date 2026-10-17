@@ -9,13 +9,16 @@
 //! `type:contract` issue. Every argument is hostile: validate ids as Ulid and
 //! paths with `fs_guard` before use.
 
-use super::objects::VaultInfo;
+use super::objects::{VaultInfo, VaultState, with_session};
 use fossil_core::ids::ObjectId;
 use fossil_core::objects::{CoreError, ObjectMeta};
+use fossil_core::snapshot_store;
 use fossil_core::snapshots::{
     MirrorRoundtripReport, PageVersionDiff, PageVersionSummary, RestoreConflictPolicy,
     SnapshotTriggerKind, WorkspaceSnapshotMeta,
 };
+use std::path::Path;
+use tauri::Manager;
 
 macro_rules! stub {
     ($(#[$meta:meta])* $vis:vis fn $name:ident($($arg:ident: $ty:ty),*) -> $ret:ty) => {
@@ -29,15 +32,68 @@ macro_rules! stub {
     };
 }
 
-stub!(
-    /// Seals a consistent snapshot of the open Espacio (`VACUUM INTO` on a
-    /// read-only connection + `PRAGMA quick_check`, ADR-0018).
-    pub fn snapshot_create(trigger_kind: SnapshotTriggerKind) -> Result<WorkspaceSnapshotMeta, CoreError>
-);
-stub!(
-    /// Snapshots of the open Espacio, newest first.
-    pub fn snapshot_list() -> Result<Vec<WorkspaceSnapshotMeta>, CoreError>
-);
+/// Seals a consistent snapshot of the open Espacio (`VACUUM INTO` on a
+/// read-only connection + `PRAGMA quick_check`, ADR-0018).
+#[tauri::command]
+#[specta::specta]
+pub fn snapshot_create(
+    state: tauri::State<'_, VaultState>,
+    trigger_kind: SnapshotTriggerKind,
+) -> Result<WorkspaceSnapshotMeta, CoreError> {
+    create(state, trigger_kind)
+}
+
+fn create(
+    state: tauri::State<'_, VaultState>,
+    trigger: SnapshotTriggerKind,
+) -> Result<WorkspaceSnapshotMeta, CoreError> {
+    let root = with_session(state.clone(), |session| {
+        session
+            .root()
+            .map(Path::to_path_buf)
+            .ok_or(CoreError::VaultNotOpen)
+    })?;
+    // The copy runs outside the session lock: the editor keeps saving meanwhile.
+    let sealed = snapshot_store::build(&root, trigger)?;
+    let removed = with_session(state, |session| {
+        session.with_connection(|conn| {
+            snapshot_store::record(conn, &sealed)?;
+            snapshot_store::prune(conn)
+        })
+    })?;
+    snapshot_store::remove_dirs(&root, &removed);
+    Ok(sealed.meta)
+}
+
+/// Snapshots of the open Espacio, newest first.
+#[tauri::command]
+#[specta::specta]
+pub fn snapshot_list(
+    state: tauri::State<'_, VaultState>,
+) -> Result<Vec<WorkspaceSnapshotMeta>, CoreError> {
+    with_session(state, |session| {
+        session.with_connection(|conn| snapshot_store::list(conn))
+    })
+}
+
+/// After opening an Espacio: take a `Scheduled` snapshot in the background if
+/// the last one is older than 24 h (or there is none). Failures are only logged.
+pub(crate) fn schedule_on_open(app: &tauri::AppHandle) {
+    let app = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let due = with_session(app.state::<VaultState>(), |session| {
+            session.with_connection(|conn| {
+                snapshot_store::scheduled_due(conn, snapshot_store::now_ms())
+            })
+        });
+        if matches!(due, Ok(true))
+            && let Err(error) = create(app.state::<VaultState>(), SnapshotTriggerKind::Scheduled)
+        {
+            eprintln!("scheduled snapshot failed: {error}");
+        }
+    });
+}
+
 stub!(
     /// Restores the whole Espacio into a new local folder (never over the original).
     pub fn snapshot_restore_workspace(snapshot_id: String, target_dir: String) -> Result<VaultInfo, CoreError>
@@ -76,8 +132,6 @@ mod tests {
         let id = ObjectId::new;
         let s = String::new;
         let errors = [
-            snapshot_create(SnapshotTriggerKind::Manual).err(),
-            snapshot_list().err(),
             snapshot_restore_workspace(s(), s()).err(),
             snapshot_restore_page(s(), id(), RestoreConflictPolicy::CreateCopy).err(),
             snapshot_restore_attachment(s(), "../x.png".into()).err(),

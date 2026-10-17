@@ -18,6 +18,7 @@ use rusqlite::{Connection, OpenFlags, params};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
+    collections::HashSet,
     fs,
     io::{Read, Write},
     path::{Path, PathBuf},
@@ -297,10 +298,157 @@ pub fn record(conn: &Connection, sealed: &SealedSnapshot) -> Result<(), CoreErro
     Ok(())
 }
 
+/// Snapshots of the open Espacio, newest first. Rows with an unknown trigger
+/// tag (hostile or newer data) are skipped.
+pub fn list(conn: &Connection) -> Result<Vec<WorkspaceSnapshotMeta>, CoreError> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT snapshot_id, trigger_kind, object_count, attachment_count, total_bytes,
+                    integrity_ok, created_at
+             FROM workspace_snapshots ORDER BY created_at DESC, snapshot_id DESC",
+        )
+        .map_err(storage_error)?;
+    let rows = stmt
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, u32>(2)?,
+                row.get::<_, u32>(3)?,
+                row.get::<_, i64>(4)?,
+                row.get::<_, i64>(5)?,
+                row.get::<_, i64>(6)?,
+            ))
+        })
+        .map_err(storage_error)?
+        .collect::<rusqlite::Result<Vec<_>>>()
+        .map_err(storage_error)?;
+    Ok(rows
+        .into_iter()
+        .filter_map(|(id, trigger, objects, attachments, bytes, ok, created)| {
+            // Ids become folder names: a row with a forged id is dropped.
+            valid_snapshot_id(&id).ok()?;
+            Some(WorkspaceSnapshotMeta {
+                snapshot_id: id,
+                trigger_kind: SnapshotTriggerKind::from_sql(&trigger)?,
+                object_count: objects,
+                attachment_count: attachments,
+                total_bytes: bytes as f64,
+                integrity_ok: ok == 1,
+                created_at: iso(created),
+            })
+        })
+        .collect())
+}
+
+/// Newest snapshots kept per distinct UTC day, then per distinct week (retention).
+pub const KEEP_DAILY: usize = 10;
+pub const KEEP_WEEKLY: usize = 4;
+/// A `Scheduled` snapshot is due when the last one is older than this.
+pub const SCHEDULE_AFTER_MS: i64 = 24 * 60 * 60 * 1000;
+const DAY_MS: i64 = SCHEDULE_AFTER_MS;
+
+/// Ids to keep out of `(id, created_ms)` rows: the newest snapshot of each of
+/// the last [`KEEP_DAILY`] days, plus the newest of each of the last
+/// [`KEEP_WEEKLY`] weeks among the rest.
+pub(crate) fn retained(rows: &[(String, i64)]) -> HashSet<String> {
+    let mut sorted: Vec<_> = rows.iter().collect();
+    sorted.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| b.0.cmp(&a.0)));
+    let mut keep = HashSet::new();
+    let mut days = Vec::new();
+    for (id, ms) in &sorted {
+        let day = ms.div_euclid(DAY_MS);
+        if days.len() < KEEP_DAILY && !days.contains(&day) {
+            days.push(day);
+            keep.insert(id.clone());
+        }
+    }
+    let mut weeks = Vec::new();
+    // Weekly slots start where the daily window ends.
+    let cutoff = days.iter().min().copied().unwrap_or(i64::MIN);
+    let rest: Vec<_> = sorted
+        .iter()
+        .filter(|(_, ms)| ms.div_euclid(DAY_MS) < cutoff)
+        .collect();
+    for (id, ms) in rest {
+        let week = ms.div_euclid(DAY_MS * 7);
+        if weeks.len() < KEEP_WEEKLY && !weeks.contains(&week) {
+            weeks.push(week);
+            keep.insert(id.clone());
+        }
+    }
+    keep
+}
+
+/// Deletes the rows retention does not keep and returns their ids; remove the
+/// folders with [`remove_dirs`] (outside any lock).
+pub fn prune(conn: &Connection) -> Result<Vec<String>, CoreError> {
+    let mut stmt = conn
+        .prepare("SELECT snapshot_id, created_at FROM workspace_snapshots")
+        .map_err(storage_error)?;
+    let rows = stmt
+        .query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+        })
+        .map_err(storage_error)?
+        .collect::<rusqlite::Result<Vec<_>>>()
+        .map_err(storage_error)?;
+    let keep = retained(&rows);
+    let mut removed = Vec::new();
+    for (id, _) in rows.into_iter().filter(|(id, _)| !keep.contains(id)) {
+        conn.execute(
+            "DELETE FROM workspace_snapshots WHERE snapshot_id=?1",
+            [&id],
+        )
+        .map_err(storage_error)?;
+        removed.push(id);
+    }
+    Ok(removed)
+}
+
+/// Best-effort removal of snapshot folders; ids that are not canonical Ulids
+/// are ignored, and nothing is followed through a link.
+pub fn remove_dirs(root: &Path, ids: &[String]) {
+    let backups = backups_dir(root);
+    if fs_guard::reject_link(&backups).is_err() {
+        return;
+    }
+    for id in ids.iter().filter_map(|id| valid_snapshot_id(id).ok()) {
+        let dir = backups.join(id);
+        if fs_guard::reject_link(&dir).is_ok() {
+            let _ = fs::remove_dir_all(dir);
+        }
+    }
+}
+
+/// Current time in milliseconds since the Unix epoch (UTC).
+pub fn now_ms() -> i64 {
+    Utc::now().timestamp_millis()
+}
+
+/// `true` when there is no snapshot yet or the newest is older than 24 h.
+pub fn scheduled_due(conn: &Connection, now_ms: i64) -> Result<bool, CoreError> {
+    let last: Option<i64> = conn
+        .query_row("SELECT MAX(created_at) FROM workspace_snapshots", [], |r| {
+            r.get(0)
+        })
+        .map_err(storage_error)?;
+    Ok(last.is_none_or(|last| now_ms - last > SCHEDULE_AFTER_MS))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::storage::open_vault;
+    use crate::{
+        doc_store,
+        objects::{NewObject, TypeKey},
+        storage::open_vault,
+    };
+    use std::sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    };
+    use yrs::{Doc, Text, Transact};
 
     const PNG: &[u8] = b"\x89PNG\r\n\x1a\nrest";
 
@@ -353,5 +501,126 @@ mod tests {
             assert!(valid_snapshot_id(id).is_err(), "{id}");
         }
         assert!(valid_snapshot_id(&ulid::Ulid::generate().to_string()).is_ok());
+    }
+
+    #[test]
+    fn list_orders_newest_first_and_skips_forged_rows() {
+        let (dir, conn) = vault();
+        let first = build(dir.path(), SnapshotTriggerKind::Manual).unwrap();
+        record(&conn, &first).unwrap();
+        let second = build(dir.path(), SnapshotTriggerKind::PreImport).unwrap();
+        record(&conn, &second).unwrap();
+        conn.execute_batch(
+            "INSERT INTO workspace_snapshots VALUES('../evil', 'x', 'manual', 0, 0, 0, 1, 1)",
+        )
+        .unwrap();
+        let listed = list(&conn).unwrap();
+        let ids: Vec<_> = listed.iter().map(|m| m.snapshot_id.as_str()).collect();
+        assert_eq!(ids.len(), 2);
+        assert!(ids.contains(&first.meta.snapshot_id.as_str()));
+        assert!(ids.contains(&second.meta.snapshot_id.as_str()));
+    }
+
+    #[test]
+    fn retention_keeps_ten_daily_then_four_weekly() {
+        // Two per day for 30 days: the newest of each of the last 10 days,
+        // then the newest of each of the 4 weeks before that window.
+        let rows: Vec<_> = (0..45)
+            .flat_map(|d| {
+                [
+                    (format!("a{d:02}"), d * DAY_MS + 5),
+                    (format!("b{d:02}"), d * DAY_MS + 9),
+                ]
+            })
+            .collect();
+        let keep = retained(&rows);
+        for d in 35..45 {
+            assert!(keep.contains(&format!("b{d}")), "daily b{d}");
+            assert!(!keep.contains(&format!("a{d}")), "a{d} lost its day");
+        }
+        assert_eq!(keep.len(), 14, "{keep:?}");
+        for week_newest in [34, 27, 20, 13] {
+            assert!(
+                keep.contains(&format!("b{week_newest}")),
+                "weekly b{week_newest}"
+            );
+        }
+        assert!(!keep.contains("b06") && !keep.contains("b33"));
+        assert!(retained(&[]).is_empty());
+    }
+
+    #[test]
+    fn prune_removes_rows_and_folders_and_schedule_follows_the_last_one() {
+        let (dir, conn) = vault();
+        assert!(scheduled_due(&conn, 0).unwrap());
+        let mut ids = Vec::new();
+        for _ in 0..3 {
+            let sealed = build(dir.path(), SnapshotTriggerKind::Scheduled).unwrap();
+            record(&conn, &sealed).unwrap();
+            ids.push(sealed.meta.snapshot_id);
+        }
+        // All three were taken today: only the newest survives.
+        let removed = prune(&conn).unwrap();
+        assert_eq!(removed.len(), 2);
+        remove_dirs(dir.path(), &removed);
+        remove_dirs(dir.path(), &["../..".into()]);
+        for id in &removed {
+            assert!(!backups_dir(dir.path()).join(id).exists());
+        }
+        assert!(backups_dir(dir.path()).join(&ids[2]).exists());
+        let now = Utc::now().timestamp_millis();
+        assert!(!scheduled_due(&conn, now).unwrap());
+        assert!(scheduled_due(&conn, now + SCHEDULE_AFTER_MS + 60_000).unwrap());
+    }
+
+    #[test]
+    fn hot_snapshot_with_concurrent_updates_passes_integrity_check() {
+        let (dir, conn) = vault();
+        let page = crate::object_store::create(
+            &conn,
+            NewObject {
+                types: vec![TypeKey::Page],
+                title: "Nota".into(),
+                icon: None,
+                parent: None,
+            },
+        )
+        .unwrap();
+        let stop = Arc::new(AtomicBool::new(false));
+        let path = dir.path().join(".fossil/fossil.db");
+        let writer = {
+            let (stop, id) = (stop.clone(), page.id.clone());
+            std::thread::spawn(move || {
+                let mut conn = open_vault(path.to_str().unwrap()).unwrap();
+                let doc = Doc::new();
+                let text = doc.get_or_insert_text("body");
+                while !stop.load(Ordering::Relaxed) {
+                    let update = {
+                        let mut txn = doc.transact_mut();
+                        text.push(&mut txn, "hola ");
+                        txn.encode_update_v1()
+                    };
+                    doc_store::apply_update(&mut conn, &id, &update).unwrap();
+                }
+            })
+        };
+        for _ in 0..5 {
+            let sealed = build(dir.path(), SnapshotTriggerKind::Manual).unwrap();
+            let id = &sealed.meta.snapshot_id;
+            let db = backups_dir(dir.path()).join(id).join("fossil.db");
+            assert!(sealed.meta.integrity_ok && check_database(&db, "integrity_check"));
+        }
+        stop.store(true, Ordering::Relaxed);
+        writer.join().unwrap();
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn a_junction_in_place_of_backups_is_refused() {
+        let (dir, _conn) = vault();
+        let outside = tempfile::tempdir().unwrap();
+        crate::fs_guard::tests::make_junction(&backups_dir(dir.path()), outside.path());
+        assert!(build(dir.path(), SnapshotTriggerKind::Manual).is_err());
+        assert_eq!(fs::read_dir(outside.path()).unwrap().count(), 0);
     }
 }

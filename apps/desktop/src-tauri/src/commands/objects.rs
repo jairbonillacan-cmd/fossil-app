@@ -128,12 +128,15 @@ macro_rules! stub {
 #[tauri::command]
 #[specta::specta]
 pub fn vault_open(
+    app: tauri::AppHandle,
     state: tauri::State<'_, VaultState>,
     path: String,
 ) -> Result<VaultInfo, CoreError> {
-    with_session(state, |session| {
+    let vault = with_session(state, |session| {
         session.open(Path::new(&path)).map(Into::into)
-    })
+    })?;
+    super::snapshots::schedule_on_open(&app);
+    Ok(vault)
 }
 
 #[tauri::command]
