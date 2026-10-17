@@ -250,17 +250,30 @@
   outline-offset: -3px;
 }
 
-/* Panels start empty and are filled by tabs.js (aria-busy), or show a message on error. */
-.shot-pane:not([hidden])[aria-busy="true"],
-.shot-pane:not([hidden])[data-state="error"] {
-  display: block;
-  padding: 28px 36px;
+/* Real captures. On small screens they keep a readable size and the panel scrolls sideways. */
+.shot-pane {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-soft);
+  box-shadow: var(--shadow);
 }
 
-.demo-loading {
-  margin: 0;
-  font-size: 14px;
-  color: var(--fg-muted);
+.shot-pane[hidden] {
+  display: none;
+}
+
+.shot-pane img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+@media (max-width: 760px) {
+  .shot-pane img {
+    width: 720px;
+    max-width: none;
+  }
 }
 
 .shot-note,
