@@ -9,11 +9,15 @@ use crate::{
     object_store::{self, storage_error},
     objects::{CoreError, ObjectMeta},
     snapshot_restore::read_manifest,
-    snapshot_store::{copy_hashed, hash_file, now_ms, read_only},
-    snapshots::RestoreConflictPolicy,
+    snapshot_store::{copy_hashed, hash_file, read_only},
+    snapshots::{RestoreConflictPolicy, VersionTriggerKind},
 };
 use rusqlite::{Connection, TransactionBehavior, params};
 use std::{fs, path::Path};
+
+fn now_ms() -> i64 {
+    chrono::Utc::now().timestamp_millis()
+}
 
 /// Restores `attachments/<name>` from snapshot `id` and returns its relative
 /// path. Only entries listed in the manifest are accepted. A live file whose
@@ -39,15 +43,20 @@ pub fn restore_attachment(root: &Path, id: &str, relative: &str) -> Result<Strin
     }
     let temporary = folder.join(format!("{name}.restoring-{}", ulid::Ulid::generate()));
     let (sha256, _) = copy_hashed(&dir.join(relative), Some(&temporary))?;
+    let aside = folder.join(format!("{name}.corrupt-{}", now_ms()));
     let moved = (sha256 == entry.sha256)
         .then_some(())
         .ok_or_else(|| storage_error("snapshot attachment does not match its hash"))
         .and_then(|()| {
             if exists {
-                fs::rename(&live, folder.join(format!("{name}.corrupt-{}", now_ms())))
-                    .map_err(storage_error)?;
+                fs::rename(&live, &aside).map_err(storage_error)?;
             }
-            fs::rename(&temporary, &live).map_err(storage_error)
+            fs::rename(&temporary, &live).map_err(|error| {
+                if exists {
+                    let _ = fs::rename(&aside, &live);
+                }
+                storage_error(error)
+            })
         });
     if moved.is_err() {
         let _ = fs::remove_file(&temporary);
@@ -82,21 +91,15 @@ fn insert_object(
     Ok(())
 }
 
-/// Restores page `object_id` from snapshot `id` into the open Espacio.
-/// - Not in the Espacio any more: recreated with its original id.
-/// - Still there and `CreateCopy`: a new page titled `"<Título> (restaurada)"`.
-/// - Still there and `OverwriteWithBackupVersion`: the current state is saved as
-///   a `pre_restore` row of `object_versions`, then replaced (and unarchived).
-///
-/// Trap: replacing a Yjs history under an editor that has the page open means
-/// the editor must reload the document afterwards.
-pub fn restore_page(
-    root: &Path,
-    conn: &mut Connection,
-    id: &str,
-    object_id: &ObjectId,
-    policy: RestoreConflictPolicy,
-) -> Result<ObjectMeta, CoreError> {
+/// A page as stored in a snapshot, read without touching the live Espacio.
+pub struct SnapshotPage {
+    meta: ObjectMeta,
+    state: Vec<u8>,
+}
+
+/// Phase 1 of [`restore_page`]: verifies the snapshot and reads the page. It
+/// hashes and reads a whole database, so call it without the session lock.
+pub fn read_page(root: &Path, id: &str, object_id: &ObjectId) -> Result<SnapshotPage, CoreError> {
     object_id
         .as_ulid()
         .ok_or_else(|| storage_error("invalid object id"))?;
@@ -110,12 +113,35 @@ pub fn restore_page(
     if !intact {
         return Err(storage_error("snapshot database does not match its hash"));
     }
-    let (meta, state) = {
-        let snapshot = read_only(&database)?;
-        let meta = object_store::get(&snapshot, object_id)?
-            .ok_or_else(|| CoreError::ObjectNotFound(object_id.0.clone()))?;
-        (meta, doc_store::load(&snapshot, object_id)?)
-    };
+    let snapshot = read_only(&database)?;
+    let meta = object_store::get(&snapshot, object_id)?
+        .ok_or_else(|| CoreError::ObjectNotFound(object_id.0.clone()))?;
+    let state = doc_store::load(&snapshot, object_id)?;
+    Ok(SnapshotPage { meta, state })
+}
+
+/// Reads and applies in one call (tests, callers that hold no lock).
+pub fn restore_page(
+    root: &Path,
+    conn: &mut Connection,
+    id: &str,
+    object_id: &ObjectId,
+    policy: RestoreConflictPolicy,
+) -> Result<ObjectMeta, CoreError> {
+    apply_page(conn, object_id, read_page(root, id, object_id)?, policy)
+}
+
+/// Phase 2: one `IMMEDIATE` transaction on the live Espacio.
+/// - Page missing: recreated with its original id.
+/// - Present and `CreateCopy`: a new page titled `"<Título> (restaurada)"`.
+/// - Present and `OverwriteWithBackupVersion`: the current state is saved as a
+///   `pre_restore` row of `object_versions`, then replaced (and unarchived).
+pub fn apply_page(
+    conn: &mut Connection,
+    object_id: &ObjectId,
+    SnapshotPage { meta, state }: SnapshotPage,
+    policy: RestoreConflictPolicy,
+) -> Result<ObjectMeta, CoreError> {
     let tx = conn
         .transaction_with_behavior(TransactionBehavior::Immediate)
         .map_err(storage_error)?;
@@ -136,11 +162,12 @@ pub fn restore_page(
             tx.execute(
                 "INSERT INTO object_versions(version_id, object_id, title, trigger_kind, payload,
                    plain_excerpt, byte_size, created_at)
-                 VALUES(?1, ?2, ?3, 'pre_restore', ?4, '', ?5, ?6)",
+                 VALUES(?1, ?2, ?3, ?4, ?5, '', ?6, ?7)",
                 params![
                     ulid::Ulid::generate().to_string(),
                     object_id.0,
                     current.title,
+                    VersionTriggerKind::PreRestore.as_sql(),
                     backup,
                     backup.len() as i64,
                     now
@@ -194,12 +221,19 @@ mod tests {
         text.get_string(&doc.transact())
     }
 
+    /// Appends to the page's current state (a fresh `Doc` would get a random
+    /// client id and make concurrent inserts at 0 order differently per run).
     fn write(conn: &mut Connection, id: &ObjectId, content: &str) {
         let doc = Doc::new();
         let text = doc.get_or_insert_text("body");
+        let state = doc_store::load(conn, id).unwrap();
+        doc.transact_mut()
+            .apply_update(Update::decode_v1(&state).unwrap())
+            .unwrap();
         let update = {
             let mut txn = doc.transact_mut();
-            text.push(&mut txn, content);
+            let end = text.len(&txn);
+            text.insert(&mut txn, end, content);
             txn.encode_update_v1()
         };
         doc_store::apply_update(conn, id, &update).unwrap();

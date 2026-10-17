@@ -118,10 +118,10 @@ pub fn snapshot_restore_page(
     policy: RestoreConflictPolicy,
 ) -> Result<ObjectMeta, CoreError> {
     let root = vault_root(state.clone())?;
+    // Hashing and reading the snapshot happens before the session lock is taken.
+    let page = snapshot_item::read_page(&root, &snapshot_id, &object_id)?;
     let meta = with_session(state, |session| {
-        session.with_connection(|conn| {
-            snapshot_item::restore_page(&root, conn, &snapshot_id, &object_id, policy)
-        })
+        session.with_connection(|conn| snapshot_item::apply_page(conn, &object_id, page, policy))
     })?;
     Ok(changed(&app, meta))
 }
