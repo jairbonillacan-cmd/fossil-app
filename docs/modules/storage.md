@@ -3,8 +3,8 @@
 **Rutas:** `crates/fossil-core/src/storage.rs`, `crates/fossil-core/migrations/`
 **Contratos públicos:** `open_vault(path) -> Connection` (aplica migraciones con `busy_timeout(5000)`, WAL + foreign_keys), `migrations()`.
 
-## Esquema (0001_init.sql … 0004_saved_search_filters.sql)
-`objects` (meta, `types` como JSON array) · `object_updates` (log Yjs: `payload` BLOB + `seq`) · `object_snapshots` (compactación) · `blocks` · `links` (con CHECK de kind) · `tags` · `fts_objects` (FTS5, unicode61 remove_diacritics 2, poblando objetos activos al migrar) · `object_versions` y `workspace_snapshots` (0003, ver §Confianza de datos) · `saved_search_filters` (0004, filtros guardados del Espacio; ver `docs/modules/search.md`).
+## Esquema (0001_init.sql … 0005_link_target_text.sql)
+`objects` (meta, `types` como JSON array) · `object_updates` (log Yjs: `payload` BLOB + `seq`) · `object_snapshots` (compactación) · `blocks` · `links` (con CHECK de kind) · `tags` · `fts_objects` (FTS5, unicode61 remove_diacritics 2, poblando objetos activos al migrar) · `object_versions` y `workspace_snapshots` (0003, ver §Confianza de datos) · `saved_search_filters` (0004, filtros guardados del Espacio; ver `docs/modules/search.md`) · `links.target_text` (0005, destino del wikilink tal como se escribió, NULL en filas previas; ver `docs/modules/objects.md` §Renombrado seguro).
 
 ## Reglas
 - **Migraciones append-only:** nunca edites un archivo ya publicado; agrega `000N_*.sql` y súbelo a `migrations()`.

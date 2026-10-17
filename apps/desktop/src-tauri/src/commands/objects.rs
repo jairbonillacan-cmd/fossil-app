@@ -6,7 +6,8 @@
 
 use fossil_core::ids::ObjectId;
 use fossil_core::objects::{
-    CoreError, Link, Mention, MetaPatch, NewObject, ObjectFilter, ObjectMeta,
+    BrokenLink, CoreError, Link, Mention, MetaPatch, NewObject, ObjectFilter, ObjectMeta,
+    RenameReport,
 };
 use fossil_core::{
     attachments, doc_store, indexer, journal, mirror, object_store,
@@ -381,6 +382,34 @@ pub fn links_unlinked_mentions(
     })
 }
 
+stub!(
+    /// Renames `id` and rewrites every inbound wikilink in the Yjs documents
+    /// of the pages that hold them (r1-safe-rename, #128; engine in #135).
+    /// One `Immediate` transaction: on any error nothing is written. Title-form
+    /// links become `[[<new title>]]` (alias and `#block` kept); if the new
+    /// title is shared with another non-archived object or holds `|` or `#`,
+    /// they become id-form `[[<id>|<new title>]]` so they never turn ambiguous.
+    /// Id-form links keep their id and only change an alias equal to the old
+    /// title. Archived source pages and self-links are rewritten too; an
+    /// archived object can be renamed. Same title: no-op, zero counts.
+    /// Errors: `ObjectNotFound`, `InvalidTitle`. Emits `object:changed` for the
+    /// object and every rewritten page, and re-indexes them.
+    pub fn object_rename(id: ObjectId, title: String) -> Result<RenameReport, CoreError>
+);
+stub!(
+    /// Wikilinks pointing to `id` from other pages, one per linking block,
+    /// archived source pages included (unlike `links_backlinks`); self-links do
+    /// not count. Ask it before archiving, moving or deleting. `ObjectNotFound`
+    /// if `id` does not exist.
+    pub fn links_inbound_count(id: ObjectId) -> Result<u32, CoreError>
+);
+stub!(
+    /// Wikilinks of non-archived pages that do not resolve to exactly one
+    /// non-archived object (`Missing`, `Archived` or `Ambiguous`), self-links
+    /// included; ordered by source page `updated_at DESC`, then block order.
+    pub fn links_broken() -> Result<Vec<BrokenLink>, CoreError>
+);
+
 /// Opens (or creates with its template) today's journal (#22).
 #[tauri::command]
 #[specta::specta]
@@ -453,6 +482,13 @@ mod tests {
         stub!(fn pending() -> Result<(), CoreError>);
         let error = pending().unwrap_err();
         assert_eq!(error, CoreError::NotImplemented);
+        let id = fossil_core::ids::ObjectId::new;
+        let errors = [
+            super::object_rename(id(), "Plan Acme".into()).err(),
+            super::links_inbound_count(id()).err(),
+            super::links_broken().err(),
+        ];
+        assert!(errors.iter().all(|e| e == &Some(CoreError::NotImplemented)));
     }
 
     #[test]

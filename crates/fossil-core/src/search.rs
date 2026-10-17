@@ -86,11 +86,12 @@ impl From<CoreError> for SearchError {
             CoreError::NotImplemented => Self::NotImplemented,
             CoreError::VaultNotOpen => Self::VaultNotOpen,
             CoreError::Storage(msg) => Self::Storage(msg),
-            // Move errors never reach search; keep their message, not their shape.
+            // Move and rename errors never reach search; keep their message, not their shape.
             other @ (CoreError::ObjectNotFound(_)
             | CoreError::ParentNotFound(_)
             | CoreError::ParentArchived(_)
-            | CoreError::MoveCycle(_)) => Self::Storage(other.to_string()),
+            | CoreError::MoveCycle(_)
+            | CoreError::InvalidTitle(_)) => Self::Storage(other.to_string()),
         }
     }
 }
