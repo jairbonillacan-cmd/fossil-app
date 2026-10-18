@@ -19,6 +19,7 @@ Cómo escribir aquí:
 - **Búsqueda** en todo el espacio: encuentra páginas por texto (con o sin acentos), etiqueta (`tag:`), tipo (`type:`) o fechas, con el fragmento donde aparece resaltado.
 - **Buscar en la página** con `Ctrl+F`: resalta todas las coincidencias y salta de una a otra.
 - **Paleta de comandos** con `Ctrl+K` para ejecutar cualquier acción o buscar páginas, y `Ctrl+P` para saltar directo a una página por su título.
+- **Recientes y errores de dedo en la paleta**: `Ctrl+K` muestra tus últimas acciones y `Ctrl+P` tus últimas páginas; encuentra «Exportar PDF» aunque escribas «exprot pdf».
 - **Enlaces y etiquetas al escribir**: escribe `[[` para enlazar otra página (o crearla si no existe) y `#` para autocompletar etiquetas, incluidas las anidadas (`#marca/acme`).
 - **Enlazada desde** y **Menciones sin enlace**: panel en cada página que muestra qué páginas apuntan a la actual y cuáles la nombran sin enlazarla, con un botón para crear el enlace en un clic.
 - **Esquemas**: sangría con `Tab` y `Shift+Tab`, bloques y secciones plegables, y pegado limpio desde otras aplicaciones.

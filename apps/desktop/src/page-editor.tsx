@@ -182,10 +182,14 @@ export function PageEditor({ object, onSelect, onObjectUpdated }: PageEditorProp
     if (object === null) return undefined;
     const offs = (
       [
-        ["editor.exportMarkdown", t("editor.exportMarkdown"), () => exportRef.current()],
-        ["editor.exportPdf", t("editor.exportPdf"), () => printRef.current()],
-        ["editor.copyLink", t("editor.copyLink"), () => copyLinkRef.current()],
-        ["editor.toggleBacklinks", t("palette.toggleBacklinks"), () => setBacklinksOpen((o) => !o)],
+        ["editor.exportMarkdown", t("commandNames.exportMarkdown"), () => exportRef.current()],
+        ["editor.exportPdf", t("commandNames.exportPdf"), () => printRef.current()],
+        ["editor.copyLink", t("commandNames.copyLink"), () => copyLinkRef.current()],
+        [
+          "editor.toggleBacklinks",
+          t("commandNames.toggleBacklinks"),
+          () => setBacklinksOpen((o) => !o),
+        ],
       ] as const
     ).map(([id, lbl, run]) => registerCommand({ id, title: lbl, run }));
     return () => {

@@ -2,8 +2,15 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ObjectMeta } from "./bindings";
 import { commands } from "./bindings";
-import { clearCommands, fuzzyMatch, listCommands, registerCommand } from "./shell-commands";
+import {
+  clearCommands,
+  editDistance,
+  fuzzyMatch,
+  listCommands,
+  registerCommand,
+} from "./shell-commands";
 import { ShellPalette } from "./shell-palette";
+import { listRecents, pruneRecents, pushRecent, resetRecentsCache } from "./shell-recents";
 import "./i18n";
 
 vi.mock("./bindings", () => ({
@@ -82,5 +89,105 @@ describe("shell-commands & ShellPalette (#27)", () => {
     fireEvent.keyDown(input, { key: "Enter" });
     expect(onSelect).toHaveBeenCalledWith(p2);
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+});
+
+describe("typo-tolerant search and recents (#86)", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetRecentsCache();
+  });
+
+  it("finds 'Exportar PDF' from misspelled queries and still rejects unrelated text", () => {
+    expect(fuzzyMatch("exprtar pdf", "Exportar PDF")).not.toBeNull();
+    const swapped = fuzzyMatch("exprot pdf", "Exportar PDF");
+    expect(swapped).not.toBeNull();
+    expect(swapped?.indices.length).toBeGreaterThan(0);
+    expect(fuzzyMatch("exportr pfd", "Exportar PDF")).toBeNull();
+    expect(fuzzyMatch("crear paginna", "Crear página")).not.toBeNull();
+    expect(fuzzyMatch("zzzzzz", "Exportar PDF")).toBeNull();
+    expect(editDistance("abcd", "abdc")).toBe(1);
+  });
+
+  it("does not tolerate lookalike words and never swaps the first letter", () => {
+    expect(fuzzyMatch("exportar", "Importar CSV")).toBeNull();
+    expect(fuzzyMatch("importar", "Exportar PDF")).toBeNull();
+    expect(fuzzyMatch("ventas", "Vientos del norte")).toBeNull();
+    expect(fuzzyMatch("exportra", "Exportar PDF")).not.toBeNull();
+  });
+
+  it("keeps typo search close to the exact pass on 10 000 titles", () => {
+    const words = [
+      "campaña",
+      "reporte",
+      "ventas",
+      "lanzamiento",
+      "verano",
+      "notas",
+      "plan",
+      "marca",
+    ];
+    const titles = Array.from(
+      { length: 10_000 },
+      (_, i) => `${words[i % 8]} ${words[(i * 3) % 8]} ${i}`,
+    );
+    const run = (q: string, typo: boolean) => {
+      const t0 = performance.now();
+      let n = 0;
+      for (const t of titles) if (fuzzyMatch(q, t, { typo })) n++;
+      return { ms: performance.now() - t0, n };
+    };
+    for (const q of ["zz", "campana veranp", "reporte"]) {
+      run(q, false);
+      const exact = run(q, false);
+      const tolerant = run(q, true);
+      // biome-ignore lint/suspicious/noConsole: bench timings are useful in CI logs
+      console.info(
+        `bench ${q}: exact ${exact.ms.toFixed(0)} ms, typo ${tolerant.ms.toFixed(0)} ms`,
+      );
+      expect(tolerant.ms).toBeLessThan(Math.max(exact.ms * 3, 400));
+      expect(tolerant.ms).toBeLessThan(2000);
+    }
+  });
+
+  it("prunes recent pages that no longer exist", () => {
+    for (const id of ["a", "b", "c"]) pushRecent("pages", id);
+    pruneRecents("pages", new Set(["a", "c"]));
+    expect(listRecents("pages")).toEqual(["c", "a"]);
+  });
+
+  it("lists the last 5 actions under Recientes on Ctrl+K and the last pages on Ctrl+P", async () => {
+    const ids = ["a", "b", "c", "d", "e", "f"];
+    for (const id of ids) registerCommand({ id, title: `Acción ${id}`, run() {} });
+    pushRecent("actions", "a");
+    for (const id of ids) pushRecent("actions", id);
+    pushRecent("pages", "obj-2");
+    render(<ShellPalette />);
+    fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+    await screen.findByRole("option", { name: /Campaña Q4/ });
+    expect(screen.getByText("Recientes")).toBeTruthy();
+    const names = screen.getAllByRole("option").map((o) => o.textContent ?? "");
+    expect(names.slice(0, 5).map((n) => n.slice(0, 8))).toEqual([
+      "Acción f",
+      "Acción e",
+      "Acción d",
+      "Acción c",
+      "Acción b",
+    ]);
+    expect(names[5]).toMatch(/^Acción a/);
+
+    fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+    fireEvent.keyDown(window, { key: "p", ctrlKey: true });
+    await screen.findByRole("option", { name: /Checklist/ });
+    expect(screen.getAllByRole("option")[0]?.textContent).toMatch(/^Checklist/);
+    expect(screen.getByText("Recientes")).toBeTruthy();
+  });
+
+  it("records an action when it runs", async () => {
+    registerCommand({ id: "x", title: "Crear página", run() {} });
+    render(<ShellPalette />);
+    fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+    fireEvent.click(await screen.findByRole("option", { name: /Crear página/ }));
+    expect(listRecents("actions")).toEqual(["x"]);
   });
 });

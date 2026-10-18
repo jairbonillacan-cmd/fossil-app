@@ -5,6 +5,7 @@ import type { ObjectId, ObjectMeta } from "./bindings";
 import { commands, events } from "./bindings";
 import { registerCommand } from "./shell-commands";
 import { openPalette, ShellPalette } from "./shell-palette";
+import { pushRecent } from "./shell-recents";
 import { ShellSearch } from "./shell-search";
 import { ShellSettings } from "./shell-settings";
 import { errorLabel } from "./vault-screen";
@@ -138,6 +139,11 @@ export function Sidebar({
   const [dropTarget, setDropTarget] = useState<ObjectId | "root" | null>(null);
   workspaceOnSelect = onSelect;
 
+  // Whatever page ends up open (sidebar, palette, tabs, restore) feeds the Ctrl+P recents (#86).
+  useEffect(() => {
+    if (selectedId) pushRecent("pages", selectedId);
+  }, [selectedId]);
+
   useEffect(() => {
     setExpandedMap(readExpandedMap(vaultName));
   }, [vaultName]);
@@ -203,13 +209,17 @@ export function Sidebar({
       [
         [
           "shell.newPage",
-          t("sidebar.newPage"),
+          t("commandNames.newPage"),
           () => runRef.current(() => commands.objectCreate(newPage)),
         ],
-        ["shell.today", t("sidebar.today"), () => runRef.current(() => commands.journalToday())],
-        ["shell.search", t("search.open"), () => setSearchOpen(true)],
-        ["shell.capture", t("settings.shortcutCapture"), () => void commands.captureWindowShow()],
-        ["shell.settings", t("sidebar.settings"), () => setSettingsOpen(true)],
+        [
+          "shell.today",
+          t("commandNames.today"),
+          () => runRef.current(() => commands.journalToday()),
+        ],
+        ["shell.search", t("commandNames.search"), () => setSearchOpen(true)],
+        ["shell.capture", t("commandNames.capture"), () => void commands.captureWindowShow()],
+        ["shell.settings", t("commandNames.settings"), () => setSettingsOpen(true)],
       ] as const
     ).map(([id, title, run]) => registerCommand({ id, title, run }));
     return () => {

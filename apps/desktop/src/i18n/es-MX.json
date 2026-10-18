@@ -127,6 +127,17 @@
     "mentionsEmpty": "No hay menciones sin enlace del título de esta página.",
     "linkAction": "Enlazar"
   },
+  "commandNames": {
+    "newPage": "Crear página",
+    "today": "Abrir Bitácora",
+    "search": "Buscar en el Espacio",
+    "capture": "Abrir captura rápida",
+    "settings": "Abrir ajustes",
+    "exportMarkdown": "Exportar Markdown",
+    "exportPdf": "Exportar PDF",
+    "copyLink": "Copiar enlace",
+    "toggleBacklinks": "Alternar enlazada desde"
+  },
   "palette": {
     "commandLabel": "Paleta de comandos",
     "commandPlaceholder": "Escribe un comando o busca una página…",
@@ -134,8 +145,9 @@
     "switcherPlaceholder": "Ir a la página…",
     "commandsHeading": "Comandos",
     "objectsHeading": "Páginas",
-    "empty": "Sin resultados coincidentes.",
-    "toggleBacklinks": "Alternar panel de enlaces"
+    "recentHeading": "Recientes",
+    "allHeading": "Todos",
+    "empty": "Sin resultados coincidentes."
   },
   "search": {
     "open": "Buscar",

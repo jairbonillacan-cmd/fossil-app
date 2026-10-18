@@ -127,6 +127,17 @@
     "mentionsEmpty": "No unlinked mentions of this page title.",
     "linkAction": "Link"
   },
+  "commandNames": {
+    "newPage": "Create page",
+    "today": "Open Journal",
+    "search": "Search Space",
+    "capture": "Open quick capture",
+    "settings": "Open settings",
+    "exportMarkdown": "Export Markdown",
+    "exportPdf": "Export PDF",
+    "copyLink": "Copy link",
+    "toggleBacklinks": "Toggle linked from"
+  },
   "palette": {
     "commandLabel": "Command palette",
     "commandPlaceholder": "Type a command or search a page…",
@@ -134,8 +145,9 @@
     "switcherPlaceholder": "Go to page…",
     "commandsHeading": "Commands",
     "objectsHeading": "Pages",
-    "empty": "No matching results.",
-    "toggleBacklinks": "Toggle backlinks panel"
+    "recentHeading": "Recent",
+    "allHeading": "All",
+    "empty": "No matching results."
   },
   "search": {
     "open": "Search",
