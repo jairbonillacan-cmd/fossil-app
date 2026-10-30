@@ -188,7 +188,8 @@ describe("Sidebar tree (#107)", () => {
     expect(screen.queryByRole("button", { name: "Plan de medios" })).toBeNull();
 
     unmount();
-    render(<Sidebar vaultName="Acme" selectedId="pg-child" onSelect={onSelect} />);
+    // No open page here: opening one inside the folder would reveal it (see the next test).
+    render(<Sidebar vaultName="Acme" selectedId={null} onSelect={onSelect} />);
     const expandBtn = await screen.findByRole("button", { name: "Expandir Campañas Q4" });
     expect(expandBtn.getAttribute("aria-expanded")).toBe("false");
     expect(screen.queryByRole("button", { name: "Plan de medios" })).toBeNull();
@@ -202,6 +203,25 @@ describe("Sidebar tree (#107)", () => {
     fireEvent.change(switcherInput, { target: { value: "Notas sueltas" } });
     fireEvent.keyDown(switcherInput, { key: "Enter" });
     expect(onSelect).toHaveBeenCalledWith(loose);
+  });
+
+  it("reveals the open page: unfolds its folders once, and a later fold by hand sticks", async () => {
+    window.localStorage.setItem("fossil.sidebar.expanded:Acme", JSON.stringify({ "fld-1": false }));
+    vi.mocked(commands.objectList).mockResolvedValue({
+      status: "ok",
+      data: [folder, child, loose],
+    });
+    const { rerender } = render(<Sidebar vaultName="Acme" selectedId={null} onSelect={vi.fn()} />);
+    await screen.findByRole("button", { name: "Expandir Campañas Q4" });
+    expect(screen.queryByRole("button", { name: "Plan de medios" })).toBeNull();
+
+    rerender(<Sidebar vaultName="Acme" selectedId="pg-child" onSelect={vi.fn()} />);
+    const childBtn = await screen.findByRole("button", { name: "Plan de medios" });
+    expect(childBtn.getAttribute("aria-current")).toBe("page");
+
+    fireEvent.click(screen.getByRole("button", { name: "Contraer Campañas Q4" }));
+    await act(async () => {});
+    expect(screen.queryByRole("button", { name: "Plan de medios" })).toBeNull();
   });
 
   it("moves a page or folder with drag-and-drop and shows the drop target indicator", async () => {

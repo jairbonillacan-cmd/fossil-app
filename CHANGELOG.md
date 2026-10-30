@@ -27,6 +27,7 @@ Cómo escribir aquí:
 - **Imágenes en páginas**: pega o arrastra imágenes al editor (`PNG`, `JPG`, `GIF`, `WebP`); se guardan en la carpeta `attachments/` del Espacio y se muestran al volver a abrir la página.
 - **Menú de acciones (`⋯`)** en la cabecera de cada página: reúne **Exportar Markdown**, **Exportar PDF** y **Copiar enlace**, y los títulos largos se muestran completos en varias líneas sin cortarse.
 - **Pestañas de páginas**: abre varias páginas a la vez (`Ctrl+clic` o clic central), fíjalas, ciérralas con `Ctrl+W` y cambia entre ellas con `Ctrl+Tab` sin perder la posición de lectura.
+- **La barra lateral muestra la página abierta**: si está dentro de carpetas plegadas, las despliega y se desplaza hasta ella.
 - **Árbol de páginas y carpetas** en la barra lateral: organiza páginas dentro de carpetas arrastrándolas, pliega o despliega cada nivel y salta a cualquier página desde **Ir a página… (`Ctrl+P`)**.
 - **Captura rápida y bandeja del sistema** (`Win+Shift+F`): abre una ventana flotante en cualquier momento para pegar del portapapeles o anotar una idea directo en la Bitácora de hoy; al cerrar la ventana principal, Fossil sigue activo en la bandeja del sistema.
 - **Asistente de IA**: chat en un panel con el contexto de tu página y acciones sobre el texto seleccionado. Antes de enviar puedes ver la vista previa del contexto, y funciona con modelos locales o con tu suscripción existente.
