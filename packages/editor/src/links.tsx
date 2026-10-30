@@ -9,7 +9,12 @@ import type { EditorTranslator } from "./i18n";
 /** `hint` tells pages with the same title apart in the menu (parent page or date, #137). */
 export type WikilinkItem = { id: string; title: string; hint?: string };
 /** A hand-typed `[[Título]]` shared by several pages, waiting for the person to pick one (#137). */
-export type AmbiguousLinkPick = { title: string; range: { from: number; to: number } };
+export type AmbiguousLinkPick = {
+  title: string;
+  /** Visible text to keep after the pick: the typed alias, or the title itself. */
+  label: string;
+  range: { from: number; to: number };
+};
 export type OpenObjectOptions = { newTab: boolean };
 export type LinkTriggerMatch = {
   kind: "wikilink" | "tag";
@@ -191,8 +196,11 @@ export const LinksExtension = Extension.create<{
                 const at = wikilinkAt(view.state.doc, view.posAtDOM(el, 0));
                 if (!at) return false;
                 event.preventDefault();
+                const bar = at.value.indexOf("|");
+                const title = splitWikilink(at.value).title;
                 onAmbiguousRef.current({
-                  title: splitWikilink(at.value).title,
+                  title,
+                  label: (bar === -1 ? "" : at.value.slice(bar + 1).trim()) || title,
                   range: { from: at.from, to: at.to },
                 });
                 return true;
@@ -311,7 +319,7 @@ export function LinkAutocompleteMenu(
           setEntries(
             hits.map((x) => ({
               kind: "object",
-              value: `${x.id}|${x.title}`,
+              value: `${x.id}|${pick.label}`,
               label: `${x.title} · ${x.hint ?? x.id.slice(-6)}`,
             })),
           );

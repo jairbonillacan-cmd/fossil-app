@@ -146,3 +146,19 @@ describe("Repeated titles in [[ ]] (#137)", () => {
     expect(container.querySelector('[data-ambiguous="true"]')).toBeNull();
   });
 });
+
+describe("Repeated titles keep a typed alias (#137)", () => {
+  it("rewrites [[Título|alias]] to the id form without losing the alias", async () => {
+    const { container, ref } = renderEditor(new Set(["reunión semanal"]));
+    await waitFor(() => expect(ref.current).not.toBeNull());
+    ref.current?.commands.setContent("<p>Ver [[Reunión semanal|el plan del equipo]]</p>");
+    const chip = await waitFor(() => {
+      const el = container.querySelector('[data-ambiguous="true"]');
+      expect(el).not.toBeNull();
+      return el as Element;
+    });
+    fireEvent.click(chip);
+    fireEvent.mouseDown(await screen.findByRole("option", { name: "Reunión semanal · Producto" }));
+    await waitFor(() => expect(ref.current?.getText()).toBe(`Ver [[${ID_B}|el plan del equipo]]`));
+  });
+});
