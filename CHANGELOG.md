@@ -28,6 +28,7 @@ Cómo escribir aquí:
 - **Menú de acciones (`⋯`)** en la cabecera de cada página: reúne **Exportar Markdown**, **Exportar PDF** y **Copiar enlace**, y los títulos largos se muestran completos en varias líneas sin cortarse.
 - **Pestañas de páginas**: abre varias páginas a la vez (`Ctrl+clic` o clic central), fíjalas, ciérralas con `Ctrl+W` y cambia entre ellas con `Ctrl+Tab` sin perder la posición de lectura.
 - **Paneles divididos**: abre una segunda página al lado con `◫` o `Ctrl+\`. Cada panel tiene su propio Atrás y Adelante, lo que eliges en la barra lateral se abre en el panel activo, y la división se recupera al volver a abrir el Espacio.
+- **Atajos de pestañas**: `Ctrl+1` a `Ctrl+8` saltan a esa pestaña, `Ctrl+9` a la última y `Ctrl+Shift+T` reabre la pestaña que cerraste, con su historial.
 - **Árbol de páginas y carpetas** en la barra lateral: organiza páginas dentro de carpetas arrastrándolas, pliega o despliega cada nivel y salta a cualquier página desde **Ir a página… (`Ctrl+P`)**.
 - **Captura rápida y bandeja del sistema** (`Win+Shift+F`): abre una ventana flotante en cualquier momento para pegar del portapapeles o anotar una idea directo en la Bitácora de hoy; al cerrar la ventana principal, Fossil sigue activo en la bandeja del sistema.
 - **Asistente de IA**: chat en un panel con el contexto de tu página y acciones sobre el texto seleccionado. Antes de enviar puedes ver la vista previa del contexto, y funciona con modelos locales o con tu suscripción existente.
