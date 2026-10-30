@@ -22,10 +22,15 @@ export interface PageEditorProps {
   object: ObjectMeta | null;
   onSelect?: ((object: ObjectMeta) => void) | undefined;
   onObjectUpdated?: ((object: ObjectMeta) => void) | undefined;
+  /**
+   * Pane with focus in a split work area (#166, default true): only it registers palette
+   * commands and shows the right panel, so a split never shows two side panels.
+   */
+  focused?: boolean | undefined;
 }
 
 /** Page header (`object_update_meta`, 400 ms debounce + blur), `⋯` actions menu, body and collapsible backlinks/AI panels (#26, #28, #14, #105). */
-export function PageEditor({ object, onSelect, onObjectUpdated }: PageEditorProps) {
+export function PageEditor({ object, onSelect, onObjectUpdated, focused = true }: PageEditorProps) {
   const { t, i18n } = useTranslation();
   const pageScroll = usePageScroll(object?.id ?? null);
   const [title, setTitle] = useState(object?.title ?? "");
@@ -179,7 +184,7 @@ export function PageEditor({ object, onSelect, onObjectUpdated }: PageEditorProp
   }, [title, object]);
 
   useEffect(() => {
-    if (object === null) return undefined;
+    if (object === null || !focused) return undefined;
     const offs = (
       [
         ["editor.exportMarkdown", t("editor.exportMarkdown"), () => exportRef.current()],
@@ -191,7 +196,7 @@ export function PageEditor({ object, onSelect, onObjectUpdated }: PageEditorProp
     return () => {
       for (const off of offs) off();
     };
-  }, [object, t]);
+  }, [object, t, focused]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -499,14 +504,14 @@ export function PageEditor({ object, onSelect, onObjectUpdated }: PageEditorProp
           </div>
         </div>
       </div>
-      {backlinksOpen && (
+      {focused && backlinksOpen && (
         <div className="contents print:hidden">
           <Suspense fallback={null}>
             <PageBacklinksPanel object={currentObject} onSelect={onSelect} />
           </Suspense>
         </div>
       )}
-      {aiOpen && <AiChatPanel key={object.id} object={currentObject} />}
+      {focused && aiOpen && <AiChatPanel key={object.id} object={currentObject} />}
     </div>
   );
 }
