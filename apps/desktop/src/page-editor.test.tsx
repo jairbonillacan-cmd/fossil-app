@@ -88,6 +88,24 @@ describe("PageEditor", () => {
   );
 
   it(
+    "toggles the right panel with Ctrl+Alt+B and hides it in an unfocused split pane (#166)",
+    async () => {
+      const { unmount } = render(<PageEditor object={page} />);
+      const toggle = screen.getByRole("button", { name: "Enlazada desde" });
+      fireEvent.keyDown(window, { key: "b", ctrlKey: true, altKey: true });
+      expect(toggle.getAttribute("aria-expanded")).toBe("false");
+      fireEvent.keyDown(window, { key: "b", ctrlKey: true, altKey: true });
+      expect(toggle.getAttribute("aria-expanded")).toBe("true");
+      unmount();
+
+      render(<PageEditor object={page} focused={false} />);
+      fireEvent.keyDown(window, { key: "b", ctrlKey: true, altKey: true });
+      expect(screen.queryByRole("complementary", { name: "Enlazada desde" })).toBeNull();
+    },
+    SLOW,
+  );
+
+  it(
     "shows the localized empty state when no page is open",
     () => {
       render(<PageEditor object={null} />);

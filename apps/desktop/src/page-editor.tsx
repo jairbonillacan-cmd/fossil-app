@@ -193,7 +193,16 @@ export function PageEditor({ object, onSelect, onObjectUpdated, focused = true }
         ["editor.toggleBacklinks", t("palette.toggleBacklinks"), () => setBacklinksOpen((o) => !o)],
       ] as const
     ).map(([id, lbl, run]) => registerCommand({ id, title: lbl, run }));
+    // Ctrl+Alt+B shows or hides the right panel of the focused pane (#166).
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.altKey && e.key.toLowerCase() === "b") {
+        e.preventDefault();
+        setBacklinksOpen((o) => !o);
+      }
+    };
+    window.addEventListener("keydown", onKey);
     return () => {
+      window.removeEventListener("keydown", onKey);
       for (const off of offs) off();
     };
   }, [object, t, focused]);
