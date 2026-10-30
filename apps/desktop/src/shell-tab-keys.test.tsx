@@ -42,4 +42,13 @@ describe("Tab shortcuts", () => {
     fireEvent.keyDown(window, { key: "T", ctrlKey: true, shiftKey: true });
     expect(api.tabs).toHaveLength(4);
   });
+
+  it("reopens a closed tab with metadata renamed while it was closed", () => {
+    render(<Harness />);
+    act(() => api.onCloseTab("t2"));
+    act(() => api.updateObject({ ...(tabOf(2).object as ObjectMeta), title: "Página renombrada" }));
+    fireEvent.keyDown(window, { key: "T", ctrlKey: true, shiftKey: true });
+    expect(api.selectedObject?.title).toBe("Página renombrada");
+    expect(api.tabs[1]?.history[0]?.title).toBe("Página renombrada");
+  });
 });

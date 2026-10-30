@@ -227,6 +227,8 @@ export function useWorkspaceTabs(
         ...prev,
         tabs: prev.tabs.map((t) => refreshTab(t, u)),
         split: prev.split ? refreshTab(prev.split, u) : null,
+        // Closed tabs too, so Ctrl+Shift+T never brings back a stale title.
+        closed: prev.closed.map((c) => ({ ...c, tab: refreshTab(c.tab, u) })),
       })),
     /** Splits the work area: the second pane starts on the page shown in the tabs (#166). */
     onSplit: () =>
