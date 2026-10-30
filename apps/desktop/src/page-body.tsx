@@ -2,12 +2,15 @@ import { type EditorTranslator, FossilEditor } from "@fossil/editor";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as Y from "yjs";
-import type { ObjectId, SaveStatus } from "./bindings";
+import type { ObjectId, ObjectMeta, SaveStatus } from "./bindings";
 import { createObjectTransport, DocTransportError } from "./doc-transport";
+import { usePageLinks } from "./page-links";
 
 export interface PageBodyProps {
   objectId: ObjectId;
   onSaveStatusChange?: ((status: SaveStatus, retry: () => Promise<void>) => void) | undefined;
+  /** Opens the page a `[[link]]` points to (#137). */
+  onOpenObject?: ((object: ObjectMeta) => void) | undefined;
 }
 
 /**
@@ -17,8 +20,9 @@ export interface PageBodyProps {
  * component by object id; the doc is created in an effect and destroyed in its
  * cleanup (StrictMode-safe: a remount gets a fresh doc, never a destroyed one).
  */
-export function PageBody({ objectId, onSaveStatusChange }: PageBodyProps) {
-  const { t } = useTranslation();
+export function PageBody({ objectId, onSaveStatusChange, onOpenObject }: PageBodyProps) {
+  const { t, i18n } = useTranslation();
+  const links = usePageLinks(i18n.language, onOpenObject);
   const [doc, setDoc] = useState<Y.Doc | null>(null);
   useEffect(() => {
     const fresh = new Y.Doc();
@@ -64,6 +68,10 @@ export function PageBody({ objectId, onSaveStatusChange }: PageBodyProps) {
           t={editorT}
           onError={onError}
           onSaveStatusChange={handleSaveStatus}
+          onSearchObjects={links.onSearchObjects}
+          onOpenObject={links.onOpenObject}
+          onCreateObject={links.onCreateObject}
+          ambiguousTitles={links.ambiguousTitles}
           className="flex-1"
         />
       )}

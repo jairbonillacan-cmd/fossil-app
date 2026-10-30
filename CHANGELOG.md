@@ -20,6 +20,7 @@ Cómo escribir aquí:
 - **Buscar en la página** con `Ctrl+F`: resalta todas las coincidencias y salta de una a otra.
 - **Paleta de comandos** con `Ctrl+K` para ejecutar cualquier acción o buscar páginas, y `Ctrl+P` para saltar directo a una página por su título.
 - **Enlaces y etiquetas al escribir**: escribe `[[` para enlazar otra página (o crearla si no existe) y `#` para autocompletar etiquetas, incluidas las anidadas (`#marca/acme`).
+- **Páginas con el mismo título**: al enlazar con `[[`, cada una aparece con su página padre o su fecha, y el enlace apunta siempre a la que elegiste. Si escribes a mano un título repetido, queda marcado y un clic te deja elegir la página.
 - **Enlazada desde** y **Menciones sin enlace**: panel en cada página que muestra qué páginas apuntan a la actual y cuáles la nombran sin enlazarla, con un botón para crear el enlace en un clic.
 - **Esquemas**: sangría con `Tab` y `Shift+Tab`, bloques y secciones plegables, y pegado limpio desde otras aplicaciones.
 - **Avisos, tablas y separadores**: nuevos bloques desde el menú `/` o con atajos de Markdown (`>!`, `| col |`, `---`).
