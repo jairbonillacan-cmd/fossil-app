@@ -41,6 +41,14 @@ export function PageEditor({ object, onSelect, onObjectUpdated }: PageEditorProp
     retrySaveRef.current = retry;
     setSaveStatus(status);
   }, []);
+  // A `[[link]]` opens like a backlink: current tab, sidebar selection follows (#137).
+  const openLinked = useCallback(
+    (target: ObjectMeta) => {
+      onSelect?.(target);
+      selectWorkspaceObject(target);
+    },
+    [onSelect],
+  );
   const [exportFailed, setExportFailed] = useState(false);
   const [backlinksOpen, setBacklinksOpen] = useState(true);
   const [aiOpen, setAiOpen] = useState(false);
@@ -494,6 +502,7 @@ export function PageEditor({ object, onSelect, onObjectUpdated }: PageEditorProp
                 key={object.id}
                 objectId={object.id}
                 onSaveStatusChange={handleSaveStatus}
+                onOpenObject={openLinked}
               />
             </Suspense>
           </div>
