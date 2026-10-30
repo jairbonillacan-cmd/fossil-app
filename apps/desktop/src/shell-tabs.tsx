@@ -38,7 +38,11 @@ interface TabsState {
   split: WorkspaceTab | null;
   /** Pane that receives navigation (sidebar, palette, links, Back/Forward). */
   focus: WorkspacePane;
+  /** Recently closed tabs, newest last, for Ctrl+Shift+T (kept in memory only). */
+  closed: Array<{ tab: WorkspaceTab; index: number }>;
 }
+
+const MAX_CLOSED_TABS = 20;
 
 const MAX_TAB_HISTORY = 100;
 
@@ -96,6 +100,7 @@ export function useWorkspaceTabs(
     activeTabId: initialTabs[0]?.id ?? null,
     split: null,
     focus: "main",
+    closed: [],
   }));
   const activeTab = s.tabs.find((t) => t.id === s.activeTabId) ?? null;
   const focusedTab = s.focus === "split" && s.split ? s.split : activeTab;
@@ -117,7 +122,9 @@ export function useWorkspaceTabs(
         const activeTabId = tabs[restore.active ?? -1]?.id ?? null;
         const split = restore.split ? { ...mkTab(restore.split.object), ...restore.split } : null;
         // Opening a page before object_list answers discards the restore (see ui.md).
-        setS((prev) => (prev.tabs.length > 0 ? prev : { tabs, activeTabId, split, focus: "main" }));
+        setS((prev) =>
+          prev.tabs.length > 0 ? prev : { tabs, activeTabId, split, focus: "main", closed: [] },
+        );
       }
       hydrated.current = true;
     };
@@ -257,7 +264,26 @@ export function useWorkspaceTabs(
           prev.activeTabId === tabId
             ? (tabs[idx]?.id ?? tabs[idx - 1]?.id ?? null)
             : prev.activeTabId;
-        return { ...prev, tabs, activeTabId };
+        const closed = [...prev.closed, { tab: prev.tabs[idx], index: idx }].slice(
+          -MAX_CLOSED_TABS,
+        );
+        return { ...prev, tabs, activeTabId, closed };
+      }),
+    /** Reopens the last closed tab where it was, with its history (Ctrl+Shift+T). */
+    onReopenClosedTab: () =>
+      setS((prev) => {
+        const last = prev.closed.at(-1);
+        if (!last) return prev;
+        const tab = { ...last.tab, id: mkTab(null).id };
+        const tabs = [...prev.tabs];
+        tabs.splice(Math.min(last.index, tabs.length), 0, tab);
+        return {
+          ...prev,
+          tabs,
+          activeTabId: tab.id,
+          focus: "main",
+          closed: prev.closed.slice(0, -1),
+        };
       }),
     onReorderTab: (from: number, to: number) =>
       setS((prev) => {
@@ -321,7 +347,17 @@ export function ShellTabs(p: ShellTabsProps) {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const cur = latest.current;
-      if ((e.ctrlKey || e.metaKey) && e.key === "\\") {
+      const mod = e.ctrlKey || e.metaKey;
+      if (mod && e.shiftKey && e.key.toLowerCase() === "t") {
+        e.preventDefault();
+        cur.onReopenClosedTab();
+      } else if (mod && !e.shiftKey && !e.altKey && /^[1-9]$/.test(e.key) && cur.tabs.length > 0) {
+        // Ctrl+1..8 jumps to that tab; Ctrl+9 always to the last one.
+        e.preventDefault();
+        const n = Number(e.key);
+        const target = n === 9 ? cur.tabs.at(-1) : cur.tabs[n - 1];
+        if (target) cur.onActivateTab(target.id);
+      } else if (mod && e.key === "\\") {
         e.preventDefault();
         cur.onSplit();
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "w") {
