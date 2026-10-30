@@ -7,7 +7,7 @@
 use fossil_core::ids::ObjectId;
 use fossil_core::objects::{
     BrokenLink, CoreError, Link, Mention, MetaPatch, NewObject, ObjectFilter, ObjectMeta,
-    RenameReport,
+    OutgoingLink, RenameReport,
 };
 use fossil_core::{
     attachments, doc_store, indexer, journal, mirror, object_store,
@@ -369,6 +369,18 @@ pub fn links_backlinks(
     id: ObjectId,
 ) -> Result<Vec<Link>, CoreError> {
     with_session(s, |s| s.with_connection(|c| indexer::backlinks(c, &id)))
+}
+
+/// Links leaving `id`, resolved or not, for the outgoing links panel.
+#[tauri::command]
+#[specta::specta]
+pub fn links_outgoing(
+    s: tauri::State<'_, VaultState>,
+    id: ObjectId,
+) -> Result<Vec<OutgoingLink>, CoreError> {
+    with_session(s, |s| {
+        s.with_connection(|c| indexer::outgoing_links(c, &id))
+    })
 }
 
 #[tauri::command]

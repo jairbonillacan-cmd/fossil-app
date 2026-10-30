@@ -125,7 +125,10 @@
     "empty": "No other pages link here yet.",
     "mentionsTitle": "Unlinked mentions",
     "mentionsEmpty": "No unlinked mentions of this page title.",
-    "linkAction": "Link"
+    "linkAction": "Link",
+    "outgoingTitle": "Links to",
+    "outgoingEmpty": "This page does not link to others yet.",
+    "unresolved": "No page has this title yet"
   },
   "palette": {
     "commandLabel": "Command palette",

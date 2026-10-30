@@ -2,7 +2,7 @@
 
 use crate::ids::{BlockId, ObjectId};
 use crate::object_store::{self, storage_error};
-use crate::objects::{CoreError, Link, LinkKind, Mention};
+use crate::objects::{CoreError, Link, LinkKind, Mention, OutgoingLink};
 use rusqlite::{Connection, Params, params};
 use std::collections::{BTreeMap, BTreeSet};
 use yrs::types::text::YChange;
@@ -390,6 +390,35 @@ pub fn backlinks(conn: &Connection, id: &ObjectId) -> Result<Vec<Link>, CoreErro
     .map_err(storage_error)
 }
 
+/// Links leaving `id` (tags excluded), in index order: resolved ones carry the live
+/// target page; unresolved ones keep the text no live page answers to yet.
+pub fn outgoing_links(conn: &Connection, id: &ObjectId) -> Result<Vec<OutgoingLink>, CoreError> {
+    let mut stmt = conn
+        .prepare_cached(
+            "SELECT l.from_block, o.id, COALESCE(o.title, l.target_text, l.to_object), l.kind
+             FROM links l LEFT JOIN objects o ON o.id = l.to_object AND o.archived = 0
+             WHERE l.from_object = ?1 AND l.kind != 'tag'
+             ORDER BY l.rowid",
+        )
+        .map_err(storage_error)?;
+    stmt.query_map(params![id.0], |r| {
+        let kind = match r.get::<_, String>(3)?.as_str() {
+            "ref" => LinkKind::Ref,
+            "embed" => LinkKind::Embed,
+            _ => LinkKind::Wikilink,
+        };
+        Ok(OutgoingLink {
+            from_block: r.get::<_, Option<String>>(0)?.map(BlockId),
+            to_object: r.get::<_, Option<String>>(1)?.map(ObjectId),
+            target: r.get(2)?,
+            kind,
+        })
+    })
+    .map_err(storage_error)?
+    .collect::<rusqlite::Result<Vec<_>>>()
+    .map_err(storage_error)
+}
+
 /// True when `needle` appears in `text` as whole words: "arte" does not match "parte".
 fn contains_words(text: &str, needle: &str) -> bool {
     text.match_indices(needle).any(|(at, m)| {
@@ -649,6 +678,34 @@ mod tests {
             "a self-link is not a backlink"
         );
         assert_eq!(backlinks(&conn, &other).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn outgoing_links_list_resolved_and_unresolved_targets_without_tags() {
+        let mut conn = open_vault(":memory:").unwrap();
+        let (src, plan) = (page(&conn, "Origen"), page(&conn, "Plan Acme"));
+        set_body(
+            &mut conn,
+            &src,
+            &[(
+                "paragraph",
+                "p1",
+                "Ver [[Plan Acme]], [[Idea suelta]] y #urgente",
+            )],
+        );
+        let out = outgoing_links(&conn, &src).unwrap();
+        assert_eq!(out.len(), 2, "tags are not outgoing links: {out:?}");
+        assert_eq!(out[0].to_object.as_ref(), Some(&plan));
+        assert_eq!(out[0].target, "Plan Acme");
+        assert_eq!(out[1].to_object, None);
+        assert_eq!(out[1].target.to_lowercase(), "idea suelta");
+        object_store::archive(&mut conn, &plan).unwrap();
+        index_object(&mut conn, &src).unwrap();
+        assert_eq!(
+            outgoing_links(&conn, &src).unwrap()[0].to_object,
+            None,
+            "an archived target is unresolved"
+        );
     }
 
     #[test]
