@@ -47,10 +47,15 @@ const redactSecrets = (s: string) =>
 const formatUsd = (u: number) => `$${u < 0.01 && u > 0 ? u.toFixed(4) : u.toFixed(2)} USD`;
 const patchTurn = (r: ChatTurn, p: Record<number, unknown>): ChatTurn =>
   Object.assign([...r] as ChatTurn, p);
-const getEditor = (): Editor | null =>
-  (document.querySelector(".fossil-editor") as { editor?: Editor } | null)?.editor ?? null;
-const readEditorSel = () => {
-  const ed = getEditor();
+/** The editor of the page this panel belongs to: with split panes there are two (#166). */
+export const getEditor = (panel: Element | null): Editor | null =>
+  (
+    (panel?.closest("[data-pane]") ?? document).querySelector(".fossil-editor") as {
+      editor?: Editor;
+    } | null
+  )?.editor ?? null;
+const readEditorSel = (panel: Element | null) => {
+  const ed = getEditor(panel);
   if (!ed) return null;
   const { from, to } = ed.state.selection;
   return from < to ? { from, to, text: ed.state.doc.textBetween(from, to, "\n").trim() } : null;
@@ -62,6 +67,7 @@ export function AiChatPanel({ object }: { object: ObjectMeta }) {
   const [attached, setAttached] = useState<ObjectMeta[]>([object]);
   const [selection, setSelection] = useState("");
   const rangeRef = useRef<TurnRange>(null);
+  const panelRef = useRef<HTMLElement | null>(null);
   const [pages, setPages] = useState<ObjectMeta[]>([]);
   const [routes, setRoutes] = useState<RouteRule[]>([]);
   const [providersInfo, setProvidersInfo] = useState<ProviderInfo[]>([]);
@@ -84,7 +90,7 @@ export function AiChatPanel({ object }: { object: ObjectMeta }) {
       .aiProviders?.()
       ?.then((res) => setProvidersInfo(res.status === "ok" ? res.data : []));
     const onSel = () => {
-      const es = readEditorSel();
+      const es = readEditorSel(panelRef.current);
       const text = es?.text || (window.getSelection?.()?.toString().trim() ?? "");
       if (text !== "") {
         rangeRef.current = es ? { from: es.from, to: es.to } : null;
@@ -172,7 +178,7 @@ export function AiChatPanel({ object }: { object: ObjectMeta }) {
   };
 
   const onAction = (k: string) => {
-    const es = readEditorSel();
+    const es = readEditorSel(panelRef.current);
     if (es && es.text !== "") rangeRef.current = { from: es.from, to: es.to };
     const sel = (es?.text || window.getSelection?.()?.toString().trim() || selection).trim();
     if (sel !== "" && sel !== selection) setSelection(sel);
@@ -203,7 +209,7 @@ export function AiChatPanel({ object }: { object: ObjectMeta }) {
     setActiveId(null);
   };
   const confirmTurn = ([id, , a, , , sel, range]: ChatTurn) => {
-    const ed = getEditor();
+    const ed = getEditor(panelRef.current);
     if (ed) {
       let target = range;
       if (!target && sel !== "") {
@@ -257,6 +263,7 @@ export function AiChatPanel({ object }: { object: ObjectMeta }) {
 
   return (
     <aside
+      ref={panelRef}
       aria-label={t("ai.panelLabel")}
       className="flex h-full w-80 shrink-0 flex-col gap-4 overflow-y-auto border-l border-[color:var(--border)] px-4 py-6 in-data-[density=compact]:gap-3 in-data-[density=compact]:py-4"
     >

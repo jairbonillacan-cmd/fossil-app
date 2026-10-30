@@ -29,9 +29,15 @@ export interface WorkspaceTab {
   historyIndex: number;
 }
 
+export type WorkspacePane = "main" | "split";
+
 interface TabsState {
   tabs: WorkspaceTab[];
   activeTabId: string | null;
+  /** Second pane beside the tabs (#166): its own page and Back/Forward history. */
+  split: WorkspaceTab | null;
+  /** Pane that receives navigation (sidebar, palette, links, Back/Forward). */
+  focus: WorkspacePane;
 }
 
 const MAX_TAB_HISTORY = 100;
@@ -45,19 +51,23 @@ const mkTab = (object: ObjectMeta | null): WorkspaceTab => ({
   historyIndex: object ? 0 : -1,
 });
 
+const toSessionTab = (t: WorkspaceTab) => ({
+  objectId: t.object?.id ?? null,
+  pinned: t.pinned,
+  history: t.history.map((o) => o.id),
+  historyIndex: t.historyIndex,
+});
+
 const toSession = (s: TabsState): TabsSession => {
   const idx = s.tabs.findIndex((t) => t.id === s.activeTabId);
-  const tabs = s.tabs.map((t) => ({
-    objectId: t.object?.id ?? null,
-    pinned: t.pinned,
-    history: t.history.map((o) => o.id),
-    historyIndex: t.historyIndex,
-  }));
+  const tabs = s.tabs.map(toSessionTab);
+  const split = s.split ? toSessionTab(s.split) : null;
   return {
     v: SESSION_VERSION,
     tabs,
     active: idx === -1 ? null : idx,
-    scroll: trimScroll(getScrollOffsets(), tabs),
+    ...(split ? { split } : {}),
+    scroll: trimScroll(getScrollOffsets(), split ? [...tabs, split] : tabs),
   };
 };
 
@@ -84,8 +94,11 @@ export function useWorkspaceTabs(
   const [s, setS] = useState<TabsState>(() => ({
     tabs: initialTabs,
     activeTabId: initialTabs[0]?.id ?? null,
+    split: null,
+    focus: "main",
   }));
   const activeTab = s.tabs.find((t) => t.id === s.activeTabId) ?? null;
+  const focusedTab = s.focus === "split" && s.split ? s.split : activeTab;
   const hydrated = useRef(false);
   const latestState = useRef(s);
   latestState.current = s;
@@ -102,8 +115,9 @@ export function useWorkspaceTabs(
       if (restore && restore.tabs.length > 0) {
         const tabs = restore.tabs.map((x) => ({ ...mkTab(x.object), ...x }));
         const activeTabId = tabs[restore.active ?? -1]?.id ?? null;
+        const split = restore.split ? { ...mkTab(restore.split.object), ...restore.split } : null;
         // Opening a page before object_list answers discards the restore (see ui.md).
-        setS((prev) => (prev.tabs.length > 0 ? prev : { tabs, activeTabId }));
+        setS((prev) => (prev.tabs.length > 0 ? prev : { tabs, activeTabId, split, focus: "main" }));
       }
       hydrated.current = true;
     };
@@ -153,26 +167,39 @@ export function useWorkspaceTabs(
 
   const stepHistory = (delta: -1 | 1) =>
     setS((prev) => {
-      const cur = prev.tabs.find((t) => t.id === prev.activeTabId);
+      const inSplit = prev.focus === "split" && prev.split !== null;
+      const cur = inSplit ? prev.split : prev.tabs.find((t) => t.id === prev.activeTabId);
       if (!cur) return prev;
       const historyIndex = cur.historyIndex + delta;
       const target = cur.history[historyIndex];
       if (!target) return prev;
-      const tabs = prev.tabs.map((t) =>
-        t.id === cur.id ? { ...t, object: target, historyIndex } : t,
-      );
-      return { ...prev, tabs };
+      const moved = { ...cur, object: target, historyIndex };
+      if (inSplit) return { ...prev, split: moved };
+      return { ...prev, tabs: prev.tabs.map((t) => (t.id === cur.id ? moved : t)) };
     });
 
   return {
     tabs: s.tabs,
     activeTabId: s.activeTabId,
     selectedObject: activeTab?.object ?? null,
-    canGoBack: (activeTab?.historyIndex ?? 0) > 0,
-    canGoForward: !!activeTab && activeTab.historyIndex < activeTab.history.length - 1,
-    /** Opens a page: focuses its tab if open, else navigates the active unpinned tab, else a new tab. */
+    splitOpen: s.split !== null,
+    splitObject: s.split?.object ?? null,
+    focusedPane: s.split ? s.focus : ("main" as WorkspacePane),
+    canGoBack: (focusedTab?.historyIndex ?? 0) > 0,
+    canGoForward: !!focusedTab && focusedTab.historyIndex < focusedTab.history.length - 1,
+    /**
+     * Opens a page in the focused pane. In the tabs: focuses its tab if open, else navigates the
+     * active unpinned tab, else a new tab.
+     */
     selectObject: (target: ObjectMeta) =>
       setS((prev) => {
+        if (prev.focus === "split" && prev.split) {
+          const sp = prev.split;
+          return {
+            ...prev,
+            split: sp.object?.id === target.id ? refreshTab(sp, target) : navigateTab(sp, target),
+          };
+        }
         const cur = prev.tabs.find((t) => t.id === prev.activeTabId) ?? null;
         const put = (id: string, fn: (t: WorkspaceTab) => WorkspaceTab) =>
           prev.tabs.map((t) => (t.id === id ? fn(t) : t));
@@ -186,20 +213,35 @@ export function useWorkspaceTabs(
         if (cur && !cur.pinned)
           return { ...prev, tabs: put(cur.id, (t) => navigateTab(t, target)) };
         const nt = mkTab(target);
-        return { tabs: [...prev.tabs, nt], activeTabId: nt.id };
+        return { ...prev, tabs: [...prev.tabs, nt], activeTabId: nt.id };
       }),
     updateObject: (u: ObjectMeta) =>
-      setS((prev) => ({ ...prev, tabs: prev.tabs.map((t) => refreshTab(t, u)) })),
+      setS((prev) => ({
+        ...prev,
+        tabs: prev.tabs.map((t) => refreshTab(t, u)),
+        split: prev.split ? refreshTab(prev.split, u) : null,
+      })),
+    /** Splits the work area: the second pane starts on the page shown in the tabs (#166). */
+    onSplit: () =>
+      setS((prev) => {
+        if (prev.split) return { ...prev, focus: "split" };
+        const cur = prev.tabs.find((t) => t.id === prev.activeTabId);
+        return { ...prev, split: mkTab(cur?.object ?? null), focus: "split" };
+      }),
+    onCloseSplit: () => setS((prev) => ({ ...prev, split: null, focus: "main" })),
+    onFocusPane: (pane: WorkspacePane) =>
+      setS((prev) => (prev.focus === pane || !prev.split ? prev : { ...prev, focus: pane })),
     onActivateTab: (tabId: string) =>
       setS((prev) =>
-        prev.activeTabId === tabId || !prev.tabs.some((x) => x.id === tabId)
+        (prev.activeTabId === tabId && prev.focus === "main") ||
+        !prev.tabs.some((x) => x.id === tabId)
           ? prev
-          : { ...prev, activeTabId: tabId },
+          : { ...prev, activeTabId: tabId, focus: "main" },
       ),
     onOpenNewTab: () =>
       setS((prev) => {
         const nt = mkTab(null);
-        return { ...prev, tabs: [...prev.tabs, nt], activeTabId: nt.id };
+        return { ...prev, tabs: [...prev.tabs, nt], activeTabId: nt.id, focus: "main" };
       }),
     onTogglePinTab: (tabId: string) =>
       setS((prev) => ({
@@ -233,7 +275,7 @@ export function useWorkspaceTabs(
 
 export type ShellTabsProps = Omit<
   ReturnType<typeof useWorkspaceTabs>,
-  "selectedObject" | "selectObject" | "updateObject"
+  "selectedObject" | "selectObject" | "updateObject" | "splitOpen" | "splitObject" | "onFocusPane"
 >;
 
 const renderBtn = (
@@ -279,8 +321,13 @@ export function ShellTabs(p: ShellTabsProps) {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const cur = latest.current;
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "w") {
+      if ((e.ctrlKey || e.metaKey) && e.key === "\\") {
         e.preventDefault();
+        cur.onSplit();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "w") {
+        e.preventDefault();
+        // In the second pane, Ctrl+W closes the pane, never a tab it cannot see (#166).
+        if (cur.focusedPane === "split") return cur.onCloseSplit();
         const active = cur.tabs.find((x) => x.id === cur.activeTabId);
         if (active && !active.pinned) cur.onCloseTab(active.id);
       } else if (e.ctrlKey && e.key === "Tab" && cur.tabs.length > 1) {
@@ -391,6 +438,7 @@ export function ShellTabs(p: ShellTabsProps) {
         })}
       </div>
       {renderBtn(newTxt, p.onOpenNewTab, "+", newCls)}
+      {renderBtn(t("tabs.split"), p.onSplit, "◫", newCls)}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { useCallback, useLayoutEffect, useRef } from "react";
 import type { ObjectMeta } from "./bindings";
 
-/** Recoverable tabs session per Espacio, stored in the frontend's localStorage (#29, #173). */
+/** Recoverable tabs session per Espacio, stored in the frontend's localStorage (#29, #173, #166). */
 export const SESSION_VERSION = 2;
 const MAX_TABS = 200;
 const MAX_HISTORY = 500;
@@ -18,6 +18,8 @@ export interface TabsSession {
   v: typeof SESSION_VERSION;
   tabs: SessionTab[];
   active: number | null;
+  /** Second pane of a split work area (#166); absent in sessions saved before it. */
+  split?: SessionTab | null;
   scroll: Record<string, number>;
 }
 
@@ -31,6 +33,7 @@ export interface RestoredTab {
 export interface RestoredTabs {
   tabs: RestoredTab[];
   active: number | null;
+  split: RestoredTab | null;
 }
 
 const storageKey = (vault: string) => `fossil.tabs.session:${vault}`;
@@ -101,8 +104,11 @@ export function parseSession(raw: string | null): TabsSession | null {
     typeof data.active === "number" && Number.isInteger(data.active) && data.active < tabs.length
       ? Math.max(data.active, 0)
       : null;
-  const scroll = isObj(data.scroll) ? trimScroll(data.scroll as Record<string, number>, tabs) : {};
-  return { v: SESSION_VERSION, tabs, active, scroll };
+  // A corrupt split pane only drops the pane, never the tabs.
+  const split = data.v === SESSION_VERSION && data.split ? parseTab(data.split, data.v) : null;
+  const live = split ? [...tabs, split] : tabs;
+  const scroll = isObj(data.scroll) ? trimScroll(data.scroll as Record<string, number>, live) : {};
+  return { v: SESSION_VERSION, tabs, active, ...(split ? { split } : {}), scroll };
 }
 
 export function loadSession(vault: string): TabsSession | null {
@@ -121,35 +127,44 @@ export function saveSession(vault: string, session: TabsSession): void {
   }
 }
 
-/** Rebuilds tabs from a saved session, dropping pages deleted or archived since. */
+/** Rebuilds one tab or pane; null when its page was deleted or archived since. */
+function restoreTab(t: SessionTab, byId: Map<string, ObjectMeta>): RestoredTab | null {
+  const object = t.objectId === null ? null : (byId.get(t.objectId) ?? undefined);
+  if (object === undefined) return null;
+  let history: ObjectMeta[] = [];
+  let historyIndex = -1;
+  t.history.forEach((id, h) => {
+    const o = byId.get(id);
+    if (!o) return;
+    history.push(o);
+    if (h <= t.historyIndex) historyIndex = history.length - 1;
+  });
+  if (historyIndex === -1 && history.length > 0) historyIndex = 0;
+  if (object && history[historyIndex]?.id !== object.id) {
+    history = [object];
+    historyIndex = 0;
+  } else if (!object) {
+    history = [];
+    historyIndex = -1;
+  }
+  return { object, pinned: t.pinned, history, historyIndex };
+}
+
+/** Rebuilds tabs (and the split pane) from a saved session, dropping pages deleted or archived since. */
 export function restoreSession(session: TabsSession, objects: ObjectMeta[]): RestoredTabs {
   const byId = new Map(objects.filter((o) => !o.archived).map((o) => [o.id, o]));
   const tabs: RestoredTab[] = [];
   let active: number | null = null;
   session.tabs.forEach((t, i) => {
-    const object = t.objectId === null ? null : (byId.get(t.objectId) ?? undefined);
-    if (object === undefined) return;
-    let history: ObjectMeta[] = [];
-    let historyIndex = -1;
-    t.history.forEach((id, h) => {
-      const o = byId.get(id);
-      if (!o) return;
-      history.push(o);
-      if (h <= t.historyIndex) historyIndex = history.length - 1;
-    });
-    if (historyIndex === -1 && history.length > 0) historyIndex = 0;
-    if (object && history[historyIndex]?.id !== object.id) {
-      history = [object];
-      historyIndex = 0;
-    } else if (!object) {
-      history = [];
-      historyIndex = -1;
-    }
+    const tab = restoreTab(t, byId);
+    if (!tab) return;
     if (i === session.active) active = tabs.length;
-    tabs.push({ object, pinned: t.pinned, history, historyIndex });
+    tabs.push(tab);
   });
   if (active === null && tabs.length > 0) active = tabs.length - 1;
-  return { tabs, active };
+  const split = session.split ? restoreTab(session.split, byId) : null;
+  // A split pane whose page is gone closes rather than showing an empty pane.
+  return { tabs, active, split: split?.object ? split : null };
 }
 
 // Scroll offsets live outside React state: scroll events are too frequent to re-render.

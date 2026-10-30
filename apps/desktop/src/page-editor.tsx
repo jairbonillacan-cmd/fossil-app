@@ -22,10 +22,15 @@ export interface PageEditorProps {
   object: ObjectMeta | null;
   onSelect?: ((object: ObjectMeta) => void) | undefined;
   onObjectUpdated?: ((object: ObjectMeta) => void) | undefined;
+  /**
+   * Pane with focus in a split work area (#166, default true): only it registers palette
+   * commands and shows the right panel, so a split never shows two side panels.
+   */
+  focused?: boolean | undefined;
 }
 
 /** Page header (`object_update_meta`, 400 ms debounce + blur), `⋯` actions menu, body and collapsible backlinks/AI panels (#26, #28, #14, #105). */
-export function PageEditor({ object, onSelect, onObjectUpdated }: PageEditorProps) {
+export function PageEditor({ object, onSelect, onObjectUpdated, focused = true }: PageEditorProps) {
   const { t, i18n } = useTranslation();
   const pageScroll = usePageScroll(object?.id ?? null);
   const [title, setTitle] = useState(object?.title ?? "");
@@ -179,7 +184,7 @@ export function PageEditor({ object, onSelect, onObjectUpdated }: PageEditorProp
   }, [title, object]);
 
   useEffect(() => {
-    if (object === null) return undefined;
+    if (object === null || !focused) return undefined;
     const offs = (
       [
         ["editor.exportMarkdown", t("editor.exportMarkdown"), () => exportRef.current()],
@@ -188,10 +193,19 @@ export function PageEditor({ object, onSelect, onObjectUpdated }: PageEditorProp
         ["editor.toggleBacklinks", t("palette.toggleBacklinks"), () => setBacklinksOpen((o) => !o)],
       ] as const
     ).map(([id, lbl, run]) => registerCommand({ id, title: lbl, run }));
+    // Ctrl+Alt+B shows or hides the right panel of the focused pane (#166).
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.altKey && e.key.toLowerCase() === "b") {
+        e.preventDefault();
+        setBacklinksOpen((o) => !o);
+      }
+    };
+    window.addEventListener("keydown", onKey);
     return () => {
+      window.removeEventListener("keydown", onKey);
       for (const off of offs) off();
     };
-  }, [object, t]);
+  }, [object, t, focused]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -499,14 +513,19 @@ export function PageEditor({ object, onSelect, onObjectUpdated }: PageEditorProp
           </div>
         </div>
       </div>
-      {backlinksOpen && (
+      {focused && backlinksOpen && (
         <div className="contents print:hidden">
           <Suspense fallback={null}>
             <PageBacklinksPanel object={currentObject} onSelect={onSelect} />
           </Suspense>
         </div>
       )}
-      {aiOpen && <AiChatPanel key={object.id} object={currentObject} />}
+      {/* Hidden, not unmounted, outside the focused pane: the chat and a reply in flight survive (#166). */}
+      {aiOpen && (
+        <div className={focused ? "contents" : "hidden"}>
+          <AiChatPanel key={object.id} object={currentObject} />
+        </div>
+      )}
     </div>
   );
 }

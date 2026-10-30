@@ -35,7 +35,11 @@
     "pin": "Pin tab",
     "unpin": "Unpin tab",
     "close": "Close tab",
-    "pinnedBadge": "Pinned"
+    "pinnedBadge": "Pinned",
+    "split": "Split right",
+    "closeSplit": "Close split pane",
+    "mainPane": "Tabs pane",
+    "splitPane": "Split pane"
   },
   "editor": {
     "emptyTitle": "No page open",

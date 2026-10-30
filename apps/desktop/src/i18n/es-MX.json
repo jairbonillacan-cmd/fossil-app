@@ -35,7 +35,11 @@
     "pin": "Fijar pestaña",
     "unpin": "Desfijar pestaña",
     "close": "Cerrar pestaña",
-    "pinnedBadge": "Fijada"
+    "pinnedBadge": "Fijada",
+    "split": "Dividir a la derecha",
+    "closeSplit": "Cerrar panel dividido",
+    "mainPane": "Panel de pestañas",
+    "splitPane": "Panel dividido"
   },
   "editor": {
     "emptyTitle": "Ninguna página abierta",
