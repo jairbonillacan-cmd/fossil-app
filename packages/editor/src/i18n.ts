@@ -22,6 +22,8 @@ export type EditorTranslationKey =
   | "editor.stats.characters"
   | "editor.wikilink.label"
   | "editor.wikilink.create"
+  | "editor.wikilink.pick"
+  | "editor.wikilink.ambiguous"
   | "editor.tag.label"
   | "editor.image.alt"
   | "editor.image.loading"
@@ -59,6 +61,8 @@ export const EDITOR_MESSAGES_ES_MX: EditorMessages = {
   "editor.stats.characters": "caracteres",
   "editor.wikilink.label": "Enlazar objeto",
   "editor.wikilink.create": "Crear",
+  "editor.wikilink.pick": "Elige la página",
+  "editor.wikilink.ambiguous": "Varias páginas tienen este título: haz clic para elegir una",
   "editor.tag.label": "Etiquetas",
   "editor.image.alt": "Imagen adjunta",
   "editor.image.loading": "Cargando imagen…",
@@ -94,6 +98,8 @@ export const EDITOR_MESSAGES_EN: EditorMessages = {
   "editor.stats.characters": "characters",
   "editor.wikilink.label": "Link object",
   "editor.wikilink.create": "Create",
+  "editor.wikilink.pick": "Choose the page",
+  "editor.wikilink.ambiguous": "Several pages share this title: click to choose one",
   "editor.tag.label": "Tags",
   "editor.image.alt": "Attached image",
   "editor.image.loading": "Loading image…",

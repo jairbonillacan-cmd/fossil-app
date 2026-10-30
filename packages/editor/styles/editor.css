@@ -460,6 +460,24 @@
   text-decoration: underline;
   cursor: pointer;
 }
+.fossil-wikilink-ambiguous {
+  text-decoration-style: wavy;
+  text-decoration-color: var(--fg-muted);
+}
+/* The id form (#137) splits the chip around the hidden `<ObjectId>|`: join the visible pieces. */
+.fossil-wikilink-id {
+  display: none;
+}
+.fossil-wikilink:has(+ .fossil-wikilink-id) {
+  padding-right: 0;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.fossil-wikilink-id + .fossil-wikilink {
+  padding-left: 0;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
 .fossil-tag {
   border: 1px solid var(--border);
   color: var(--fg-muted);

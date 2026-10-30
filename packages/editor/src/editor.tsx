@@ -11,7 +11,13 @@ import { CodeBlockLanguage } from "./code-block";
 import { DragHandle, EditorWordCount } from "./controls";
 import { defaultEditorTranslator, type EditorTranslator } from "./i18n";
 import { ImageAttachment } from "./image-attachment";
-import { LinkAutocompleteMenu, type LinkAutocompleteProps, LinksExtension } from "./links";
+import {
+  type AmbiguousLinkPick,
+  LinkAutocompleteMenu,
+  type LinkAutocompleteProps,
+  LinksExtension,
+  refreshLinkDecorations,
+} from "./links";
 import { Outliner } from "./outliner";
 import { SafeLink } from "./safe-links";
 import { SlashMenu } from "./slash-menu";
@@ -61,6 +67,9 @@ function BoundEditor({ doc, transport, t, onReady, className, ...rest }: BoundEd
   onOpenRef.current = rest.onOpenObject;
   const onErrorRef = useRef(rest.onError);
   onErrorRef.current = rest.onError;
+  const ambiguousRef = useRef(rest.ambiguousTitles);
+  ambiguousRef.current = rest.ambiguousTitles;
+  const pickRef = useRef<((pick: AmbiguousLinkPick) => void) | undefined>(undefined);
   const editor = useEditor(
     {
       extensions: [
@@ -81,7 +90,7 @@ function BoundEditor({ doc, transport, t, onReady, className, ...rest }: BoundEd
         Placeholder.configure({ placeholder: () => tRef.current("editor.placeholder") }),
         Outliner.configure({ t }),
         DragHandle.configure({ t }),
-        LinksExtension.configure({ onOpenRef }),
+        LinksExtension.configure({ onOpenRef, ambiguousRef, onAmbiguousRef: pickRef, tRef }),
         YSync(getBodyFragment(doc)),
       ],
       immediatelyRender: true,
@@ -94,12 +103,16 @@ function BoundEditor({ doc, transport, t, onReady, className, ...rest }: BoundEd
   useEffect(() => {
     if (editor !== null) onReadyRef.current?.(editor);
   }, [editor]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: new repeated titles re-mark the open page without waiting for an edit (#137).
+  useEffect(() => {
+    if (editor !== null && !editor.isDestroyed) refreshLinkDecorations(editor);
+  }, [editor, rest.ambiguousTitles]);
   return (
     <div className="fossil-editor-root">
       <EditorContent editor={editor} className={className} />
       <EditorWordCount editor={editor} t={t} />
       <SlashMenu editor={editor} t={t} />
-      <LinkAutocompleteMenu editor={editor} t={t} {...rest} />
+      <LinkAutocompleteMenu editor={editor} t={t} pickRef={pickRef} {...rest} />
     </div>
   );
 }
