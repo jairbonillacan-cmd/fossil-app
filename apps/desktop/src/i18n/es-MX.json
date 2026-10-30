@@ -125,7 +125,10 @@
     "empty": "Ninguna otra página enlaza aquí todavía.",
     "mentionsTitle": "Menciones sin enlace",
     "mentionsEmpty": "No hay menciones sin enlace del título de esta página.",
-    "linkAction": "Enlazar"
+    "linkAction": "Enlazar",
+    "outgoingTitle": "Enlaza a",
+    "outgoingEmpty": "Esta página no enlaza a otras todavía.",
+    "unresolved": "Ninguna página tiene este título todavía"
   },
   "palette": {
     "commandLabel": "Paleta de comandos",

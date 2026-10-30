@@ -35,6 +35,8 @@ export const commands = {
 	/**  The page as Markdown, exactly what the vault mirror writes (#126). */
 	objectExportMarkdown: (id: ObjectId) => typedError<string, CoreError>(__TAURI_INVOKE("object_export_markdown", { id })),
 	linksBacklinks: (id: ObjectId) => typedError<Link[], CoreError>(__TAURI_INVOKE("links_backlinks", { id })),
+	/**  Links leaving `id`, resolved or not, for the outgoing links panel. */
+	linksOutgoing: (id: ObjectId) => typedError<OutgoingLink[], CoreError>(__TAURI_INVOKE("links_outgoing", { id })),
 	linksUnlinkedMentions: (id: ObjectId) => typedError<Mention[], CoreError>(__TAURI_INVOKE("links_unlinked_mentions", { id })),
 	/**
 	 *  Renames `id` and rewrites every inbound wikilink in the Yjs documents
@@ -371,6 +373,18 @@ export type ObjectMeta = {
 
 /**  Typed errors for OS shortcut and quick-capture window commands. */
 export type OsError = "NotImplemented" | ({ ShortcutInvalid: string }) & { ShortcutConflict?: never; Window?: never } | ({ ShortcutConflict: string }) & { ShortcutInvalid?: never; Window?: never } | ({ Window: string }) & { ShortcutConflict?: never; ShortcutInvalid?: never };
+
+/**
+ *  A link leaving a page (outgoing links panel): `to_object` is the live page it
+ *  resolves to, or `None` when no live page answers to `target` yet.
+ */
+export type OutgoingLink = {
+	from_block: BlockId | null,
+	to_object: ObjectId | null,
+	/**  Title of the resolved page, or the text the link points to when unresolved. */
+	target: string,
+	kind: LinkKind,
+};
 
 /**  A version (`old_*`) against the current page (`new_*`), as Markdown. */
 export type PageVersionDiff = {

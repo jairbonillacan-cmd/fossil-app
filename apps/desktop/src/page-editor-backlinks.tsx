@@ -2,7 +2,7 @@ import { Button } from "@fossil/ui";
 import { memo, useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as Y from "yjs";
-import type { Link, Mention, ObjectId, ObjectMeta } from "./bindings";
+import type { Link, Mention, ObjectId, ObjectMeta, OutgoingLink } from "./bindings";
 import { commands, events } from "./bindings";
 import { formatObjectTitle, selectWorkspaceObject } from "./sidebar";
 
@@ -94,14 +94,24 @@ export const PageBacklinksPanel = memo(function PageBacklinksPanel({
   const { t, i18n } = useTranslation();
   const [backlinks, setBacklinks] = useState<Link[]>([]);
   const [mentions, setMentions] = useState<Mention[]>([]);
+  const [outgoing, setOutgoing] = useState<OutgoingLink[]>([]);
   const [byId, setById] = useState<Record<ObjectId, ObjectMeta>>({});
 
   const refresh = useCallback(async () => {
-    const [bl, mn, ls] = await Promise.all([
+    const [bl, mn, ls, og] = await Promise.all([
       commands.linksBacklinks?.(object.id),
       commands.linksUnlinkedMentions?.(object.id),
       commands.objectList?.({ include_archived: false, type_key: null, parent: null, query: null }),
+      commands.linksOutgoing?.(object.id),
     ]);
+    // One row per target: the panel lists where the page points, not every occurrence.
+    const seen = new Set<string>();
+    setOutgoing(
+      (og?.status === "ok" ? og.data : []).filter((l) => {
+        const key = l.to_object ?? `?${l.target.toLowerCase()}`;
+        return l.to_object !== object.id && !seen.has(key) && !!seen.add(key);
+      }),
+    );
     setBacklinks(bl?.status === "ok" ? bl.data : []);
     setMentions(mn?.status === "ok" ? mn.data : []);
     if (ls?.status === "ok") setById(Object.fromEntries(ls.data.map((it) => [it.id, it])));
@@ -165,6 +175,35 @@ export const PageBacklinksPanel = memo(function PageBacklinksPanel({
                     {l.from_block !== null ? `${l.kind} · #${l.from_block}` : l.kind}
                   </span>
                 </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+      <section aria-label={t("backlinks.outgoingTitle")} className="flex flex-col gap-2">
+        <h2 className={HEADING_CLS}>{t("backlinks.outgoingTitle")}</h2>
+        {outgoing.length === 0 ? (
+          <p className="text-xs text-[color:var(--fg-muted)]">{t("backlinks.outgoingEmpty")}</p>
+        ) : (
+          <ul className="flex flex-col gap-1">
+            {outgoing.map((l) => (
+              <li key={l.to_object ?? `?${l.target}`}>
+                {l.to_object !== null ? (
+                  <button
+                    type="button"
+                    onClick={() => l.to_object && openId(l.to_object)}
+                    className="w-full truncate rounded px-1 py-0.5 text-left text-sm text-[color:var(--fg)] hover:underline focus-visible:outline-2 focus-visible:outline-[color:var(--accent)]"
+                  >
+                    {titleOf(l.to_object)}
+                  </button>
+                ) : (
+                  <span
+                    title={t("backlinks.unresolved")}
+                    className="block truncate px-1 py-0.5 text-sm italic text-[color:var(--fg-muted)]"
+                  >
+                    {l.target}
+                  </span>
+                )}
               </li>
             ))}
           </ul>

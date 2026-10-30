@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as Y from "yjs";
 import type { Link, ObjectMeta } from "./bindings";
@@ -23,6 +23,7 @@ vi.mock("./bindings", () => ({
     objectApplyUpdate: vi.fn(),
     linksBacklinks: vi.fn(),
     linksUnlinkedMentions: vi.fn(),
+    linksOutgoing: vi.fn(),
   },
   events: { objectChanged: { listen: vi.fn() }, indexUpdated: { listen: vi.fn() } },
 }));
@@ -68,6 +69,7 @@ beforeEach(() => {
   vi.mocked(commands.objectList).mockResolvedValue({ status: "ok", data: [target, source, note] });
   vi.mocked(commands.linksBacklinks).mockResolvedValue({ status: "ok", data: [] });
   vi.mocked(commands.linksUnlinkedMentions).mockResolvedValue({ status: "ok", data: [] });
+  vi.mocked(commands.linksOutgoing).mockResolvedValue({ status: "ok", data: [] });
   vi.mocked(events.objectChanged.listen).mockResolvedValue(() => {});
   vi.mocked(events.indexUpdated.listen).mockResolvedValue(() => {});
 });
@@ -105,6 +107,33 @@ describe("PageBacklinksPanel (#28)", () => {
     expect(onSelect).toHaveBeenCalledWith(source);
     await act(async () => onIndexed?.());
     await vi.waitFor(() => expect(commands.linksBacklinks).toHaveBeenCalledTimes(2));
+  });
+
+  it("lists outgoing links once per target, opens resolved ones and marks unresolved ones", async () => {
+    const out = (to_object: string | null, target: string, from_block: string) => ({
+      from_block,
+      to_object,
+      target,
+      kind: "Wikilink" as const,
+    });
+    vi.mocked(commands.linksOutgoing).mockResolvedValue({
+      status: "ok",
+      data: [
+        out("obj-note", "Bitácora semanal", "b1"),
+        out("obj-note", "Bitácora semanal", "b2"),
+        out(null, "idea suelta", "b3"),
+        out("obj-target", "Árbol Trimestral", "b4"),
+      ],
+    });
+    const onSelect = vi.fn();
+    render(<PageEditor object={target} onSelect={onSelect} />);
+    const section = await screen.findByRole("region", { name: "Enlaza a" });
+    const resolved = await within(section).findByRole("button", { name: "Bitácora semanal" });
+    expect(within(section).getAllByRole("listitem")).toHaveLength(2);
+    const unresolved = within(section).getByText("idea suelta");
+    expect(unresolved.getAttribute("title")).toBe("Ninguna página tiene este título todavía");
+    fireEvent.click(resolved);
+    expect(onSelect).toHaveBeenCalledWith(note);
   });
 
   it("links the first unlinked mention in Y.XmlFragment('body') and refreshes lists", async () => {

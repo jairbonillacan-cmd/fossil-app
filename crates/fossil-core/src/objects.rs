@@ -81,6 +81,17 @@ pub struct Link {
     pub kind: LinkKind,
 }
 
+/// A link leaving a page (outgoing links panel): `to_object` is the live page it
+/// resolves to, or `None` when no live page answers to `target` yet.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+pub struct OutgoingLink {
+    pub from_block: Option<BlockId>,
+    pub to_object: Option<ObjectId>,
+    /// Title of the resolved page, or the text the link points to when unresolved.
+    pub target: String,
+    pub kind: LinkKind,
+}
+
 /// An object whose title matches another object's content without a link yet.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 pub struct Mention {
