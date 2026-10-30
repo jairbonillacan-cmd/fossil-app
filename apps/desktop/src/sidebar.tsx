@@ -116,6 +116,24 @@ function ObjectTypeIcon(props: { object: ObjectMeta; hasChildren: boolean }) {
   );
 }
 
+/** Ancestors of `id` folded in the tree, so the open page can be revealed (outermost first). */
+export function collapsedAncestors(
+  objects: readonly ObjectMeta[],
+  id: ObjectId | null,
+  expanded: Record<string, boolean>,
+): ObjectId[] {
+  const byId = new Map(objects.map((o) => [o.id, o]));
+  const out: ObjectId[] = [];
+  const seen = new Set<ObjectId>();
+  let parent = id ? byId.get(id)?.parent : null;
+  while (parent && !seen.has(parent) && byId.has(parent)) {
+    seen.add(parent);
+    if (expanded[parent] === false) out.unshift(parent);
+    parent = byId.get(parent)?.parent ?? null;
+  }
+  return out;
+}
+
 /** Hierarchical sidebar (#26, #31, #107): folder/page tree, drag-and-drop move, expanded persistence, and Ctrl+P switcher. */
 export function Sidebar({
   vaultName,
@@ -153,6 +171,26 @@ export function Sidebar({
       return next;
     });
   };
+
+  // Reveals the page when it opens: unfolds its ancestors and scrolls its row into view. Once
+  // per opened page, so folding its folder by hand afterwards sticks.
+  const revealedRef = useRef<ObjectId | null>(null);
+  const expandedRef = useRef(expandedMap);
+  expandedRef.current = expandedMap;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reveal only when the open page or the list changes, never on a manual fold.
+  useEffect(() => {
+    if (!objects || !selectedId || revealedRef.current === selectedId) return;
+    revealedRef.current = selectedId;
+    for (const id of collapsedAncestors(objects, selectedId, expandedRef.current)) {
+      setNodeExpanded(id, true);
+    }
+    const frame = requestAnimationFrame(() =>
+      document
+        .querySelector<HTMLElement>(`[data-object-row="${selectedId}"]`)
+        ?.scrollIntoView?.({ block: "nearest" }),
+    );
+    return () => cancelAnimationFrame(frame);
+  }, [objects, selectedId]);
 
   const refresh = useCallback(() => {
     void commands
@@ -282,6 +320,7 @@ export function Sidebar({
               }
             }}
             aria-current={isActive ? "page" : undefined}
+            data-object-row={object.id}
             data-drop-target={isDrop ? "true" : undefined}
             className="flex min-w-0 flex-1 items-center gap-2 rounded border border-transparent px-2.5 py-1.5 text-left text-sm transition-colors duration-150 ease-out hover:bg-[color-mix(in_srgb,var(--accent)_6%,transparent)] focus-visible:outline-2 focus-visible:outline-[color:var(--accent)] aria-[current=page]:border-[color:var(--border)] aria-[current=page]:bg-[color-mix(in_srgb,var(--accent)_10%,var(--bg-elevated))] aria-[current=page]:font-semibold aria-[current=page]:shadow-[inset_3px_0_0_var(--accent)] data-[drop-target=true]:border-[color:var(--accent)] data-[drop-target=true]:bg-[color-mix(in_srgb,var(--accent)_12%,var(--bg-elevated))] in-data-[density=compact]:py-1 in-data-[density=compact]:text-xs"
           >
