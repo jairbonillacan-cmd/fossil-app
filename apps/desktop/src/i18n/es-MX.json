@@ -84,7 +84,9 @@
     },
     "wikilink": {
       "label": "Enlazar objeto",
-      "create": "Crear"
+      "create": "Crear",
+      "pick": "Elige la página",
+      "ambiguous": "Varias páginas tienen este título: haz clic para elegir una"
     },
     "tag": {
       "label": "Etiquetas"

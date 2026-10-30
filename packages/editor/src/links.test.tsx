@@ -6,6 +6,7 @@ import {
   extractDocumentTags,
   FossilEditor,
   parseInlineLinks,
+  splitWikilink,
   type WikilinkItem,
 } from "./index";
 
@@ -62,5 +63,86 @@ describe("Wikilinks [[ ]] and #tags (#24)", () => {
     fireEvent.mouseDown(await screen.findByRole("option", { name: "#marca/acme" }));
     await waitFor(() => expect(container.querySelector('[data-tag="marca/acme"]')).not.toBeNull());
     if (ref.current) expect(extractDocumentTags(ref.current.state.doc)).toEqual(["marca/acme"]);
+  });
+});
+
+const ID_A = "01JABCDEFGHJKMNPQRSTVWXYZ0";
+const ID_B = "01JABCDEFGHJKMNPQRSTVWXYZ1";
+const TWINS: readonly WikilinkItem[] = [
+  { id: ID_A, title: "Reunión semanal", hint: "Ventas" },
+  { id: ID_B, title: "Reunión semanal", hint: "Producto" },
+  { id: "01JABCDEFGHJKMNPQRSTVWXYZ2", title: "Plan editorial Q4" },
+];
+
+function renderEditor(ambiguousTitles?: ReadonlySet<string>) {
+  const ref: { current: Editor | null } = { current: null };
+  const view = render(
+    <FossilEditor
+      doc={new Y.Doc()}
+      transport={{ load: async () => new Uint8Array(), apply: async () => {} }}
+      onSearchObjects={() => TWINS}
+      {...(ambiguousTitles ? { ambiguousTitles } : {})}
+      onReady={(e) => {
+        ref.current = e;
+      }}
+    />,
+  );
+  return { ...view, ref };
+}
+
+describe("Repeated titles in [[ ]] (#137)", () => {
+  it("splits the id form from a plain title or alias", () => {
+    expect(splitWikilink(`${ID_A}|Reunión semanal`)).toEqual({
+      id: ID_A,
+      title: "Reunión semanal",
+    });
+    expect(splitWikilink(`${ID_A}#blk-1|Reunión semanal`)).toEqual({
+      id: ID_A,
+      title: "Reunión semanal",
+    });
+    expect(splitWikilink("Plan editorial Q4|el plan")).toEqual({
+      id: null,
+      title: "Plan editorial Q4",
+    });
+  });
+
+  it("lists repeated titles apart and saves the chosen one by id", async () => {
+    const { container, ref } = renderEditor();
+    await waitFor(() => expect(ref.current).not.toBeNull());
+
+    ref.current?.commands.insertContent("Ver [[Reunión");
+    expect(
+      await screen.findByRole("option", { name: "[[Reunión semanal]] · Ventas" }),
+    ).toBeTruthy();
+    fireEvent.mouseDown(screen.getByRole("option", { name: "[[Reunión semanal]] · Producto" }));
+
+    await waitFor(() => expect(ref.current?.getText()).toContain(`[[${ID_B}|Reunión semanal]]`));
+    // Overlapping decorations split the chip; together the pieces are the whole link.
+    const parts = container.querySelectorAll(`[data-wikilink="${ID_B}|Reunión semanal"]`);
+    expect([...parts].map((p) => p.textContent).join("")).toBe(`[[${ID_B}|Reunión semanal]]`);
+    expect(container.querySelector(".fossil-wikilink-id")?.textContent).toBe(`${ID_B}|`);
+  });
+
+  it("marks a hand-typed repeated title and replaces it with the page picked", async () => {
+    const { container, ref } = renderEditor(new Set(["reunión semanal"]));
+    await waitFor(() => expect(ref.current).not.toBeNull());
+
+    ref.current?.commands.setContent("<p>Ver [[Reunión semanal]] hoy</p>");
+    const chip = await waitFor(() => {
+      const el = container.querySelector('[data-ambiguous="true"]');
+      expect(el).not.toBeNull();
+      return el as Element;
+    });
+    expect(chip.getAttribute("title")).toBe(
+      "Varias páginas tienen este título: haz clic para elegir una",
+    );
+
+    fireEvent.click(chip);
+    const picker = await screen.findByRole("listbox", { name: "Elige la página" });
+    expect(picker.textContent).not.toContain("Plan editorial Q4");
+    fireEvent.mouseDown(screen.getByRole("option", { name: "Reunión semanal · Ventas" }));
+
+    await waitFor(() => expect(ref.current?.getText()).toBe(`Ver [[${ID_A}|Reunión semanal]] hoy`));
+    expect(container.querySelector('[data-ambiguous="true"]')).toBeNull();
   });
 });

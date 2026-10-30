@@ -460,6 +460,13 @@
   text-decoration: underline;
   cursor: pointer;
 }
+.fossil-wikilink-ambiguous {
+  text-decoration-style: wavy;
+  text-decoration-color: var(--fg-muted);
+}
+.fossil-wikilink-id {
+  display: none;
+}
 .fossil-tag {
   border: 1px solid var(--border);
   color: var(--fg-muted);

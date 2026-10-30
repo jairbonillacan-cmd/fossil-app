@@ -84,7 +84,9 @@
     },
     "wikilink": {
       "label": "Link object",
-      "create": "Create"
+      "create": "Create",
+      "pick": "Choose the page",
+      "ambiguous": "Several pages share this title: click to choose one"
     },
     "tag": {
       "label": "Tags"
