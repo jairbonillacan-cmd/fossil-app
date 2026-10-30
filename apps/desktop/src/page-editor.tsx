@@ -520,7 +520,12 @@ export function PageEditor({ object, onSelect, onObjectUpdated, focused = true }
           </Suspense>
         </div>
       )}
-      {focused && aiOpen && <AiChatPanel key={object.id} object={currentObject} />}
+      {/* Hidden, not unmounted, outside the focused pane: the chat and a reply in flight survive (#166). */}
+      {aiOpen && (
+        <div className={focused ? "contents" : "hidden"}>
+          <AiChatPanel key={object.id} object={currentObject} />
+        </div>
+      )}
     </div>
   );
 }
